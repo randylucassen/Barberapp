@@ -1,0 +1,966 @@
+# CLAUDE.md
+
+Context voor Claude (of een andere engineer) die verderwerkt aan dit project.
+Houd dit bestand actueel: werk het bij zodra een fase start/eindigt of een
+belangrijke architectuurkeuze wordt gemaakt.
+
+## Wat dit project is
+
+Groomy MVP — Next.js 15 + TypeScript + Tailwind + Supabase Auth, herbouwd
+vanuit een design-handoffpakket (`design_handoff_groomy_mvp/`, niet meer
+nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
+`PROJECT.md` voor de volledige status, mappenstructuur en architectuur.
+
+## Regels voor dit project
+
+1. **Design-fidelity is leidend.** Kleuren, spacing, radii en copy in de
+   design tokens (`tailwind.config.ts`) en de originele schermen zijn
+   definitief. Wijk er niet vanaf zonder het expliciet met de gebruiker af te
+   stemmen.
+2. **Nederlandse copy, "je/jij", nooit "u".** Sentence case overal. Geen
+   emoji, geen overdreven uitroeptekens.
+3. **Mock data (`src/lib/mock-data.ts`) is nog alleen voor
+   verdiensten/reviews/notificaties** — boekingen zijn sinds Fase 4 echt
+   (Supabase). Betalingen blijven mock/decoratief tot Fase 6.
+4. **Componenten uit `components/ui/` zijn de enige plek voor
+   designsysteem-primitives.** Nieuwe schermen hergebruiken deze in plaats
+   van eigen knoppen/inputs te stijlen.
+5. **`npm install`/`npm run dev`/`npm run build` kunnen door Claude
+   uitgevoerd worden** — de sandbox heeft inmiddels netwerktoegang. Draai
+   `npm run build` (type-check + lint) na elke fase vóór je die als
+   afgerond markeert.
+6. **Route-protectie hoort in `src/middleware.ts`, niet per pagina.**
+   Middleware is de enige plek die rol/sessie checkt voor `/klant/*` en
+   `/barber/*` — voeg geen dubbele guards toe in layouts of pagina's, dat
+   geeft alleen inconsistentie.
+7. **RLS-policies op Supabase-tabellen zijn niet genoeg op zichzelf.** Denk
+   bij elke nieuwe tabel na over kolom-niveau grants (zie
+   `supabase/migrations/0001_init_profiles.sql` voor het patroon) — een
+   row-policy laat een gebruiker nog steeds élke kolom van zijn eigen rij
+   aanpassen tenzij je dat expliciet inperkt.
+8. **Stop bij het einde van elke fase** en wacht op akkoord van de gebruiker
+   voordat je aan de volgende fase begint (zie roadmap in `PROJECT.md`).
+9. **`barber_status` heeft vier waarden** (`pending`/`approved`/`rejected`/
+   `suspended`, zie "Barber-verificatiestatus" in `PROJECT.md` voor de
+   volledige betekenis). Er is bewust nog geen adminpanel/goedkeuringsflow
+   gebouwd — bouw die niet stilzwijgend erbij zonder het eerst met de
+   gebruiker af te stemmen, ook al zou het "logisch" aanvoelen om er een
+   klant-zichtbaarheidsfilter of statusscherm bij te pakken.
+10. **Een RLS-policy die tegen een andere RLS-beveiligde tabel subquery't,
+    komt leeg terug voor rijen van iemand anders** — die subquery is zelf
+    óók onderhevig aan de policies van de tabel waartegen hij subquery't.
+    Gebruik hiervoor een kleine `security definer`-functie die alleen een
+    boolean (of het strikt noodzakelijke veld) teruggeeft, nooit de hele
+    rij. Zie `public.is_approved_barber()` in
+    `supabase/migrations/0003_booking_system_schema.sql` als referentie-
+    patroon.
+11. **Migraties gaan via `npx supabase db push`**, niet meer primair via
+    copy-paste in de SQL Editor (dat blijft een werkende fallback). Project
+    is gelinkt aan Supabase-project-ref `xzlppuvfgfjxeqdmrmsu`. Claude kan
+    de CLI zelf installeren/init'en, maar `login`/`link`/`db push` moet de
+    gebruiker zelf draaien (accountauthenticatie/DB-wachtwoord — niet iets
+    om namens de gebruiker in te voeren). Nieuwe migratie = nieuw
+    `NNNN_naam.sql`-bestand met oplopend nummer.
+12. **Postgres' default-privileges op het `public`-schema gelden ook voor
+    views en functies, niet alleen tabellen.** Een nieuwe view/functie die
+    gevoelige data blootlegt heeft dus **altijd** een expliciete
+    `revoke all ... from anon` nodig (zie `0006_lock_down_approved_barbers_view.sql`)
+    — ga er niet vanuit dat `grant select ... to authenticated` alleen
+    betekent dat anon niets kan.
+13. **Bij het testen van twee rollen tegelijk in de browser-preview** (bv.
+    klant + barber): tabbladen delen dezelfde cookies/sessie. Twee sessies
+    tegelijk vereist uitloggen/inloggen tussen stappen, niet zomaar een
+    tweede tabblad met een andere login — anders bounced de middleware je
+    naar de rol die toevallig actief is.
+14. **Testaccounts aanmaken wanneer `signUp()` rate-limited is**: gebruik
+    de Supabase **Admin API** (`POST {url}/auth/v1/admin/users`) met
+    `user_metadata: {role, full_name, phone}` en `email_confirm: true` —
+    dit omzeilt de gratis mailquota volledig én is de enige manier om een
+    werkend account te krijgen in dit schema (de Studio-"Add user"-knop
+    geeft geen `user_metadata` mee, waardoor `handle_new_user()` faalt op
+    de `not null`-constraint van `profiles.role`, zie regel 9/2). De
+    gebruiker draait dit command zelf in hun eigen terminal met hun eigen
+    service role key (nooit door Claude uit te voeren of te zien, zie
+    regel 7) — geef als single-line `curl`-commando (multi-line met `\`
+    breekt vaak bij copy-paste in de terminal).
+15. **De service role key (`src/lib/supabase/service.ts`) is alleen voor
+    tabellen zonder client-grant** (`payments`-writes, `disputes.status`,
+    de escrow-releasejob) — **niet** om bestaande, al-gevalideerde
+    client-acties zoals een boekingsstatus-update mee te vervangen. Zie
+    `/api/stripe/cancel-and-refund` (Fase 6) als referentiepatroon: de
+    statusovergang zelf loopt nog via de normale gebruikerssessie (zodat
+    `check_booking_status_transition()` gewoon blijft valideren — die
+    functie slaat alle validatie over zodra `auth.uid()` null is, wat bij
+    een service-role-call altijd het geval is), en alleen de refund-stap
+    erna (die wél een tabel zonder client-grant raakt) gebruikt de service
+    role. Een RLS-policy die twee tabellen over en weer bevraagt (bv.
+    `bookings` die `payments` checkt, en `payments` die op zijn beurt
+    `bookings` checkt) geeft oneindige recursie (42P17) — zelfde
+    onderliggende patroon als regel 10, nu tussen twee tabellen i.p.v. één
+    tabel die zichzelf bevraagt; fix is dezelfde
+    `security definer`-boolean-functie-truc (zie `booking_has_payment()`
+    in `0010_fix_bookings_payments_rls_recursion.sql`).
+16. **React 19's Strict Mode voert `useEffect` dubbel uit in dev** — voor
+    een gewone read onschadelijk, maar een effect dat een niet-idempotente
+    server-actie aanroept (bv. een nieuwe Stripe PaymentIntent aanmaken)
+    heeft een `useRef`-guard nodig om dubbele side-effects te voorkomen.
+    Zie `/klant/betaling` (Fase 6) — zonder guard ontstonden twee
+    PaymentIntents en twee botsende Payment Element-instanties.
+17. **Stripe-hosted formulieren (Payment Element, Connect-onboarding)
+    draaien in cross-origin iframes** die niet bereikbaar zijn via
+    `read_page`/`find`/JS-injectie vanuit de parent-pagina (browser-
+    sandboxing) — alleen coördinaat-gebaseerde `computer`-clicks werken,
+    en zelfs die zijn onbetrouwbaar op Stripe's KYC-onboardingformulier
+    (vermoedelijk bewuste bot-weerstand: geen netwerkverzoek vuurt zelfs af
+    bij een gesimuleerde klik). Voor het testen van een echte betaling: een
+    PaymentIntent kan ook server-side bevestigd worden zonder de UI, met
+    Stripe's gedocumenteerde testbetaalmethode `pm_card_visa` (zie
+    `stripe.paymentIntents.confirm(id, {payment_method: 'pm_card_visa',
+    return_url: ...})` via de API) — test zo de rest van de flow
+    (webhook, RLS-gating, escrow) zonder van de interactieve
+    kaartinvoer af te hangen.
+18. **Nieuwe `/api/*`-routes die gevoelig zijn voor misbruik krijgen een
+    `checkRateLimit()`-check** (`src/lib/rate-limit.ts`, Fase 11) als
+    eerste regel in de handler — zelfde vroege-return-stijl als
+    `requireAdmin()`. Zonder `UPSTASH_REDIS_REST_URL`/`_TOKEN` (lokaal
+    ontwikkelen) is er bewust geen limiet, dus dit blokkeert lokaal werken
+    nooit. Niet nodig voor routes die al puur intern/machine-to-machine
+    zijn (bv. `/api/cron/*`, met een eigen `CRON_SECRET`-check) — daar
+    voegt een IP-limiet niets toe.
+19. **De Content-Security-Policy in `next.config.ts` geldt alleen bij
+    `NODE_ENV=production`** (Fase 11) — voeg geen nieuwe externe host toe
+    aan `script-src`/`connect-src`/etc. zonder de CSP-array bij te werken,
+    anders breekt die host stilzwijgend in productie terwijl `next dev`
+    niets laat zien (CSP staat daar uit voor HMR).
+20. **Een INSERT-grant zonder kolom-scoping is net zo gevaarlijk als een
+    losse UPDATE-grant** (pre-launch audit, `bookings`) — het is niet
+    genoeg om alleen te checken "wie" mag inserten (`with check
+    (auth.uid() = customer_id)`); zonder een `before insert`-trigger die
+    server-side-bepaalde velden (status, snapshot-prijzen, etc.)
+    afdwingt, kan de client ze gewoon meesturen in de insert-payload.
+    Nieuwe tabellen met een client-insert-grant: denk na of er velden
+    zijn die de client nooit zelf mag bepalen, en dwing die af via een
+    `before insert`-trigger, niet alleen via de policy.
+21. **Admin-mutatieroutes loggen pas naar `admin_action_log` ná een
+    bevestigde treffer** (pre-launch audit) — `.update()`/`.delete()`
+    geven geen `error` bij 0 matchende rijen, dus check altijd
+    `.select()`'s teruggegeven rijen (`data.length > 0`) vóór
+    `logAdminAction()`, anders kan het logboek een actie claimen die
+    feitelijk niets deed.
+22. **`create or replace function` vervangt de hele functiebody — geen
+    incrementele patch.** Bij het uitbreiden van een bestaande trigger-
+    functie (bv. `handle_new_user()` voor een nieuwe rol) moet je de
+    **volledige** oude body meenemen, niet alleen het nieuwe stuk
+    toevoegen. `0016_admin_fase10.sql` deed dit fout: de admin-rol-tak
+    werd toegevoegd, maar de al bestaande `insert into barber_profiles`/
+    `insert into customer_profiles` (sinds `0003`) werd stilzwijgend niet
+    overgenomen — pas maanden later zichtbaar toen een barber een
+    FK-fout kreeg. Diff een nieuwe `create or replace function`-body
+    altijd expliciet tegen de vorige versie in git/migratiegeschiedenis
+    vóór je 'm pusht.
+23. **Kolom-grants (`grant select (kolom, ...) on tabel to rol`) gelden per
+    rol, niet per policy.** Als twee RLS-policies op dezelfde tabel matchen
+    voor verschillende doelgroepen (bv. "eigen rij, alles zichtbaar" en
+    "andermans rij, alleen veilige kolommen zichtbaar"), dan bepaalt de
+    kolom-grant voor die rol nog steeds welke kolommen **iedereen** met die
+    rol mag lezen — ongeacht welke policy de rij toestond. Een kale `grant
+    select on tabel to authenticated` (zonder kolomlijst) geeft dus alle
+    kolommen van élke rij die de gecombineerde policies doorlaten, ook als
+    de bedoeling was "vreemden zien alleen X, jijzelf ziet alles" (gevonden
+    op `barber_profiles`, zie `0020_lock_down_barber_profiles_columns.sql`
+    — `iban`/`kvk_number`/`insurance_doc_url`/`id_doc_url` waren zo voor elke
+    ingelogde klant leesbaar via een rechtstreekse `barber_profiles`-call,
+    ook al gebruikte de app zelf alleen de veilige `approved_barbers`-view).
+    Fix voor "eigen volledige rij lezen" wanneer de brede grant is
+    ingeperkt tot veilige kolommen: een `security definer`-functie die
+    intern op `auth.uid()` filtert en de volledige rij teruggeeft (zie
+    `get_own_barber_profile()`) — dezelfde functie-truc als regel 10, hier
+    niet voor RLS-recursie maar voor een kolom-grant die anders ook de
+    eigen rij zou afknippen.
+
+## Statuslog
+
+- **Fase 0: afgerond.** Next.js-project opgezet, design tokens overgezet
+  naar Tailwind, 16 UI-componenten + 7 shared componenten gebouwd, alle
+  schermen uit beide ui_kits herbouwd met mock data. Lokaal getest door de
+  gebruiker (`npm install && npm run dev` werkt). Tijdens deze fase is ook
+  een kritieke Next.js-kwetsbaarheid (CVE-2025-66478) gepatcht: `next`
+  15.1.6 → 15.5.20, `eslint` → 9.39.5 (+ migratie naar flat config,
+  `eslint.config.mjs`), root-`postcss` → 8.5.10.
+- **Fase 1: afgerond.** Supabase Auth toegevoegd:
+  - `profiles`-tabel (rol customer/barber, RLS + kolom-niveau grants, zie
+    `supabase/migrations/0001_init_profiles.sql`) met trigger die de rij
+    aanmaakt bij registratie.
+  - Registratie/login voor klant én barber (`/klant/login|register`,
+    `/barber/login|register` — barber had nog geen eigen auth-schermen,
+    die zijn nieuw toegevoegd), e-mailbevestiging verplicht.
+  - `src/middleware.ts`: rol-gebaseerde route-protectie voor alle
+    `/klant/*` en `/barber/*` routes, geen per-pagina guards.
+  - `src/app/auth/confirm/route.ts`: verwerkt bevestigings-/reset-links
+    server-side (`verifyOtp`), `src/app/auth/error/page.tsx` voor
+    verlopen/ongeldige links.
+  - Wachtwoord vergeten/instellen voor beide rollen.
+  - Logout: klant via bestaande `instellingen`-pagina (nu echt gewired),
+    barber via nieuwe knop op `profiel` (barber had nog geen
+    instellingenscherm — geen nieuw scherm toegevoegd, logout staat direct
+    op de bestaande profielpagina).
+  - `barber/aanmelden` zet nu `profiles.onboarding_completed = true` bij
+    versturen; de KvK/verificatie/diensten-velden zelf zijn nog steeds
+    lokale UI-state (geen backend-opslag — bewuste scope-afbakening, zie
+    `PROJECT.md`).
+  - `npm run build` en `npm run lint` draaien beide schoon (0 errors,
+    0 warnings).
+  - **Middleware/route-protectie live geverifieerd** via de browser-preview
+    (onterecht bereiken van `/klant/home` en `/barber/dashboard` zonder
+    sessie wordt correct naar de eigen-rol login geredirect, publieke
+    routes blijven bereikbaar). De volledige registratie → bevestigingsmail
+    → login-ronde kon **niet** live getest worden: Supabase's gratis
+    ingebouwde mailservice heeft een lage rate limit die tijdens het testen
+    is opgebruikt. Geen enkele testgebruiker is daadwerkelijk aangemaakt.
+    Gebruiker test dit zelf zodra de limiet reset is (~1 uur) of zodra
+    custom SMTP is ingesteld — meld het als er iets misgaat.
+  - **Architectuur-voorbereiding barber-verificatie** (2026-07-17, op
+    verzoek van de gebruiker, nog binnen Fase 1): `barber_status` uitgebreid
+    met `suspended` (`supabase/migrations/0002_barber_status_suspended.sql`),
+    betekenis van alle vier statussen gedocumenteerd (zie PROJECT.md). Geen
+    adminpanel, geen goedkeuringsflow, geen klant-zichtbaarheidsfilter en
+    geen statusschermen voor barbers gebouwd — dat is expliciet uitgesteld
+    tot de fase waarin het adminpanel gebouwd wordt.
+- **Fase 2: afgerond.** Volledig boekingensysteem-schema toegevoegd
+  (`supabase/migrations/0003_booking_system_schema.sql`), schema-only —
+  geen UI-wiring:
+  - `barber_profiles`/`customer_profiles`: puur additieve 1:1-extensies op
+    `profiles` (geen wijziging aan Fase 1). Signup-trigger
+    (`handle_new_user`) uitgebreid via `create or replace` om de juiste
+    extensierij aan te maken.
+  - `services`, `bookings`, `payments`, `reviews`, `disputes`,
+    `notifications` — enums/relaties/indexes, plus RLS + kolom-grants per
+    tabel volgens hetzelfde patroon als `profiles` (payments/disputes-
+    resolutie/notifications-insert zijn bewust niet client-schrijfbaar).
+  - Geldbedragen als integer cents, snapshot-velden op `bookings` zodat
+    latere service-wijzigingen oude boekingen niet breken.
+  - RLS-recursion opgelost met `public.is_approved_barber()` (zie regel 10
+    hierboven) — services/barber-profielen zijn al filterbaar op
+    `barber_status = 'approved'`, nog niet gebruikt in de UI.
+  - Rating gecached op `barber_profiles` via trigger op `reviews`-inserts.
+  - `npm run build`/`npm run lint` ongewijzigd schoon (geen app-code
+    aangepast). Migratie zelf niet live tegen een DB getest (geen
+    DB-toegang vanuit mijn kant) — gebruiker voert 0003 uit in de Supabase
+    SQL Editor, na 0001/0002.
+- **Fase 3: afgerond.** Barber-onboarding echt werkend gemaakt
+  (`supabase/migrations/0004_barber_verification.sql` +
+  `/barber/aanmelden`, `/barber/werkgebied`, `/barber/beschikbaarheid`,
+  `/barber/in-behandeling`):
+  - Nieuwe kolommen op `barber_profiles`: `avatar_url`, `diploma_url`,
+    `availability` (simpele dag-aan/uit JSONB-map, geen aparte tabel — de
+    UI biedt nog geen tijdvakken per dag aan).
+  - Twee Storage-buckets: `barber-media` (publiek, avatar/portfolio) en
+    `barber-documents` (privé, ID/verzekering/diploma), RLS gescopet op
+    `{userId}/...`-pad = `auth.uid()`. Nieuwe helper
+    `src/lib/supabase/storage.ts` (`uploadBarberFile`).
+  - `/barber/aanmelden` laadt/prefilled nu bestaande data, uploadt echt
+    naar Storage (4 tegels, incl. een **nieuwe "Verzekering"-tegel** die
+    niet in het originele designpakket zat maar expliciet in de Fase
+    3-roadmap stond), en schrijft bij versturen naar `profiles`,
+    `barber_profiles` en `services` (services: delete + re-insert, geen
+    natuurlijke unique-constraint voor upsert).
+  - `/barber/in-behandeling` toont nu de echte `barber_status`
+    (pending/rejected/suspended eigen copy, approved redirect naar
+    dashboard) — laat alleen de eigen status zíen, wijzigen blijft Fase 10.
+  - `npm run build`/`npm run lint` schoon.
+  - **Migraties toegepast (2026-07-17)**: gebruiker heeft `npx supabase
+    login` → `link --project-ref xzlppuvfgfjxeqdmrmsu` → `db push`
+    gedraaid (Supabase CLI toegevoegd als devDependency, `supabase init`
+    gedraaid — zie ook `supabase/config.toml`). Alle 9 tabellen en beide
+    Storage-buckets geverifieerd aanwezig (zie verificatiemethode hieronder
+    onder "RLS/Storage verifiëren zonder service role key").
+  - **Volledig end-to-end getest (2026-07-17)** met twee echte testaccounts
+    (klant + barber, e-mail handmatig bevestigd via
+    `update auth.users set email_confirmed_at = now() where email = ...` —
+    het dashboard van deze Supabase-versie had geen directe "confirm
+    email"-knop). Bevestigd werkend: registratie, login, rol-scheiding in
+    beide richtingen (live, niet alleen met een lege sessie), uitloggen,
+    en de volledige barber-aanmeldflow incl. **4 echte bestandsuploads**
+    naar Storage (getest via `DataTransfer`-injectie op de hidden file-
+    inputs, zie techniek hieronder). `/barber/werkgebied` en
+    `/barber/beschikbaarheid` bevestigd persistent na page-reload.
+    Wachtwoord-vergeten niet volledig te testen (mailquota opnieuw
+    geraakt), foutafhandeling daarvan wel bevestigd correct.
+  - **Bug gevonden en gefixt tijdens dit testen**: dagvolgorde op
+    `/barber/beschikbaarheid` sprong na de eerste save van chronologisch
+    (Ma-Zo) naar alfabetisch — Postgres JSONB garandeert geen
+    sleutelvolgorde. Fix: vaste `DAY_ORDER`-array i.p.v. `Object.keys()`.
+- **Fase 4: afgerond.** Boekingssysteem echt werkend gemaakt
+  (`supabase/migrations/0005_booking_status_machine.sql`,
+  `0006_lock_down_approved_barbers_view.sql` + alle klant/barber-
+  boekingsschermen):
+  - **Statusmachine als database-trigger** (`check_booking_status_transition`)
+    — valideert elke overgang op toegestane stap + juiste actor
+    (customer/barber). Zie regel 10/12 hierboven voor het patroon.
+  - `approved_barbers`-view + `get_booking_customer_name()` — zelfde
+    `security definer`-patroon als `is_approved_barber()`, laat klant en
+    barber elkaars naam zien zonder `profiles`-RLS te verruimen.
+  - Query/mutation-helpers in `src/lib/supabase/queries.ts`:
+    `getApprovedBarbersWithServices`, `createBooking`,
+    `updateBookingStatus`, `getBooking`, `getActiveBookingForCustomer`,
+    `getPendingRequestForBarber`, `getActiveBookingForBarber`,
+    `getRecentBookingsForBarber`, `getBookingCustomerName`,
+    `getCustomerProfile`.
+  - Cross-scherm state via query-params (`?service=`, `?barberId=`,
+    `?serviceId=`, `?bookingId=`) — nieuw patroon, zie regel/sectie
+    "Fase 4 — architectuur" in PROJECT.md.
+  - `/klant/status` gebruikt polling (4s), geen Realtime-subscriptie.
+  - Klant kiest zelf een barber (geen auto-matching) — bewuste
+    scope-afbakening t.o.v. Fase 5.
+  - `npm run build`/`npm run lint` schoon.
+  - **Volledig end-to-end getest (2026-07-18)**: klant boekt een echte
+    barber → barber accepteert → doorloopt en_route/arrived/in_progress/
+    completed → klant ziet elke wijziging live via polling. Annuleren
+    getest (nieuwe boeking, customer-cancel). Trigger-blokkade live
+    bevestigd: een directe API-call die een `completed`-boeking terugzet
+    naar `requested` gaf exact de verwachte foutmelding
+    ("Ongeldige statusovergang voor klant: completed -> requested").
+  - **Twee bugs gevonden en gefixt tijdens testen**: (1)
+    `approved_barbers`-view was door Postgres' default-privileges ook
+    voor anon leesbaar (zie regel 12) — 0006. (2) servicetag "Baard" op
+    `/klant/home` matchte niet met de echte servicenaam "Baard trimmen" →
+    verkeerde dienst geselecteerd, gefixt door de tag-namen exact te
+    laten matchen met `DEFAULT_SERVICES` in `barber/aanmelden`.
+  - Voor testen: een barber moet handmatig op `approved` gezet worden
+    (geen adminpanel nog) — zie "Admin-goedkeuring van barbers" hieronder.
+- **Fase 5: afgerond.** Automatische matching toegevoegd
+  (`supabase/migrations/0007_matching.sql` +
+  `src/app/api/geocode/route.ts` + nieuwe helpers in `queries.ts` +
+  gewijzigde `barber/dashboard`, `barber/aanvraag`, `klant/barbers`,
+  `klant/boeking`, `klant/notificaties`). Zie "Fase 5 — architectuur" in
+  PROJECT.md voor de volledige toelichting (geocoding-keuze, broadcast/
+  claim-RLS, notificatie-trigger, klant-flow, barber-aanvraag-modi).
+  `npm run build`/`npm run lint` schoon.
+  - **Migratie toegepast (2026-07-18)**: gebruiker heeft `npx supabase db
+    push` gedraaid voor `0007_matching.sql`.
+  - **Volledig end-to-end getest (2026-07-18)**: zie het statusblok
+    bovenaan PROJECT.md voor het volledige testverslag. Kort samengevat:
+    automatische matching (geocoding → dichtstbijzijnde barber →
+    prijsindicatie), broadcast-claim door de barber (tweemaal, beide
+    correct), klant-notificatie bij acceptatie, open-blijven van een
+    verlopen/niet-geclaimde broadcast-aanvraag, en het "geen barbers
+    gevonden"-pad — allemaal live bevestigd. De race-conditie op
+    daadwerkelijk gelijktijdig claimen kon niet met een geconstrueerde
+    parallelle-fetch-test bevestigd worden (liep vast op een verlopen
+    sessie-JWT door de versnelde klok van deze test-sandbox tijdens een
+    lange sessie) — de atomische SQL-garantie zelf is wel grondig
+    doorgenomen bij het schrijven van de migratie. Genoteerd als
+    vervolgpunt in PROJECT.md.
+  - **Testaccounts via de Supabase Admin API aangemaakt**, niet via de
+    normale `signUp()`-flow: de gratis mailquota-rate-limit (zelfde
+    probleem als Fase 1) blokkeerde herhaaldelijk nieuwe registraties.
+    Nieuwe regel: gebruik `POST {url}/auth/v1/admin/users` met de
+    **service role key** (nooit door Claude zelf uit te voeren — de
+    gebruiker draait dit command zelf, zie regel 7) en `user_metadata:
+    {role, full_name, phone}` + `email_confirm: true` om dit volledig te
+    omzeilen. De Supabase Studio-"Add user"-knop werkt hier expliciet
+    **niet** voor: die geeft geen `user_metadata` mee, en
+    `handle_new_user()` (0001) verwacht een niet-lege `role`
+    (`profiles.role` is `not null`) — zonder metadata faalt de trigger en
+    dus de hele user-aanmaak ("Database error creating new user").
+- **Fase 6: afgerond.** Stripe Connect + escrow toegevoegd
+  (`supabase/migrations/0009_stripe_escrow.sql` +
+  `0010_fix_bookings_payments_rls_recursion.sql` + vijf nieuwe Route
+  Handlers onder `src/app/api/stripe/` en `src/app/api/cron/` +
+  `src/lib/pricing.ts`, `stripe.ts`, `stripe-client.ts`,
+  `supabase/service.ts` + gewijzigde `klant/betaling`, `klant/succes`,
+  `klant/status`, `klant/annuleren`, `barber/profiel`,
+  `barber/uitbetalingen`, `barber/verdiensten` + nieuw scherm
+  `klant/geschil`). Zie "Fase 6 — architectuur" in PROJECT.md voor de
+  volledige toelichting (Connect Express-accounts, het
+  separate-charges-and-transfers-escrowpatroon, de sequencing-fix voor
+  barber-zichtbaarheid, het 24-uurs geschillenvenster, automatische
+  refund bij annuleren). `npm run build`/`npm run lint` schoon.
+  - **Migraties toegepast (2026-07-18)**: gebruiker heeft `npx supabase db
+    push` gedraaid voor `0009` en, na een tijdens testen gevonden
+    RLS-recursiebug (zie regel 15), ook voor `0010`.
+  - **Volledig end-to-end getest (2026-07-18)**: zie het statusblok
+    bovenaan PROJECT.md voor het volledige testverslag. Drie echte bugs
+    gevonden en gefixt tijdens dit testen (RLS-recursie tussen
+    `bookings`/`payments`, dubbele PaymentIntent door React 19 Strict
+    Mode, crashende i.p.v. per-boeking afgehandelde mislukte Stripe
+    Transfer in de release-cron — zie regels 15/16 en "Fase 6 —
+    architectuur"). Live bevestigd: een echte testbetaling (bevestigd via
+    Stripe's API met de testbetaalmethode `pm_card_visa`, zie regel 17)
+    maakte de boeking pas ná de webhook zichtbaar voor de barber, die de
+    volledige rit doorliep met echte bedragen op
+    verdiensten/uitbetalingen; een geannuleerde betaalde boeking kreeg een
+    echte, volledige Stripe-refund; een geschil binnen het 24-uursvenster
+    blokkeerde de automatische vrijgave, en na resolutie rapporteerde de
+    vrijgave-job correct dat de barber nog niet Stripe-gekoppeld was.
+    Stripe Connect account-aanmaak en de Account Link-redirect zijn
+    bevestigd te werken; het interactief invullen van Stripe's eigen
+    gehoste KYC-onboardingformulier kon niet geautomatiseerd worden (zie
+    regel 17) — genoteerd als vervolgpunt in PROJECT.md.
+- **Fase 7: afgerond.** Reviews gekoppeld aan echte UI
+  (`supabase/migrations/0012_reviews.sql` + nieuwe query-helpers
+  `createReview`/`getReviewForBooking`/`getReviewsForBarber` in
+  `queries.ts` + herbouwde `klant/review`, gewijzigde `klant/status`,
+  `barber/reviews`, `barber/profiel`). Zie "Fase 7 — architectuur" in
+  PROJECT.md voor de volledige toelichting — het schema/RLS/de
+  rating-trigger bestonden al sinds Fase 2, puur nooit aangeroepen.
+  Zelfde `security definer`-patroon als `get_booking_customer_name`
+  (regel 10) hergebruikt voor `get_barber_reviews()` (reviewer-naam
+  tonen zonder profiles-RLS te verruimen). De volledig decoratieve
+  fooi-knop uit het oude mock-scherm is met de gebruiker afgestemd
+  verwijderd (geen backend, niet in de roadmap-eis). `npm run
+  build`/`npm run lint` schoon.
+  - **Migratie toegepast (2026-07-18)**: gebruiker heeft `npx supabase db
+    push` gedraaid voor `0012`.
+  - **Volledig end-to-end getest (2026-07-18)**: een 5-sterren-review met
+    tekst op een afgeronde boeking werkte de barber's `rating_avg`/
+    `rating_count` meteen bij (trigger voor het eerst aangeroepen),
+    zichtbaar op `/barber/reviews` (met de echte reviewer-naam),
+    `/barber/profiel` en `/klant/barbers` (die laatste was al sinds
+    Fase 4 bedraad, toonde meteen echte cijfers zonder wijziging). De
+    "al beoordeeld"-staat en het verdwijnen van de review-knop op
+    `/klant/status` zijn beide bevestigd.
+- **Fase 8: afgerond.** Notificaties toegevoegd
+  (`supabase/migrations/0013_notifications_fase8.sql` +
+  `src/lib/resend.ts`, `src/lib/push.ts`, `public/sw.js` + nieuwe route
+  `src/app/api/notifications/send/route.ts` + gewijzigde
+  `klant/instellingen`, `barber/profiel`, `barber/dashboard` + nieuw
+  scherm `barber/notificaties` + gedeelde `NotificationsList`-component).
+  Zie "Fase 8 — architectuur" in PROJECT.md voor de volledige toelichting
+  (het centrale fan-out-trigger-patroon, welke bron welk notificatietype
+  vult, de bewust weggelaten broadcast-fan-out, Resend/Web Push-opzet).
+  `npm run build`/`npm run lint` schoon.
+  - **Migratie toegepast (2026-07-18)**: gebruiker heeft `npx supabase db
+    push` gedraaid voor `0013`.
+  - **Volledig end-to-end getest (2026-07-18)**: alle vier voorheen nooit
+    geschreven notificatietypen (`new_request`, `payment_received`,
+    `review_reminder`, `dispute`) kregen een werkend schrijfpad, bevestigd
+    via een echte betaling, een echt geopend geschil en een handmatige
+    aanroep van de review-reminder-cron (incl. dedup bij herhaald
+    aanroepen). Eén echte bug gevonden en gefixt tijdens dit testen: de
+    Resend SDK gooit geen exception bij een API-fout (`{ data, error }`
+    i.p.v. throw) — de send-route rapporteerde daardoor `"sent"` terwijl
+    er nul mails verstuurd waren, ontdekt door Resend's eigen `/emails`-
+    lijst-API te bevragen i.p.v. op de eigen "succes"-response te
+    vertrouwen. Ná de fix bevestigd: een echte mail kwam daadwerkelijk aan
+    (tijdelijk getest tegen het eigen accountadres, verplicht in Resend's
+    sandbox-modus zonder geverifieerd domein). Beide notificatieschermen
+    (klant + nieuw barber-scherm) en de dashboard-bell bevestigd werkend.
+    **Niet volledig te testen**: live push-aflevering, omdat de
+    browser-testtool `Notification.permission` vast op `"denied"` heeft
+    staan (geen promptbare staat) — het subscribe-pad faalt wel bevestigd
+    netjes bij geweigerde toestemming. Genoteerd als vervolgpunt in
+    PROJECT.md.
+- **Fase 9: afgerond.** Wallet & Loyaliteit toegevoegd
+  (`supabase/migrations/0014_wallet_loyalty_fase9.sql` +
+  `0015_fix_wallet_topup_notification_locale.sql` + `src/lib/wallet.ts` +
+  nieuwe route `src/app/api/wallet/create-topup-intent/route.ts` +
+  gewijzigde `src/app/api/stripe/webhook/route.ts` en
+  `create-payment-intent/route.ts` + nieuwe gedeelde componenten
+  `src/components/wallet/{WalletOverview,TopupCheckout,TopupSuccess}.tsx`
+  + nieuwe schermen `klant/wallet`/`barber/wallet`
+  (elk met `opwaarderen` + `opwaarderen/succes`) + gewijzigde
+  `klant/profiel`, `barber/profiel`, `klant/register`, `barber/register`,
+  `klant/betaling`). Abonnementen bewust buiten scope gehouden (afgestemd
+  met de gebruiker vóór de bouw), zie "Bekende gaps" in PROJECT.md. Zie
+  "Fase 9 — architectuur" in PROJECT.md voor de volledige toelichting
+  (het ledger-patroon, waarom de wallet losstaat van het
+  boekingsbetaalproces, de kortingscode-correctie in de Stripe-webhook,
+  de referral-bonus-timing). `npm run build`/`npm run lint` schoon.
+  - **Migraties toegepast (2026-07-19)**: gebruiker heeft `npx supabase
+    db push` gedraaid voor `0014` en `0015`.
+  - **Volledig end-to-end getest (2026-07-19)**: opwaarderen boven de
+    bonusdrempel (€100 → €10 bonus, twee ledger-rijen, saldo correct) en
+    eronder (€10 → geen bonus); een echte kortingscode (10%) verlaagde
+    het daadwerkelijke Stripe-bedrag correct (€40,25 → €36,22), de
+    `payments`-rij kreeg het juiste `discount_cents`, barber-payout bleef
+    ongewijzigd, en hergebruik door dezelfde gebruiker werd terecht
+    geweigerd; loyaliteitspunten correct verdiend (klant wel, barber
+    niet) en correct in te wisselen (incl. beide weigeringspaden);
+    referral-bonus (€5/€5) correct toegekend bij de eerste afgeronde
+    boeking van een referee en terecht niet opnieuw bij een tweede
+    boeking; een RLS-steekproef bevestigde dat de anon-rol nul toegang
+    heeft en een ingelogde gebruiker geen ander walletsaldo kan lezen.
+    Eén echte bug gevonden en gefixt tijdens dit testen: de opwaardeer-
+    notificatie gebruikte een `to_char`-format dat altijd een punt als
+    decimaalteken gaf ("€100.00") i.p.v. de komma die de rest van de
+    Nederlandstalige UI gebruikt — gefixt in migratie `0015`.
+    **Niet via de UI te automatiseren**: het daadwerkelijk invullen van
+    Stripe's Payment Element-iframe (zelfde bekende beperking als de
+    Stripe Connect-onboarding uit Fase 6) — betalingen zijn in plaats
+    daarvan bevestigd door de al aangemaakte PaymentIntents rechtstreeks
+    via de Stripe API te confirmen met een test-kaarttoken, wat exact
+    hetzelfde webhookpad triggert als een echte UI-betaling.
+- **Fase 10: afgerond.** Admin Dashboard toegevoegd
+  (`supabase/migrations/0016_admin_fase10.sql` + `src/lib/supabase/
+  admin.ts` + gewijzigde `src/middleware.ts` + nieuw, gedeeld
+  `src/app/geschorst/page.tsx` + nieuwe routegroep `src/app/admin/*`
+  (`layout`, `login`, `page`, `barbers`, `geschillen`, `betalingen`,
+  `reviews`, `kortingscodes`, `gebruikers`, `logboek`) + `src/components/
+  admin/AdminShell.tsx` + nieuwe routes `src/app/api/admin/*`). Zie
+  "Fase 10 — architectuur" in PROJECT.md voor de volledige toelichting
+  (het losstaande `admin_users`-identiteitsmodel, de toegangsbeveiliging,
+  het schorsen-mechanisme, het logboek). `npm run build`/`npm run lint`
+  schoon (incl. een kleine, losstaande fix: `.next/**` ontbrak in
+  `eslint.config.mjs`'s ignores, waardoor gegenereerde buildbestanden
+  werden gelint — toegevoegd).
+  - **Migratie toegepast (2026-07-19)**: gebruiker heeft `npx supabase db
+    push` gedraaid voor `0016`.
+  - **Volledig end-to-end getest (2026-07-19)**: **twee echte bugs
+    gevonden en gefixt tijdens dit testen**, allebei dezelfde
+    permissie-valkuil: `admin_users` heeft (terecht) nul client-grants,
+    maar zowel `middleware.ts`'s `/admin/*`-gate als de gedeelde
+    `requireAdmin()`-helper (gebruikt door élke `/api/admin/*`-route)
+    deden de `admin_users`-lookup aanvankelijk met de sessie-client
+    i.p.v. de service role — dat gaf altijd `permission denied` terug,
+    ook voor een echte admin. Vóór de fix kon dus helemaal niet worden
+    ingelogd (gate 1 stuurde na een geslaagde Supabase-login stil terug
+    naar `/admin/login`) en gaf elke admin-actie een 403 (gate 2). Beide
+    gefixt door voor die specifieke lookup `createServiceClient()` te
+    gebruiken, met de sessie-client nog steeds verantwoordelijk voor
+    "wie roept er aan" (`auth.getUser()`). Ná de fix bevestigd: een
+    echte adminlogin, en dat een klant/barber die naar `/admin` navigeert
+    stil naar de eigen home gaat. Barber goedkeuren/schorsen bevestigd
+    (incl. dat `/geschorst` een geschorste barber ook echt uit
+    `/barber/*` weert, niet alleen uit matching). Een geschil
+    "terugbetalen aan klant" leverde een echte Stripe-refund op met
+    `bookings.status` bevestigd ongewijzigd op `completed`. Kortingscode
+    aanmaken/deactiveren bevestigd. Review verwijderen bevestigd, incl.
+    de nieuwe `on_review_deleted`-trigger die de barber-rating correct
+    herberekende. Klant schorsen/herstellen bevestigd via een echte
+    tweede sessie (`/geschorst` bij schorsing). Het logboek bevatte na
+    afloop een correcte, chronologische rij voor elke actie hierboven.
+- **Fase 11: afgerond.** Productie-hardening: security headers + CSP
+  (`next.config.ts`, CSP alleen actief bij `NODE_ENV=production`),
+  ontbrekende `src/app/{error,global-error,not-found}.tsx`, Sentry
+  (`@sentry/nextjs` — `src/instrumentation.ts`, `src/
+  instrumentation-client.ts`, `src/sentry.{server,edge}.config.ts`, bewust
+  zonder `SENTRY_AUTH_TOKEN`/sourcemap-upload), rate limiting op de
+  kwetsbaarste routes (`src/lib/rate-limit.ts`, Upstash Redis —
+  `/api/geocode`, `/api/stripe/create-payment-intent`, `/api/wallet/
+  create-topup-intent`, alle `/api/admin/*`-mutatieroutes), SEO-basis
+  (`src/app/{robots,sitemap}.ts`, OG/Twitter-metadata in `layout.tsx`,
+  placeholder-favicon `src/app/icon.tsx`), `next/image` voor Storage-
+  afbeeldingen. Zie "Fase 11 — architectuur" in PROJECT.md voor de
+  volledige toelichting, het env-vars-overzicht en de checklist voor
+  live gaan. `npm run build`/`npm run lint` schoon.
+  - **Tijdens het bouwen bijgestelde aanname**: de plan-aanname dat de
+    escrow-release-cron nog "handmatig" draaide klopte niet — Fase 6
+    had daar in `0011_escrow_release_cron.sql` al een echte
+    `pg_cron`/`pg_net`-scheduled job voor. Een voorgenomen `vercel.json`-
+    cron is daarom bewust **niet** gebouwd (zou dupliceren); in plaats
+    daarvan staat in PROJECT.md's checklist dat `app_config.api_base_url`
+    na de eerste deploy bijgewerkt moet worden.
+  - **Browser-geverifieerd (2026-07-19)**: `error.tsx` vangt een
+    geforceerde `throw` op (getest via een tijdelijke, meteen weer
+    verwijderde testpagina) en toont de NL-foutpagina; `not-found.tsx`
+    toont nette NL-copy op een onbestaand pad (bevestigd via screenshot);
+    `/robots.txt`/`/sitemap.xml` serveren correct; de security headers
+    staan op elke response, de CSP staat bewust uit in `next dev`. Rate
+    limiting kon niet tegen een echte 429 getest worden (vereist een
+    Upstash-database, pas relevant ná deploy) — wél bevestigd dat de
+    helper zonder Upstash-credentials stilzwijgend "geen limiet"
+    teruggeeft, dus lokaal ontwikkelen niet blokkeert.
+  - Roadmap is hiermee **compleet** (Fase 0 t/m 11). Wacht op de
+    gebruiker voor eventuele vervolgstappen (zie "Openstaande acties voor
+    jou" in PROJECT.md voor de accounts/livegang-checklist).
+- **Pre-launch audit: afgerond (Critical/High).** Volledige codebase-
+  doorlichting vóór echte livegang — architectuur, beveiliging, RLS,
+  Stripe/escrow, performance, matching, notificaties, reviews,
+  adminpanel, foutafhandeling, UX. Vier gespecialiseerde reviewers liepen
+  parallel; elke Critical- en de meeste High-bevindingen zijn daarna zelf
+  opnieuw geverifieerd door de betreffende policy/grant/trigger/route te
+  lezen vóórdat er iets gefixt werd. Drie Critical (een `bookings`-INSERT
+  die élk veld ongecontroleerd doorliet — nep-reviews + prijsmanipulatie
+  mogelijk; een barber die zelf `stripe_payouts_enabled` kon zetten via
+  een te brede kolom-grant; boekingen die permanent op `arrived`/
+  `in_progress` konden vastlopen met escrowgeld en geen enkel herstelpad)
+  en tien High-bevindingen zijn direct gefixt. Zie "Pre-launch audit —
+  architectuur" in PROJECT.md voor de volledige toelichting per fix,
+  inclusief het "wat ik niet end-to-end kon testen"-voorbehoud (geen
+  testaccount-credentials deze sessie). `npm run build`/`npm run lint`
+  schoon. Migratie `0017_prelaunch_audit_fixes.sql` gepusht door de
+  gebruiker (2026-07-19).
+- **Post-audit fixes: afgerond.** Tijdens echt gebruik door de gebruiker
+  (nadat testaccounts werden aangemaakt) kwamen twee problemen boven die
+  de audit niet had gevonden — zie regel 22 hieronder en "Post-audit
+  fixes" in PROJECT.md voor de volledige toelichting: (1) een regressie
+  in `handle_new_user()` sinds Fase 10 die `barber_profiles`/
+  `customer_profiles`-rijen niet meer aanmaakte, gefixt + backfilled in
+  `0018_fix_missing_profile_extensions.sql`; (2) `middleware.ts` dwingt
+  nu ook `pending`/`rejected`-barbers naar `/barber/in-behandeling` af
+  (was voorheen alleen zichtbaar, niet afgedwongen — een barber kon
+  zichzelf gewoon online zetten zonder ooit goedgekeurd te zijn).
+  Bevestigd via een echte browsersessie. `npm run build`/`npm run lint`
+  schoon. Migratie `0018` — nog te pushen door de gebruiker.
+- **Verdere live-gebruik-fixes: afgerond.** "Demo · states"-secties
+  verwijderd uit `barber/profiel` (incl. de risicovolle link terug naar
+  `/barber/aanmelden`, zie regel 20) en `klant/profiel`. `/barber/
+  dashboard` mistte polling voor nieuwe aanvragen (liep maar één keer,
+  bij page-load) — nu elke 5s, zelfde patroon als `/klant/status`.
+  `/klant/home` toont nu een "Lopende boeking"-kaart (via de sinds Fase 4
+  ongebruikte `getActiveBookingForCustomer()`) die naar `/klant/status`
+  linkt — daarvoor was die statuspagina alleen bereikbaar via de link op
+  `/klant/succes`, direct na betalen, en onvindbaar zodra je wegnavigeerde.
+  Alle drie bevestigd via een echte browsersessie. `npm run build`/
+  `npm run lint` schoon. Zijdelings gevonden, niet gefixt: `Card.tsx`
+  heeft dezelfde a11y-tekortkoming die `Row`/`Checkbox`/`Radio`/`Dialog`
+  al hadden vóór de pre-launch-audit-fix (regel 20 e.v.) — gemist bij die
+  ronde.
+- **"Plan in"/matching/adressuggesties: afgerond.** "Plan in" op `/klant/
+  boeking` bleek geen logica-bug (`setAsap` wisselde altijd correct) —
+  de daaropvolgende native date/time-inputs waren alleen ongestileerd en
+  onzichtbaar in een 13px-rij; vervangen door gelabelde `Input`-
+  componenten. "Geen barbers beschikbaar" bleek ook geen bug: matching
+  vereist zowel `is_online` als dat de huidige weekdag in de barber's
+  `availability`-schema aanstaat, en `"Zo": false` is de kolom-default
+  sinds `0004_barber_verification.sql` — actie voor de gebruiker: "Zondag"
+  aanzetten op `/barber/beschikbaarheid` indien gewenst. Nieuw: adres-
+  suggesties tijdens typen op `/klant/home` en `/klant/boeking`, via een
+  nieuwe `AddressAutocomplete`-component + `/api/address-suggest`-route
+  die naar **PDOK Locatieserver** proxyt (bewust niet Nominatim/`/api/
+  geocode` — diens gebruiksvoorwaarden verbieden autocomplete-gebruik
+  expliciet). Alle drie bevestigd via een echte browsersessie (incl. een
+  volledige auto-match-boeking die na het aanzetten van "Zondag" op een
+  testbarber meteen slaagde). `npm run build`/`npm run lint` schoon.
+- **"Lopende boeking"-banner bleef staan na annuleren: afgerond.** Niet
+  reproduceerbaar via normale klikroutes/browser-terug in de testomgeving
+  (query en `useEffect` bleken bij elke echte re-mount correct) — wel
+  proactief afgedekt tegen de bekende oorzaak (mobiele bfcache, vooral
+  iOS Safari, herstelt de pagina zonder re-mount): `pageshow`-listener op
+  `/klant/home` die bij `event.persisted` de actieve boeking herophaalt.
+  Bevestigd via een gesimuleerde bfcache-restore (booking server-side
+  cancelled, daarna synthetic `pageshow`-event) — banner verdween direct.
+  `npm run build`/`npm run lint` schoon.
+- **Vervolg: banner bleef alsnog staan — dit keer een echt datagat,
+  afgerond.** De `pageshow`-fix loste niet de daadwerkelijke oorzaak op:
+  een dag-oude testboeking stond nog gewoon op `requested` (nooit
+  beantwoord, nooit geannuleerd) — de banner toonde terecht een reële,
+  eerder onzichtbare vergeten aanvraag. Handmatig opgeruimd. Structureel
+  gefixt met een 30-minuten-timeout: nieuwe migratie `0019_expire_stale_
+  requests.sql` (pg_cron elke 5 min, zelfde `app_config`/`CRON_SECRET`-
+  opzet als de escrow-release-cron uit 0011) + nieuwe Route Handler
+  `/api/cron/expire-stale-requests` die verlopen `requested`-boekingen
+  atomisch claimt, annuleert (`cancelled_by = null`, systeem heeft geen
+  actor-rol) en eventueel al betaalde bedragen terugstort via Stripe.
+  `notify_customer_on_status_change()` uitgebreid met een derde tak voor
+  `cancelled_by is null` (informeert klant + evt. barber). `npm run
+  build`/`npm run lint` schoon. Migratie `0019` — nog te pushen door de
+  gebruiker.
+- **Drie kleinere live-gebruik-fixes: afgerond.** Rating/"Vandaag" op
+  `/barber/dashboard` waren hardgecodeerde mock-waarden (`"4,9"`/`"€128"`)
+  uit de design-fase, nooit vervangen bij het wiren in Fase 4 — nu
+  gekoppeld aan `barber_profiles.rating_avg` resp. `getPaymentsForBarber()`
+  (zelfde bron als `/barber/verdiensten`). Geschillen: nieuwe "Bericht
+  sturen"-knop (klant/barber/beide) op `DisputesTable`, verstuurt e-mail
+  via bestaande Resend-integratie (`POST /api/admin/disputes/message`,
+  nieuw) i.p.v. direct meteen terugbetalen/uitbetalen te moeten kiezen —
+  bewust e-mail i.p.v. in-app chat (met gebruiker afgestemd), gelogd in
+  `admin_action_log`. `/klant/status` toonde de barbernaam al tijdens
+  "Aanvraag verstuurd" bij een directe boeking (was geen databug — `barber_
+  id` staat dan al vast) — op verzoek toch pas tonen zodra de barber
+  daadwerkelijk geaccepteerd heeft; naam-fetch losgetrokken van de
+  eenmalige page-load naar een aparte `useEffect` zodat het ook reageert
+  op latere poll-ticks. Alle drie bevestigd via een echte browsersessie.
+  `npm run build`/`npm run lint` schoon. Geen migratie nodig.
+- **Vier verdere live-gebruik-fixes: afgerond.** "Recent" op `/klant/
+  home` was nog steeds hardgecodeerde mock-data ("Yusuf El Amrani") —
+  nieuwe `getRecentCompletedBookingsForCustomer()` (twee losse queries,
+  `approved_barbers` is een view zonder PostgREST-embed), "Opnieuw" boekt
+  dezelfde barber+dienst direct opnieuw. `AddressAutocomplete` vereiste
+  een dubbele klik op een suggestie: het selecteren zette `value`, wat de
+  gedebouncete fetch opnieuw triggerde en de net-gesloten dropdown ~350ms
+  later weer opende — gefixt met een `skipNextFetchRef`-guard. `/klant/
+  status` had de barbernaam-prefix (vorige fix, regel 20 e.v.) niet
+  overal weggehaald — stond nog bij "Knipbeurt bezig" ("Randy Veel
+  plezier!"); bleek sowieso grammaticaal fout voor bijna elke status, dus
+  nu volledig verwijderd i.p.v. per-status gepatcht. `/api/admin/
+  disputes/resolve` informeerde nooit een van beide partijen over de
+  uitkomst — insert nu een `notifications`-rij voor klant én barber na
+  zowel "refund" als "dismiss" (hergebruikt het bestaande `'dispute'`-
+  type en dus ook de bestaande fan-out-trigger, in-app + e-mail voor
+  beide "gratis"). Alle vier bevestigd via een echte browsersessie
+  (geschil-fix zelfs end-to-end via een los testadmin-account, echt via
+  de UI-route ingelogd). `npm run build`/`npm run lint` schoon. Geen
+  migratie nodig.
+- **Polling crashte op een tijdelijke netwerkstoring: afgerond.** Een
+  `TypeError: Failed to fetch` in de 5s-poll op `/barber/dashboard` kwam
+  onafgevangen in de Next-foutoverlay terecht. Bleek een patroon dat in
+  alle vier de `setInterval`-pollingen in de app zat (`barber/dashboard`,
+  `klant/status`, `klant/succes`, `wallet/TopupSuccess`) — geen enkele had
+  een try/catch om de Supabase-call, dus een falende `fetch()` (netwerk
+  kort weg, laptop uit stand-by, dev-server-herstart) gooide een
+  onafgevangen exception i.p.v. dat de eerstvolgende tick het gewoon
+  opnieuw probeerde. Alle vier voorzien van try/catch (de twee "wacht op
+  betaling"-pollingen tellen een mislukte tick nog wel mee richting hun
+  timeout). Bevestigd door `window.fetch` 6s te patchen zodat elke
+  Supabase-call faalt op een live ingelogde barber-sessie: geen
+  onafgevangen fout, pagina bleef werken, polling hervatte vanzelf.
+  `npm run build`/`npm run lint` schoon. Geen migratie nodig.
+- **Drie nieuwe live-gebruik-fixes: afgerond.** Nieuwe `NotificationBell`
+  (`src/components/shared/`) toont een rood bolletje op de bel-knop
+  (`/klant/home`, `/barber/dashboard`) zodra er een ongelezen notificatie
+  is — nieuwe lichte `hasUnreadNotifications()` (head-only count-query).
+  "Recent" op `/klant/home` bleef alsnog verouderd na de vorige fix: de
+  `pageshow`-restore-listener ververste alleen `activeBooking`, niet
+  `recentBookings` — samengevoegd in één `loadHomeData()`. "Gepland"-tab
+  op `/klant/barbers` deed zichtbaar niets: veranderde alleen `asap` voor
+  de boeking, nooit de getoonde lijst, en "Beschikbaar" per rij was een
+  hardgecodeerde string (nooit gekoppeld aan `is_online`). `BarberListItem`
+  kreeg een echte `isOnline`; "Nu" filtert nu op online barbers, "Gepland"
+  toont iedereen met een echte "Nu beschikbaar"/"Nu niet online"-status.
+  Alle drie bevestigd via een echte browsersessie. Zijdelings gevonden
+  tijdens het bouwen hiervan, apart uitbesteed als losse taak (niet zelf
+  gefixed in deze ronde): `barber_profiles` had een kolomloze SELECT-grant
+  aan `authenticated` — elke klant kon via een rechtstreekse PostgREST-
+  call (i.p.v. de veilige `approved_barbers`-view) iemands volledige
+  profiel lezen, incl. IBAN/KvK/documenten. Gefixt in `0020_lock_down_
+  barber_profiles_columns.sql` (kolom-grant beperkt tot veilige velden +
+  `is_online`, plus `get_own_barber_profile()` zodat een barber zijn eigen
+  volledige profiel blijft zien). `npm run build`/`npm run lint` schoon.
+  Migraties `0019` + `0020` — nog te pushen door de gebruiker.
+- **Regressie van `0020` — "Aanvraag versturen is niet gelukt": afgerond.**
+  Twee bookings-RLS-policies (`0010`, barber-kant van de matching-flow)
+  subquery'en `barber_profiles.lat`/`lng` rechtstreeks i.p.v. via een
+  security-definer-functie — precies regel 10, nu op kolomniveau: `0020`
+  liet `lat`/`lng` bewust buiten de grant, maar miste deze twee policies
+  die er nog rechtstreeks van afhingen. Trof élke boekingspoging (de
+  insert doet een `.select()` erna die dezelfde policies evalueert), niet
+  alleen barbers. Gefixt in `0021_fix_bookings_rls_barber_profiles_grant.
+  sql`: nieuwe `barber_matches_location_and_service()`-boolean-functie,
+  policies aangepast om die te gebruiken. Live gereproduceerd vóór de fix
+  (gepatchte `fetch()` in de browser om de onderliggende `42501`-foutmelding
+  te zien i.p.v. alleen de generieke UI-tekst) — root cause dus hard
+  bevestigd. Migratie nog te pushen; dekt met `0019`/`0020` in één
+  `db push`.
+- **Drie nieuwe live-gebruik-fixes: afgerond.** "Recent" op klant/home was
+  na twee eerdere pogingen (mount, `pageshow`) nóg steeds verouderd —
+  bleek Next.js' eigen client-side router-cache: terugnavigeren naar een
+  bezochte route kan de component-instantie herstellen zonder remount én
+  zonder `pageshow`-event (dat is puur browser-bfcache, een ander
+  mechanisme). Opgelost door ook op `focus`/`visibilitychange` te
+  verversen — bevestigd met een synthetic `focus`-event (bewust niet
+  `pageshow`, om het nieuwe pad te bewijzen). "Knip + baard" → "Knippen +
+  baard" hernoemd in `SERVICE_TAGS`/`DEFAULT_SERVICES` + backfill van
+  bestaande `services`-rijen (klant-tag matcht exact tegen de servicenaam,
+  zie bestaand commentaar in klant/home) — zonder backfill zou de exacte
+  match voor barbers die zich al hadden aangemeld blijven mislukken.
+  Nieuw: `bookings.party_size` (1–6, default 1), stepper op klant/boeking,
+  zichtbaar op barber/aanvraag en barber/rit. Alles in `0022_service_
+  rename_and_party_size.sql`. `npm run build`/`npm run lint` schoon.
+- **Vervolg: "Aantal personen" faalde alsnog na `0022` — nieuwe oorzaak,
+  afgerond.** Elke boeking met `party_size` expliciet in de payload
+  (dus altijd) faalde met `42501 permission denied for table bookings`;
+  zonder dat veld (kolom-default) ging het wél door — leek daardoor
+  willekeurig. Eerst nagelopen of de andere, inmiddels afgeronde
+  achtergrondsessie (`barber_profiles`-kolom-lockdown) de oorzaak was via
+  het volledige sessietranscript (637 berichten) — bleek zich uitsluitend
+  tot `barber_profiles` te beperken, `bookings` nooit aangeraakt. In
+  plaats daarvan bleek `bookings` ergens een kolom-beperkte INSERT-grant
+  te hebben gekregen die in **geen enkel migratiebestand** hier
+  terug te vinden is — vermoedelijk een los/onafgemaakt script buiten de
+  migratiegeschiedenis om. Live geïsoleerd via `curl` (authenticated
+  klantsessie): een mislukt request veld voor veld teruggebracht tot het
+  minimale verschil — alleen `party_size` bleek de trigger. Gefixt in
+  `0023_restore_bookings_insert_grant.sql` (ongerestricteerde INSERT-grant
+  hersteld, zoals oorspronkelijk in 0003 — geen kolomrestrictie nodig
+  voor `bookings`, `set_booking_snapshot_on_insert` uit 0017 overschrijft
+  toch al alle veiligheidskritieke velden server-side). Gepusht en
+  bevestigd via zowel het exacte eerder falende `curl`-request als een
+  volledige browsersessie (3 personen via de stepper, aanvraag verstuurd,
+  correct geland op `/klant/betaling`, `party_size: 3` klopt in de
+  database). De afgeronde achtergrondsessie is op verzoek gearchiveerd.
+- **"Aantal personen" afgemaakt: prijs, duur, bezet-status, gedeeltelijke
+  terugbetaling: afgerond.** Prijs en duur schalen nu allebei server-side
+  met `party_size` in `set_booking_snapshot_on_insert()` (`0024`, `0025`
+  — volledige body herhaald per regel 22 hierboven, elke keer). Barber
+  wordt automatisch uitgesloten van nieuwe matches zolang hij een actieve
+  boeking heeft (`barber_is_online_and_available()`, ook `0025`). Admin
+  kan bij `party_size > 1` een gedeeltelijke terugbetaling doen
+  (`refundPeopleCount` in `/api/admin/disputes/resolve`) — de barber
+  wordt dan meteen (niet pas via de escrow-cron) proportioneel uitbetaald
+  voor de niet-terugbetaalde personen, geblokkeerd met een duidelijke
+  melding als de barber nog niet Stripe-gekoppeld is (zie ook de
+  Bekende-gaps-aantekening in PROJECT.md over waarom die tak niet
+  end-to-end getest kon worden). Alle vier onderdelen vooraf met de
+  gebruiker afgestemd via `AskUserQuestion`, op zijn expliciete verzoek
+  om bijkomstigheden voortaan proactief te bespreken i.p.v. er pas
+  achteraan te fixen. Eén echte bug gevonden en gefixt tijdens dit
+  testen: de refund-stepper in `DisputesTable.tsx` gebruikte in de
+  `setState`-updater een closure over de oude component-state i.p.v. de
+  `c` die de updater zelf binnenkrijgt — twee snelle klikken telden
+  daardoor maar één stap. Zie "Aantal personen" in PROJECT.md voor de
+  volledige toelichting. `npx tsc --noEmit`/`npm run lint` schoon.
+  Migratie `0025` — al gepusht door de gebruiker tijdens deze sessie.
+- **"2951 weken geleden" op klant/home — afgerond.** Root cause: 2
+  boekingen hadden `status = 'completed'` maar `completed_at = null`
+  (restanten van het eerdere onafgemaakte losse script, niet een bug in
+  de normale flow — die zet `completed_at` altijd server-side via de
+  trigger uit `0009`). Postgres sorteert `NULL` **vóóraan** bij `order by
+  ... desc`, dus deze kapotte rijen kwamen bovenaan "Recent" te staan i.p.v.
+  onderaan, en `new Date(null)` gaf epoch 1970 → "2951 weken geleden".
+  Gefixt met een defensieve `.not("completed_at", "is", null)`-filter in
+  `getRecentCompletedBookingsForCustomer()` (queries.ts) — voorkomt dat
+  dit nog een keer kan gebeuren, ook als er ooit weer corrupte data
+  binnenkomt. De 2 kapotte rijen + de boeking die ik deze sessie zelf
+  aanmaakte voor het testen hierboven zijn verwijderd (incl. cascade naar
+  payments/disputes/notifications; `loyalty_ledger_entries` heeft geen
+  `on delete cascade` naar `bookings`, dus die 3 ledger-rijen zijn apart
+  verwijderd vóór de boekingen-delete). Bevestigd via een echte
+  browsersessie: "Recent" toont nu de eerstvolgende twee echte
+  afgeronde boekingen ("2 d geleden"). `npx tsc --noEmit`/`npm run lint`
+  schoon. Geen migratie nodig (query-only fix + eenmalige data-cleanup).
+- **Volledige test-data-reset (2026-07-23), op verzoek van de gebruiker**:
+  alle `bookings` (22), `notifications` (61), `loyalty_ledger_entries` (8),
+  `wallet_ledger_entries` (5), `wallet_topups` (1) verwijderd; `payments`/
+  `reviews`/`disputes`/`discount_code_redemptions` cascadeden automatisch
+  mee vanuit `bookings` (de `on_review_deleted`-trigger uit `0016` vuurde
+  daardoor ook per verwijderde review en herberekende `barber_profiles.
+  rating_avg`/`rating_count` correct terug naar `null`/`0`, bevestigd).
+  `wallets.balance_cents`/`loyalty_points` en `discount_codes.uses_count`
+  zijn losse caches die niet automatisch meeschalen met een cascade-delete
+  — die zijn apart teruggezet naar `0`. Alle bestaande accounts (klant/
+  barber/admin-logins, incl. Test Klant/Test Barber) blijven gewoon
+  bestaan; `admin_action_log` is bewust **niet** gewist (op verzoek).
+  `services`/`barber_profiles`-stamgegevens (KvK, werkgebied, etc.) ook
+  ongemoeid. Puur eenmalige data-cleanup via de service role, geen
+  migratie of code-wijziging.
+- **Meerdere diensten per boeking + favorieten + offline-barber-
+  waarschuwing: afgerond.** Drie afzonderlijke, met de gebruiker
+  vooraf afgestemde features (`AskUserQuestion` voor refund-model,
+  party-size-vervanging, offline-gedrag, favorieten-tab):
+  - **Meerdere diensten + aantal per dienst** (bv. 2x Kids + 1x
+    Knippen+baard) — grootste stuk, echte architectuurwijziging.
+    `party_size` en `bookings.service_id` zijn volledig verwijderd;
+    nieuwe `booking_services`-tabel (one-to-many, alleen leesbaar door
+    klant/eigen-barber, geen enkele schrijf-grant voor `authenticated`).
+    `bookings.price_cents_snapshot`/`duration_minutes_snapshot` blijven
+    bestaan als AGGREGAAT (som over alle regels) en
+    `service_name_snapshot` wordt een samenvattingstekst ("2x Kids,
+    Knippen + baard") — zo blijven de tientallen schermen die deze
+    velden al los uitlazen ongewijzigd werken. Nieuwe
+    `create_booking_with_services()` (security definer) is sinds deze
+    migratie de **enige** manier om een boeking aan te maken —
+    `bookings`' insert-grant voor `authenticated` is ingetrokken (regel
+    20 hierboven dus nog steviger dichtgetimmerd dan met de oude
+    trigger: geen kolom meer waar de client ook maar iets aan kan
+    sleutelen). `barber_matches_location_and_service()` en
+    `find_nearest_eligible_barber()` (broadcast/auto-match-RLS resp.
+    de prijsindicatie-RPC) matchen nu op *alle* regels/servicenamen
+    i.p.v. één exacte naam. Klant/home: tikken op een diensttag toont
+    nu een oplopend telletje-bolletje (1, 2, 3…) i.p.v. een simpele
+    aan/uit-selectie; meerdere tags tegelijk actief = meerdere diensten
+    in de aanvraag. Admin-geschillen: gedeeltelijke terugbetaling gaat
+    nu per dienst-regel i.p.v. per totaal-aantal-personen.
+  - **Favorieten**: nieuwe `customer_favorite_barbers`-tabel (eigen
+    RLS, geen invloed op matching). Toevoegen via een hartje op elke
+    barberrij in `klant/barbers` én op het review-scherm bij 4-5
+    sterren. `klant/barbers`' tweede tab hernoemd van "Gepland" naar
+    "Boek vooruit"; "Favorieten" is een nieuwe derde tab (bewust niet
+    ter vervanging — anders verdwijnt de "vooruit plannen met eender
+    welke barber"-functie).
+  - **Offline-barber-waarschuwing**: `klant/boeking` roept nu
+    `barber_is_online_and_available()` aan voor een direct-gekozen
+    barber (dekt zowel de normale keuze via `klant/barbers` als
+    "Opnieuw" vanuit Recent, die voorheen linea recta naar dit scherm
+    ging zonder ooit de online-status te tonen) en toont een duidelijke
+    banner als die barber offline/bezet is — blokkeert het versturen
+    niet (barber kan binnen het 30-min-venster alsnog reageren), maakt
+    het probleem alleen zichtbaar i.p.v. een stil genegeerde aanvraag.
+  - Volledig end-to-end geverifieerd via een echte browsersessie +
+    directe RPC/RLS-checks: multi-dienst-aanvraag (direct én
+    broadcast/auto-match, incl. een barber die 'm daadwerkelijk claimt
+    via de herschreven RLS-policy), volledige Stripe-betaling en
+    -terugbetaling op de aggregaat-bedragen, de nieuwe
+    Stripe-Connect-guard bij een gedeeltelijke per-regel-terugbetaling
+    (kon niet end-to-end met een echte uitbetaling getest worden — geen
+    van de testbarbers heeft Stripe Connect gekoppeld — wel bevestigd
+    dat de blokkade correct en met een duidelijke melding afslaat),
+    offline-warning-banner, en de favorieten-toggle/tab. `npx tsc
+    --noEmit`/`npm run lint` schoon. Migratie `0027` — al gepusht door
+    de gebruiker tijdens deze sessie (samen met `0026_favorite_
+    barbers.sql`).
+- **Twee live-gebruik-fixes op de multi-diensten-feature: afgerond.**
+  (1) Auto-match toonde bij meerdere diensten pas ná het klikken op
+    "Bevestig aanvraag" wat er eigenlijk was aangevinkt (kaal "…"
+    ervoor) — de oude versie toonde de aangetikte dienstnaam altijd al
+    meteen. `klant/boeking` toont nu bij `auto` + nog geen matchresultaat
+    alvast de gekozen diensten uit `wantedServices` met "Bij matching"
+    als prijs, i.p.v. een placeholder-rij. (2) "Kids" stond wel als tag
+    op klant/home maar zat nooit in `DEFAULT_SERVICES`
+    (`barber/aanmelden`) — geen barber had 'm dus ooit als echte
+    boekbare dienst, waardoor automatisch toewijzen met "Kids"
+    aangevinkt terecht (maar zeer verwarrend) altijd "geen barber
+    gevonden" gaf, ook los van deze sessie se wijzigingen. Nu
+    toegevoegd aan `DEFAULT_SERVICES` (€20/20 min) + backfill voor al
+    goedgekeurde barbers in `0028_add_kids_service.sql` (zelfde patroon
+    als de "Knip + baard"-backfill in `0022`). Beide bevestigd via een
+    echte browsersessie (multi-dienst-auto-match met een Huissen-adres
+    matchte meteen correct nadat bleek dat de eerdere "geen barber"-
+    melding puur aan de ontbrekende Kids-dienst lag, niet aan de nieuwe
+    matching-logica zelf). `npx tsc --noEmit`/`npm run lint` schoon.
+    Migratie `0028` — nog te pushen door de gebruiker.
+
+## Bestandsuploads testen zonder een echte file-picker
+
+De browser-testtool heeft geen "upload file"-actie. Voor het testen van
+`<input type="file">`-uploads: injecteer een `File` via `DataTransfer` en
+dispatch een `change`-event — werkt omdat browsers `input.files =
+dataTransfer.files` toestaan (bedoeld voor precies dit soort automatisering,
+niet te verwarren met een poging een echte user-gesture te faken):
+```js
+const dt = new DataTransfer();
+dt.items.add(new File([bytes], 'naam.png', { type: 'image/png' }));
+input.files = dt.files;
+input.dispatchEvent(new Event('change', { bubbles: true }));
+```
+
+## RLS/Storage verifiëren zonder service role key
+
+Ik heb alleen de anon key (bewust — zie regel 7). Om te checken of een
+tabel/bucket na een migratie echt bestaat, zonder ooit rijen te kunnen
+lezen (RLS blokkeert anon overal):
+
+- **Tabellen**: `GET {url}/rest/v1/{tabel}?select=*&limit=1` met de anon
+  key. `PGRST205`/"relation not found" (404) = tabel bestaat niet.
+  `42501`/"permission denied for table" (401) = tabel bestaat wél, RLS/
+  grants werken zoals bedoeld (dit IS het gewenste resultaat, geen bug).
+- **Storage-buckets**: `GET {url}/storage/v1/bucket/{naam}` met de anon
+  key is **onbetrouwbaar** — geeft ook "Bucket not found" terug als de
+  bucket wél bestaat maar anon geen rechten heeft op bucket-metadata.
+  Gebruik in plaats daarvan de publieke object-URL: `GET {url}/storage/v1/
+  object/public/{bucket}/niet-bestaand-bestand`. "Object not found" =
+  bucket bestaat (het bestand niet, logisch); "Bucket not found" = de
+  bucket zelf bestaat niet. Werkt alleen voor publieke buckets; voor een
+  privé-bucket is dit niet te verifiëren zonder een ingelogde sessie.
+
+## Openstaande beslissingen voor een volgende fase
+
+- **Custom SMTP instellen in Supabase** (Authentication → Settings → SMTP
+  Settings, bv. via Resend) — de gratis ingebouwde mailservice is niet
+  geschikt voor productie en heeft een lage rate limit die al tijdens
+  testen geraakt werd.
+- Welke ORM bovenop het bestaande schema (Supabase/Postgres + eventueel
+  Prisma) — nog niet gekozen.
+- **Stripe Connect Express-onboarding nog nooit met een echt afgeronde
+  KYC-flow getest** (zie "Fase 6 — architectuur" in PROJECT.md) — account-
+  aanmaak en de Account Link-redirect zijn bevestigd, het gehoste
+  formulier zelf kon niet geautomatiseerd doorlopen worden. Vóór een
+  echte launch: eenmalig handmatig doorlopen om te bevestigen dat
+  `stripe_payouts_enabled` na een echte afronding correct bijgewerkt
+  wordt door de `account.updated`-webhook.
+- Precieze per-boeking `paid`-tracking (Stripe's payout-batching maakt dit
+  niet 1-op-1 herleidbaar, zie "Fase 6 — architectuur") — `escrow_state`
+  bereikt in de huidige MVP maximaal `released`.
+- **Mapbox/Google Geocoding & Maps** — Fase 5 gebruikt bewust de gratis
+  Nominatim/OpenStreetMap-geocoding (zie "Fase 5 — architectuur" in
+  PROJECT.md), met de gebruiker afgestemd: ga nu voor de gratis/key-loze
+  optie, maar houd Mapbox/Google genoteerd als upgrade-pad voor als een
+  latere fase (echte live kaart, hogere nauwkeurigheid/rate-limits nodig
+  op productieschaal) daar alsnog voor kiest. Nog niet gekozen.
+- Supabase-gegenereerde database-types (`Database`-generic) zijn nog niet
+  opgezet — `.from(...)`-calls zijn functioneel maar niet volledig
+  type-safe.
+- OAuth (Apple/Google): knoppen staan al (verborgen) in de UI
+  (`OAUTH_ENABLED = false` in beide login-pagina's), echte flow nog niet
+  gebouwd.

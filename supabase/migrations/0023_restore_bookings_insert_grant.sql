@@ -1,0 +1,25 @@
+-- Regressie buiten deze migratiegeschiedenis om: `public.bookings` had
+-- ergens tussen 0022 en nu een kolom-beperkte INSERT-grant gekregen (niet
+-- via een migratiebestand hier, dus vermoedelijk een los/onafgemaakt
+-- script tegen dezelfde database) die `party_size` (nieuw in 0022) niet
+-- meenam. Gevolg: elke boeking waarbij de client `party_size` expliciet
+-- meestuurt (altijd, sinds klant/boeking dat nu doet) faalde met
+-- "permission denied for table bookings" — een boeking zónder
+-- `party_size` in de payload (dan geldt de kolom-default) ging wél door,
+-- wat de fout leek te maken alsof-ie willekeurig optrad.
+--
+-- Live geïsoleerd door bij een reproductie van de mislukking het exacte
+-- request-payload stap voor stap terug te brengen tot het minimale
+-- verschil (curl, authenticated klant-sessie): elk veld weggelaten totdat
+-- alleen `party_size` overbleef als enige oorzaak.
+--
+-- Fix: dezelfde ongerestricteerde INSERT-grant herstellen als 0003 oor-
+-- spronkelijk zette. Bewust geen kolomrestrictie (zoals bij barber_
+-- profiles/0020) — voor bookings-INSERT is dat niet nodig, want
+-- set_booking_snapshot_on_insert (0017) overschrijft server-side toch al
+-- alle veiligheidskritieke velden (status, prijssnapshots) ongeacht wat
+-- de client meestuurt; een kolomrestrictie zou hier alleen onderhoud-
+-- last toevoegen (elke nieuwe kolom moet er dan weer aan toegevoegd
+-- worden) zonder een echt beveiligingsvoordeel, in tegenstelling tot
+-- barber_profiles waar het wél om een reële PII-blootstelling ging.
+grant insert on public.bookings to authenticated;
