@@ -1024,6 +1024,31 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     RPC/query-aanroepen, alleen niet pixel-voor-pixel in de gerenderde
     UI — vraag het gerust nogmaals als de tool het een volgende keer wel
     doet.
+- **Productie-incident: twee echte aanvragen kwamen niet binnen bij de
+  barber (2026-08-14).** Familie van de gebruiker deed op de live
+  Vercel-site twee echte boekingen (Westervoort). Root cause: exact
+  hetzelfde patroon als de eerder gedocumenteerde lokale Stripe-webhook-
+  gap, nu in productie — de betaling slaagde bij Stripe (bevestigd via
+  `stripe.paymentIntents.list()`, beide `status: "succeeded"`), maar de
+  eerste afleverpoging van het bijbehorende `payment_intent.succeeded`-
+  webhook-event naar `barberapp-vz1z.vercel.app/api/stripe/webhook` kwam
+  niet aan — geen `payments`-rij, dus `booking_has_payment()` hield de
+  boeking terecht (naar ontwerp) onzichtbaar voor de barber (regel 15
+  hierboven). De webhook-endpoint zelf bleek correct geconfigureerd
+  (juiste URL, juiste secret) — een handmatige `stripe events resend
+  <event_id>` voor beide gemiste events slaagde direct, waarna beide
+  `payments`-rijen meteen verschenen. Vermoedelijke oorzaak: een
+  Vercel-cold-start die de eerste afleverpoging liet timen; Stripe had
+  dit vermoedelijk ook zelf binnen de gebruikelijke automatische
+  retry-window (minuten tot een uur) opnieuw geprobeerd, maar dat was
+  niet snel genoeg voor een live gebruiker die meteen keek. Geen
+  codewijziging nodig (de webhook-route zelf bevat geen bug — geen
+  rate-limiting erop, verificatielogica correct) — puur operationeel
+  hersteld. **Genoteerd als vervolgpunt, nog niet gebouwd**: een
+  periodieke reconciliatie-cron die recente Stripe-`PaymentIntents` met
+  `status: succeeded` vergelijkt met bestaande `payments`-rijen en
+  ontbrekende alsnog aanmaakt, zodat een gemiste eerste webhook-poging
+  niet meer op een toevallige handmatige `resend` hoeft te wachten.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
