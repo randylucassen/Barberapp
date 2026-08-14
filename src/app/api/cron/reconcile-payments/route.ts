@@ -9,7 +9,7 @@ import { recordSucceededPaymentIntent } from "@/lib/payment-reconcile";
 // waardoor de boeking onzichtbaar bleef voor de barber
 // (booking_has_payment(), zie regel 15 CLAUDE.md). Stripe herprobeert een
 // mislukte webhook zelf ook, maar niet snel genoeg voor iemand die meteen
-// kijkt — deze cron loopt elke 5 minuten en haalt zelf recente
+// kijkt — deze cron loopt elke 2 minuten en haalt zelf recente
 // succesvolle PaymentIntents op, i.p.v. te wachten op Stripe's eigen
 // retry-schema.
 const LOOKBACK_MS = 60 * 60 * 1000;

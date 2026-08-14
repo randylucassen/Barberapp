@@ -36,7 +36,8 @@ $$;
 comment on function public.trigger_reconcile_payments() is
   'Wrapper rond net.http_post() naar /api/cron/reconcile-payments — handmatig te testen met `select public.trigger_reconcile_payments();` in de SQL Editor.';
 
--- Elke 5 minuten, zelfde cadans als expire-stale-requests-job — vaak
--- genoeg om een gemiste webhook-aflevering snel te herstellen, zonder
--- onnodig vaak de Stripe API te bevragen.
-select cron.schedule('reconcile-payments-job', '*/5 * * * *', 'select public.trigger_reconcile_payments();');
+-- Elke 2 minuten — sneller dan de standaard 5-minuten-cadans van de
+-- andere crons (expire-stale-requests), bewust gekozen zodat een gemiste
+-- webhook-aflevering niet te lang onopgemerkt blijft voor een klant/
+-- barber die meteen kijkt.
+select cron.schedule('reconcile-payments-job', '*/2 * * * *', 'select public.trigger_reconcile_payments();');

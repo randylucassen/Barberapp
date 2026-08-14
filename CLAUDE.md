@@ -1051,7 +1051,7 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   `recordSucceededPaymentIntent()`, nu gebruikt door zowel
   `/api/stripe/webhook` (het normale, snelle pad, flink vereenvoudigd
   door de logica hierheen te verplaatsen) als de nieuwe
-  `/api/cron/reconcile-payments` (het vangnet). Die laatste haalt elke 5
+  `/api/cron/reconcile-payments` (het vangnet). Die laatste haalt elke 2
   minuten (`0030_reconcile_payments_cron.sql`, zelfde
   `app_config`/`CRON_SECRET`-opzet als de bestaande crons) alle Stripe-
   PaymentIntents van het afgelopen uur met `status: succeeded` op en
