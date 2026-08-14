@@ -1002,23 +1002,28 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     'm te verzwijgen achter de generieke "niet gelukt"-tekst — specifiek
     voor deze validatiefout is dat relevant, de client-filter dekt het
     gewone pad al af.
-  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. De
-    klant-query is live getest via een rechtstreekse REST-call met een
-    echte JWT van een vers aangemaakte testklant (retourneerde correct
-    alleen de ene barber met een afgeronde testboeking). De RPC-gate zelf
-    is **nog niet** end-to-end getest — migratie `0029` moet eerst
-    gepusht worden; het vóór-migratie-gedrag is wel bevestigd (dezelfde
-    aanvraag slaagt nu nog, zoals verwacht zonder de nieuwe check).
-    Browser-UI-verificatie (herstelknop aanklikken, "Boek vooruit"-tab
-    live bekijken) kon deze sessie niet: de browser-preview-tool bleef
-    vastlopen op elke klik ("Browser pane is currently hidden"), ook na
-    een schone herstart van de dev-server en een nieuw tabblad — een
-    tool-/omgevingsprobleem, geen appcode-probleem (page-tekst/network-
-    logs bevestigden dat de klik nooit aankwam). Vervolgstap zodra de
-    gebruiker `0029` gepusht heeft: de RPC nogmaals rechtstreeks
-    aanroepen (bekende barber → moet slagen, onbekende barber scheduled
-    → moet de nieuwe foutmelding geven) en, als de browser-tool het weer
-    doet, ook visueel bevestigen.
+  - **Geverifieerd (2026-08-14), migratie `0029` gepusht**: `npx tsc
+    --noEmit`/`npm run lint` schoon. Vóór de push al bevestigd dat de
+    klant-query correct alleen de bekende barber teruggeeft (echte JWT
+    van een vers aangemaakte testklant met één afgeronde testboeking) en
+    dat het oude (nog niet gegatete) RPC-gedrag de aanvraag nog gewoon
+    doorliet. Ná de push alle vier de RPC-paden rechtstreeks getest met
+    diezelfde testklant-JWT: bekende barber + scheduled → slaagt;
+    onbekende barber + scheduled → geweigerd met exact de bedoelde
+    Nederlandse foutmelding; onbekende barber + asap → slaagt
+    (uitzondering werkt); broadcast (`p_barber_id = null`) + scheduled →
+    slaagt (uitzondering werkt). Testboekingen en de throwaway
+    testklant zijn na afloop opgeruimd.
+    **Niet gelukt deze sessie**: browser-UI-verificatie (herstelknop
+    aanklikken, "Boek vooruit"-tab live bekijken) — de browser-preview-
+    tool bleef vastlopen op elke klik ("Browser pane is currently
+    hidden"), ook na een schone herstart van de dev-server en een nieuw
+    tabblad; een tool-/omgevingsprobleem, geen appcode-probleem
+    (page-tekst/network-logs bevestigden dat de klik nooit aankwam). De
+    onderliggende logica is dus wel volledig bevestigd via de echte
+    RPC/query-aanroepen, alleen niet pixel-voor-pixel in de gerenderde
+    UI — vraag het gerust nogmaals als de tool het een volgende keer wel
+    doet.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
