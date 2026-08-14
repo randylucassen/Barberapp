@@ -16,9 +16,17 @@ import {
 import { computePriceBreakdown, euro } from "@/lib/pricing";
 import type { BookingRecord, BookingServiceLine } from "@/lib/types";
 
+const RESPONSE_WINDOW_SEC = 5 * 60;
+
+function formatCountdown(totalSec: number): string {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function RequestPage() {
   const router = useRouter();
-  const [sec, setSec] = useState(28);
+  const [sec, setSec] = useState(RESPONSE_WINDOW_SEC);
   const [booking, setBooking] = useState<BookingRecord | null>(null);
   const [lines, setLines] = useState<BookingServiceLine[]>([]);
   const [isBroadcast, setIsBroadcast] = useState(false);
@@ -191,7 +199,7 @@ export default function RequestPage() {
         </div>
       </div>
       <div className="px-5 pt-3 pb-2 border-t border-border">
-        <div className="text-center text-[13px] text-text-tertiary mb-2.5">Reageert automatisch af over {sec} s</div>
+        <div className="text-center text-[13px] text-text-tertiary mb-2.5">Reageert automatisch af over {formatCountdown(sec)}</div>
         {acceptError && (
           <div className="mb-2 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">
             {acceptError}

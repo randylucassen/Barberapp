@@ -1,10 +1,12 @@
 "use client";
+import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, Switch } from "@/components/ui";
 import { Avatar, NotificationBell, Row } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import {
+  getActiveBookingForBarber,
   getBarberProfile,
   getBookingCustomerName,
   getOpenBroadcastRequestForBarber,
@@ -27,6 +29,16 @@ const STATUS_BADGE: Record<BookingStatus, { label: string; variant: "success" | 
   cancelled: { label: "Geannuleerd", variant: "error" },
 };
 
+// Statussen tussen "geaccepteerd" en "afgerond" — een boeking hierin
+// hoort bij /barber/rit, niet bij een gewone lijstrij zonder actie.
+const ACTIVE_RIDE_STATUSES: BookingStatus[] = ["accepted", "en_route", "arrived", "in_progress"];
+const ACTIVE_RIDE_LABEL: Record<string, string> = {
+  accepted: "Bevestigd — klaar om te vertrekken",
+  en_route: "Onderweg naar de klant",
+  arrived: "Aangekomen bij de klant",
+  in_progress: "Knipbeurt bezig",
+};
+
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="flex-1 bg-surface rounded-md px-4 py-3.5">
@@ -42,6 +54,7 @@ export default function BarberDashboardPage() {
   const [online, setOnline] = useState(false);
   const [onlineError, setOnlineError] = useState(false);
   const [hasRequest, setHasRequest] = useState(false);
+  const [activeBooking, setActiveBooking] = useState<BookingRecord | null>(null);
   const [hasUnread, setHasUnread] = useState(false);
   const [bookings, setBookings] = useState<(BookingRecord & { customerName: string })[]>([]);
   const [ratingAvg, setRatingAvg] = useState<number | null>(null);
@@ -81,7 +94,12 @@ export default function BarberDashboardPage() {
   // Zonder polling zou een barber die al op het dashboard staat een
   // nieuwe aanvraag nooit zien verschijnen — de check liep voorheen maar
   // één keer, bij het laden van de pagina (in tegenstelling tot
-  // /klant/status, dat ditzelfde pollingpatroon al gebruikte).
+  // /klant/status, dat ditzelfde pollingpatroon al gebruikte). Dezelfde
+  // tick houdt ook een al-geaccepteerde rit bij: zonder dit was een
+  // geaccepteerde aanvraag na wegnavigeren nergens meer te vinden of te
+  // hervatten (gemeld door de gebruiker, 2026-08-14) — de boeking bleef
+  // best gewoon 'accepted' in de database staan, alleen was er nergens
+  // meer een link terug naar /barber/rit.
   useEffect(() => {
     if (!userId) return;
     const supabase = createClient();
@@ -93,6 +111,7 @@ export default function BarberDashboardPage() {
         const pending = await getPendingRequestForBarber(supabase, userId!);
         const broadcast = online ? await getOpenBroadcastRequestForBarber(supabase) : null;
         setHasRequest(!!pending || !!broadcast);
+        setActiveBooking(await getActiveBookingForBarber(supabase, userId!));
         setHasUnread(await hasUnreadNotifications(supabase, userId!));
       } catch {
         // stil negeren, volgende tick probeert opnieuw
@@ -149,6 +168,21 @@ export default function BarberDashboardPage() {
           </div>
         )}
       </div>
+      {activeBooking && (
+        <div className="px-5 pt-4">
+          <Card variant="inverse" padding={16} onClick={() => router.push("/barber/rit")}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[13px] text-white/60">Actieve rit</div>
+                <div className="text-[15px] font-semibold mt-0.5">{ACTIVE_RIDE_LABEL[activeBooking.status] ?? "Bezig"}</div>
+              </div>
+              <span className="text-accent">
+                <ChevronRight size={22} />
+              </span>
+            </div>
+          </Card>
+        </div>
+      )}
       <div className="px-5 pt-4 flex gap-2.5">
         <Stat label="Vandaag" value={`€${euro(todayCents)}`} accent />
         <Stat label="Boekingen" value={String(bookings.length)} />
@@ -166,6 +200,7 @@ export default function BarberDashboardPage() {
             title={b.customerName}
             sub={`${b.serviceName} · ${b.address}`}
             right={<Badge variant={STATUS_BADGE[b.status].variant}>{STATUS_BADGE[b.status].label}</Badge>}
+            onClick={ACTIVE_RIDE_STATUSES.includes(b.status) ? () => router.push("/barber/rit") : undefined}
           />
         ))}
       </div>

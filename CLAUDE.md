@@ -1044,11 +1044,61 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   niet snel genoeg voor een live gebruiker die meteen keek. Geen
   codewijziging nodig (de webhook-route zelf bevat geen bug — geen
   rate-limiting erop, verificatielogica correct) — puur operationeel
-  hersteld. **Genoteerd als vervolgpunt, nog niet gebouwd**: een
-  periodieke reconciliatie-cron die recente Stripe-`PaymentIntents` met
-  `status: succeeded` vergelijkt met bestaande `payments`-rijen en
-  ontbrekende alsnog aanmaakt, zodat een gemiste eerste webhook-poging
-  niet meer op een toevallige handmatige `resend` hoeft te wachten.
+  hersteld.
+  **Vangnet gebouwd (2026-08-14)**: nieuwe `src/lib/payment-reconcile.ts`
+  bevat de enige bron van waarheid om een succesvolle PaymentIntent om te
+  zetten naar een `payments`-rij (of een verwerkte wallet-topup) —
+  `recordSucceededPaymentIntent()`, nu gebruikt door zowel
+  `/api/stripe/webhook` (het normale, snelle pad, flink vereenvoudigd
+  door de logica hierheen te verplaatsen) als de nieuwe
+  `/api/cron/reconcile-payments` (het vangnet). Die laatste haalt elke 5
+  minuten (`0030_reconcile_payments_cron.sql`, zelfde
+  `app_config`/`CRON_SECRET`-opzet als de bestaande crons) alle Stripe-
+  PaymentIntents van het afgelopen uur met `status: succeeded` op en
+  verwerkt ze alsnog als er nog geen bijbehorende rij bestaat — idempotent
+  (23505-conflict = al verwerkt, geen dubbele actie). Dekt zowel
+  boekingsbetalingen als wallet-topups. `npx tsc --noEmit`/`npm run lint`
+  schoon. Migratie `0030` — nog te pushen door de gebruiker.
+- **Twee losse barber-flow-fixes, gemeld door de gebruiker
+  (2026-08-14).**
+  - **Reactietijd op een aanvraag te kort**: de client-side countdown op
+    `barber/aanvraag` stond op 28 seconden (kennelijk een designfase-
+    placeholderwaarde, nooit bewust op afgestemd) — te kort om realistisch
+    te kunnen reageren. Verhoogd naar 5 minuten (`RESPONSE_WINDOW_SEC`),
+    met een `mm:ss`-weergave i.p.v. kale seconden. De countdown is en was
+    al puur client-side (per page-mount) — de boeking zelf blijft gewoon
+    `'requested'` in de database totdat er expliciet geaccepteerd/
+    geweigerd wordt of de bestaande 30-minuten-timeout (`0019`) 'm
+    opruimt, dus wegnavigeren en binnen die tijd terugkomen (via het
+    dashboard, dat elke 5s op een openstaande aanvraag polt) verliest de
+    aanvraag niet — dat werkte al zo, alleen was het venster te kort om
+    er praktisch gebruik van te maken.
+  - **Geaccepteerde aanvraag onvindbaar na wegnavigeren**: `barber/
+    dashboard` toonde een geaccepteerde boeking wel in de "Vandaag"-lijst
+    (met een "Bevestigd"-badge) maar zonder `onClick` — geen enkele weg
+    terug naar `/barber/rit` behalve de trigger die er de eerste keer
+    naartoe stuurde. De boeking zelf was nooit kwijt (bleef gewoon
+    `'accepted'` in de database), alleen de UI bood geen pad terug. Twee
+    toevoegingen: (1) een nieuwe "Actieve rit"-kaart bovenaan het
+    dashboard (zelfde patroon als de "Lopende boeking"-kaart op
+    `klant/home`), gevuld via `getActiveBookingForBarber()` op dezelfde
+    bestaande 5s-pollingtick als de aanvraag-check; (2) de "Vandaag"-
+    rijen zijn nu klikbaar naar `/barber/rit` zodra de status
+    `accepted`/`en_route`/`arrived`/`in_progress` is. Beide routeren naar
+    een scherm dat zelf al `getActiveBookingForBarber()` gebruikt (geen
+    bookingId-param nodig, Fase 4).
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Browser-
+    UI-klikken kon deze sessie opnieuw niet (dezelfde vastlopende
+    preview-tool als bij de vorige twee features — omgevingsprobleem, zie
+    eerdere aantekening hierboven). Wel hard bevestigd op data-niveau: een
+    verse testbarber met een direct in de database op `'accepted'` gezette
+    boeking (+ bijbehorende `payments`-rij) liet via een echte, ingelogde
+    sessie (niet service role) precies de rij zien die
+    `getActiveBookingForBarber()`/`getRecentBookingsForBarber()` client-
+    side ook zouden ophalen — de RLS/query-laag waar deze twee nieuwe
+    UI-elementen op leunen werkt dus aantoonbaar correct; alleen het
+    daadwerkelijke React-klikken/renderen is niet pixel-voor-pixel gezien.
+    Testdata na afloop opgeruimd.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
