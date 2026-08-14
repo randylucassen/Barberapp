@@ -143,6 +143,30 @@ export async function getCustomerProfile(
   return { id: data.id, defaultAddress: data.default_address };
 }
 
+export async function updateDefaultAddress(
+  supabase: SupabaseClient,
+  userId: string,
+  address: string
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("customer_profiles")
+    .update({ default_address: address })
+    .eq("id", userId);
+  return !error;
+}
+
+export async function updatePersonalInfo(
+  supabase: SupabaseClient,
+  userId: string,
+  input: { fullName: string; phone: string | null }
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: input.fullName, phone: input.phone })
+    .eq("id", userId);
+  return !error;
+}
+
 // ============================================================
 // Barbers & diensten (klant-facing, Fase 4)
 // ============================================================

@@ -1,5 +1,5 @@
 "use client";
-import { Bell, CreditCard, MapPin, MessageCircle, Shield, User } from "lucide-react";
+import { Bell, ChevronRight, CreditCard, MapPin, MessageCircle, Shield, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
@@ -68,9 +68,21 @@ export default function SettingsPage() {
       <NavBar title="Instellingen" onBack={() => router.push("/klant/profiel")} />
       <div className="px-5 pt-2 flex-1 overflow-y-auto no-scrollbar">
         <SectionLabel>Account</SectionLabel>
-        <Row left={<span className="text-primary"><User size={20} /></span>} title="Persoonlijke gegevens" sub="Naam, e-mail, telefoon" right={null} />
-        <Row left={<span className="text-primary"><MapPin size={20} /></span>} title="Adressen" sub="Keizersgracht 112" right={null} />
-        <Row left={<span className="text-primary"><CreditCard size={20} /></span>} title="Betaalmethoden" sub="iDEAL · Visa •••• 4218" right={null} />
+        <Row
+          left={<span className="text-primary"><User size={20} /></span>}
+          title="Persoonlijke gegevens"
+          sub="Naam, e-mail, telefoon"
+          right={<ChevronRight size={18} />}
+          onClick={() => router.push("/klant/gegevens")}
+        />
+        <Row
+          left={<span className="text-primary"><MapPin size={20} /></span>}
+          title="Adres"
+          sub="Standaardadres voor boekingen"
+          right={<ChevronRight size={18} />}
+          onClick={() => router.push("/klant/adres")}
+        />
+        <Row left={<span className="text-primary"><CreditCard size={20} /></span>} title="Betaalmethoden" sub="Binnenkort beschikbaar" right={null} />
         <SectionLabel>Meldingen</SectionLabel>
         <Row left={<span className="text-primary"><Bell size={20} /></span>} title="Pushmeldingen" right={<Switch checked={push} onChange={handleTogglePush} />} />
         <Row left={<span className="text-primary"><MessageCircle size={20} /></span>} title="E-mailupdates" right={<Switch checked={mail} onChange={handleToggleMail} />} />

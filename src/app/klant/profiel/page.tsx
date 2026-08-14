@@ -1,5 +1,5 @@
 "use client";
-import { Bell, CreditCard, FileText, MapPin, Wallet as WalletIcon } from "lucide-react";
+import { Bell, ChevronRight, CreditCard, FileText, MapPin, Wallet as WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NavBar, Switch } from "@/components/ui";
@@ -45,8 +45,14 @@ export default function ProfilePage() {
             right={null}
             onClick={() => router.push("/klant/wallet")}
           />
-          <Row left={<span className="text-primary"><MapPin size={20} /></span>} title="Adressen" sub="Keizersgracht 112" right={null} />
-          <Row left={<span className="text-primary"><CreditCard size={20} /></span>} title="Betaalmethoden" sub="iDEAL" right={null} />
+          <Row
+            left={<span className="text-primary"><MapPin size={20} /></span>}
+            title="Adres"
+            sub="Standaardadres voor boekingen"
+            right={<ChevronRight size={18} />}
+            onClick={() => router.push("/klant/adres")}
+          />
+          <Row left={<span className="text-primary"><CreditCard size={20} /></span>} title="Betaalmethoden" sub="Binnenkort beschikbaar" right={null} />
           <Row left={<span className="text-primary"><Bell size={20} /></span>} title="Notificaties" right={<Switch checked={n} onChange={setN} />} />
           <Row
             left={<span className="text-primary"><FileText size={20} /></span>}
