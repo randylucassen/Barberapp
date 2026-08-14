@@ -4,6 +4,44 @@ Marketplace voor mobiele zzp-barbers ("Uber voor barbers"). Klanten boeken een
 barber op locatie; de betaling gaat in escrow en wordt na afronding
 vrijgegeven, tenzij binnen 24 uur een geschil wordt geopend.
 
+## Status: Live in productie op Vercel (post-launch, 2026-08-14)
+
+De app draait sinds 2026-08-13/14 daadwerkelijk live op
+`barberapp-vz1z.vercel.app` (test-mode Stripe-sleutels, bewust — zie
+"Openstaande acties voor jou" hieronder voor de stap naar live-mode).
+Repo: `github.com/randylucassen/Barberapp`, main-branch auto-deployt naar
+Vercel. `app_config.api_base_url` staat op de productie-URL, dus de
+bestaande `pg_cron`-jobs (escrow-release, expire-stale-requests, en sinds
+vandaag ook reconcile-payments) vuren nu echt.
+
+We zitten nu in een doorlopende **post-launch-fase**: de gebruiker test
+de app actief met échte boekingen (o.a. familie) en meldt wat er
+misgaat; elke fix wordt gepland/gebouwd/geverifieerd/gepusht volgens
+dezelfde discipline als de Fase 0-11-bouw. Het **gedetailleerde,
+chronologische logboek van elke individuele fix** (wat, waarom, hoe
+geverifieerd) staat in `CLAUDE.md`'s Statuslog — dat groeit vrijwel elke
+sessie en wordt hier bewust niet 1-op-1 gedupliceerd. Wat hier in
+PROJECT.md thuishoort is de architectuur zelf (Fase-secties hieronder) en
+verzamelpunten (Bekende gaps / Openstaande acties) — die worden
+bijgewerkt zodra een fix daadwerkelijk iets aan de architectuur of aan
+een openstaande beslissing verandert, niet bij elke losse bugfix.
+
+Twee noemenswaardige structurele wijzigingen sinds de pre-launch-audit
+hieronder, die de Fase 2/5/6-architectuur op detailniveau achterhalen
+(de Fase-secties zelf zijn niet herschreven, maar deze twee wijken er
+inmiddels van af):
+- **Meerdere diensten per boeking** (migratie `0027`): `bookings.
+  service_id`/`party_size` bestaan niet meer — vervangen door een
+  `booking_services`-junction-tabel (één rij per {dienst, aantal}) plus
+  `create_booking_with_services()` als enige geldige weg om een boeking
+  aan te maken. Zie de bijbehorende CLAUDE.md-changelog-entry voor de
+  volledige toelichting.
+- **Vooruit plannen bij een specifieke barber vereist nu een eerder
+  afgeronde boeking met diezelfde barber** (migratie `0029`) — een nieuw
+  account moet de eerste keer altijd via een live aanvraag (Nu/broadcast)
+  gaan. Zowel client-side gefilterd als server-side afgedwongen in
+  `create_booking_with_services()`.
+
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 
 Fase 0 t/m 11 zijn afgerond — de roadmap zelf is compleet. Vóór een echte
@@ -2220,6 +2258,14 @@ Migratie `0025` — al gepusht door de gebruiker tijdens deze sessie.
   hard-blokkerende validatie op "minimaal 3 portfoliofoto's" (nu alleen
   een UI-hint) en een dynamische diensten-lijst (blijft bij de 3 vaste
   rijen uit het design) — bewuste scope-keuzes, zie Fase 3-architectuur.
+- **Portfoliofoto's zijn nergens klant-facing zichtbaar** — opgeslagen
+  sinds Fase 3, maar `klant/barbers` toont alleen naam/rating/prijs, geen
+  barber-detailscherm. Open productvraag sinds 2026-08-14, zie
+  "Openstaande acties voor jou" hieronder.
+- **Opgeslagen betaalmethoden bestaan niet** — elke betaling gaat via een
+  verse PaymentIntent, geen Stripe Customer/SetupIntent. Bewust
+  uitgesteld sinds 2026-08-14, zie "Openstaande acties voor jou"
+  hieronder.
 - ~~Geen admin-goedkeuring van barbers~~ — sinds Fase 10 een echt
   adminscherm (`/admin/barbers`), zie "Fase 10 — architectuur" hierboven.
   Let op: route-gating op `barber_status` voor de barber zelf (i.p.v.
@@ -2464,6 +2510,29 @@ te lopen. Niet blokkerend voor volgende fases.
   kon ik deze sessie niet met een echte ingelogde sessie testen (geen
   testaccount-credentials beschikbaar), alleen via code-review en
   build/type-check bevestigen.
+- **Live kaart/locatie-tracking — bewust on hold, blijf hieraan
+  herinneren** (2026-08-11, herbevestigd 2026-08-14): de gebruiker wil
+  hier nu nog niet aan beginnen, maar heeft expliciet gevraagd om er
+  **telkens opnieuw** aan herinnerd te worden totdat de feature
+  daadwerkelijk gebouwd is — dit is dus geen eenmalige melding die na de
+  eerste keer noemen is afgevinkt. Kaart-SDK-keuze (Mapbox vs. Google
+  Maps) staat nog open, zie "Bekende gaps" hieronder.
+- **Portfolio vooraf zichtbaar voor klanten? — open productvraag**
+  (2026-08-14, nog niet besloten). Barbers uploaden al portfoliofoto's
+  bij aanmelden (Fase 3, `barber-media`-bucket), maar er bestaat geen
+  klant-facing barber-detailscherm om ze te bekijken vóór het boeken —
+  `klant/barbers` toont alleen naam/rating/prijs in een lijstrij. Eigen
+  advies gegeven: wél tonen (sterkste vertrouwenssignaal in een
+  barbermarktplaats, naast rating), maar dit is een nieuw scherm bouwen,
+  geen toggle. Wacht op akkoord van de gebruiker voordat dit gebouwd
+  wordt.
+- **Saved payment methods ("Betaalmethoden") — bewust uitgesteld**
+  (2026-08-14, `klant/instellingen`/`klant/profiel`). Elke betaling loopt
+  nu via een verse Stripe PaymentIntent per boeking — geen Stripe
+  Customer-object, geen SetupIntent-flow, niets persistent opgeslagen.
+  Een opgeslagen-kaart-feature vereist dus echt nieuwe Stripe-
+  architectuur, geen quick fix. De UI toont voorlopig eerlijk "Binnenkort
+  beschikbaar" i.p.v. de oude nep-kaartgegevens uit het designpakket.
 
 ## Roadmap
 
