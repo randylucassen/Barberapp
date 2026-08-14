@@ -36,7 +36,7 @@ export function PhoneShell({ children }: { children: ReactNode }) {
       className="h-dvh w-full flex items-center justify-center bg-[#EDEFF1] sm:py-6"
       style={heightPx !== null ? { height: heightPx } : undefined}
     >
-      <div className="w-full max-w-phone h-full sm:h-[844px] sm:max-h-phone bg-white sm:rounded-[36px] sm:shadow-[0_0_0_10px_#111111,0_20px_60px_rgba(0,0,0,.25)] overflow-hidden flex flex-col">
+      <div className="w-full sm:max-w-phone h-full sm:h-[844px] sm:max-h-phone bg-white sm:rounded-[36px] sm:shadow-[0_0_0_10px_#111111,0_20px_60px_rgba(0,0,0,.25)] overflow-hidden flex flex-col">
         {children}
       </div>
     </div>
