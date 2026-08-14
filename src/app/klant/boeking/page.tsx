@@ -203,7 +203,7 @@ function BookingContent() {
       scheduledAt = new Date(`${date}T${time}`).toISOString();
     }
 
-    const booking = await createBookingWithServices(client, {
+    const { booking, errorMessage } = await createBookingWithServices(client, {
       barberId: auto ? null : resolvedBarberId,
       lines: lines.map((l) => ({ serviceId: l.serviceId, quantity: l.quantity })),
       address: address || "Onbekend adres",
@@ -218,7 +218,7 @@ function BookingContent() {
       setDlg(false);
       router.push(`/klant/betaling?bookingId=${booking.id}`);
     } else {
-      setBookingError("Aanvraag versturen is niet gelukt. Probeer het nog eens.");
+      setBookingError(errorMessage || "Aanvraag versturen is niet gelukt. Probeer het nog eens.");
     }
   }
 

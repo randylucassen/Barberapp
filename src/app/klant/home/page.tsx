@@ -1,5 +1,5 @@
 "use client";
-import { MapPin, ChevronRight } from "lucide-react";
+import { MapPin, ChevronRight, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Card, Tag } from "@/components/ui";
@@ -117,6 +117,10 @@ export default function HomePage() {
     });
   }
 
+  function resetSelection() {
+    setSelected(new Map());
+  }
+
   function bookService() {
     if (selected.size === 0) return;
     const services = Array.from(selected.entries()).map(([name, quantity]) => ({ name, quantity }));
@@ -186,6 +190,16 @@ export default function HomePage() {
             );
           })}
         </div>
+        {selected.size > 0 && (
+          <button
+            type="button"
+            onClick={resetSelection}
+            className="flex items-center gap-1 mt-2.5 text-[13px] text-text-secondary"
+          >
+            <RotateCcw size={14} />
+            Herstel selectie
+          </button>
+        )}
       </div>
       <div className="px-5 pt-6">
         <Card variant="inverse" padding={20} onClick={bookService}>

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   addFavoriteBarber,
   getApprovedBarbersWithServices,
+  getCompletedBarberIdsForCustomer,
   getFavoriteBarberIds,
   removeFavoriteBarber,
   type BookingServiceLineInput,
@@ -67,6 +68,7 @@ function BarbersContent() {
   const [when, setWhen] = useState("nu");
   const [barbers, setBarbers] = useState<BarberListItem[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [knownBarberIds, setKnownBarberIds] = useState<Set<string>>(new Set());
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +82,7 @@ function BarbersContent() {
       if (!data.user) return;
       setUserId(data.user.id);
       getFavoriteBarberIds(supabase, data.user.id).then(setFavoriteIds);
+      getCompletedBarberIdsForCustomer(supabase, data.user.id).then(setKnownBarberIds);
     });
   }, []);
 
@@ -132,12 +135,22 @@ function BarbersContent() {
   // "Nu" heeft alleen zin bij barbers die ook echt online zijn — een
   // offline barber kan een aanvraag toch niet meteen beantwoorden (zie
   // ook de 30-minuten-timeout op onbeantwoorde aanvragen). "Boek vooruit"
-  // (was "Gepland") toont iedereen, want daarvoor hoeft niemand nu online
-  // te zijn. "Favorieten" filtert op de klant's eigen bladwijzers. Bij
-  // meerdere gevraagde diensten moet een barber ze ALLEMAAL aanbieden
-  // (matchServices geeft dan null, en die barber valt hier al af).
+  // toont alleen barbers waar deze klant al een afgeronde boeking mee
+  // heeft — vooraf vastleggen bij een wildvreemde mag niet, de eerste
+  // kennismaking moet altijd via een live aanvraag ("Nu"/auto-match)
+  // lopen (server-side afgedwongen in create_booking_with_services, zie
+  // 0029 — dit filter is puur UX, geen beveiliging op zich).
+  // "Favorieten" filtert op de klant's eigen bladwijzers (kan alleen na
+  // een review, dus per definitie ook al bekend). Bij meerdere gevraagde
+  // diensten moet een barber ze ALLEMAAL aanbieden (matchServices geeft
+  // dan null, en die barber valt hier al af).
   const availableBarbers = when === "nu" ? barbers.filter((b) => b.isOnline) : barbers;
-  const scopedBarbers = when === "favorieten" ? availableBarbers.filter((b) => favoriteIds.has(b.id)) : availableBarbers;
+  const scopedBarbers =
+    when === "favorieten"
+      ? availableBarbers.filter((b) => favoriteIds.has(b.id))
+      : when === "plan"
+        ? availableBarbers.filter((b) => knownBarberIds.has(b.id))
+        : availableBarbers;
   const visibleBarbers = scopedBarbers
     .map((b) => ({ barber: b, matched: matchServices(b, wantedServices) }))
     .filter((x): x is { barber: BarberListItem; matched: MatchedServices } => x.matched !== null);
@@ -176,11 +189,15 @@ function BarbersContent() {
           <div className="text-[14px] text-text-secondary pt-6 text-center">
             {when === "favorieten"
               ? "Nog geen favoriete barbers. Zet een barber als favoriet na een boeking, of via het hartje hierboven."
-              : barbers.length === 0
-                ? "Nog geen barbers beschikbaar in jouw omgeving."
-                : wantedServices.length > 1
-                  ? "Geen enkele barber biedt op dit moment al deze diensten samen aan."
-                  : "Op dit moment is geen enkele barber online. Probeer \"Boek vooruit\" om later in te plannen."}
+              : when === "plan"
+                ? "Je kunt pas vooruit plannen bij een specifieke barber zodra je al een afspraak met diegene hebt gehad. Maak eerst een aanvraag in de buurt aan via \"Nu\" — daarna verschijnt die barber hier."
+                : barbers.length === 0
+                  ? "Nog geen barbers beschikbaar in jouw omgeving."
+                  : wantedServices.length > 1
+                    ? "Geen enkele barber biedt op dit moment al deze diensten samen aan."
+                    : knownBarberIds.size > 0
+                      ? "Op dit moment is geen enkele barber online. Probeer \"Boek vooruit\" om later in te plannen."
+                      : "Op dit moment is geen enkele barber online. Probeer het straks nog eens."}
           </div>
         )}
         {visibleBarbers.map(({ barber: b, matched }, i) => {

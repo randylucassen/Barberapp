@@ -252,6 +252,19 @@ export async function removeFavoriteBarber(supabase: SupabaseClient, customerId:
   return !error;
 }
 
+// Barbers waarmee deze klant al een afgeronde boeking heeft — bepaalt of
+// "Boek vooruit" een specifieke barber mag tonen (zie
+// create_booking_with_services()' server-side spiegelbeeld van deze check
+// in 0029, die dit ook echt afdwingt, niet alleen hier filtert).
+export async function getCompletedBarberIdsForCustomer(supabase: SupabaseClient, customerId: string): Promise<Set<string>> {
+  const { data } = await supabase
+    .from("bookings")
+    .select("barber_id")
+    .eq("customer_id", customerId)
+    .eq("status", "completed");
+  return new Set((data ?? []).map((r) => r.barber_id as string).filter((id): id is string => id !== null));
+}
+
 // ============================================================
 // Boekingen (Fase 4)
 // ============================================================
@@ -360,10 +373,19 @@ export interface CreateBookingInput {
 // berekent price/duration/service_name_snapshot zelf server-side uit de
 // echte services-tabel (zie create_booking_with_services() in de
 // migratie voor de volledige toelichting).
+export interface CreateBookingResult {
+  booking: BookingRecord | null;
+  // De rauwe boodschap achter een `raise exception` in de RPC (bv. de
+  // vooruit-plannen-zonder-geschiedenis-check uit 0029) — specifiek
+  // genoeg om rechtstreeks aan de klant te tonen i.p.v. een generieke
+  // "niet gelukt"-melding.
+  errorMessage: string | null;
+}
+
 export async function createBookingWithServices(
   supabase: SupabaseClient,
   input: CreateBookingInput
-): Promise<BookingRecord | null> {
+): Promise<CreateBookingResult> {
   const { data: bookingId, error: rpcError } = await supabase.rpc("create_booking_with_services", {
     p_barber_id: input.barberId,
     p_address: input.address,
@@ -374,8 +396,8 @@ export async function createBookingWithServices(
     p_lng: input.lng ?? null,
     p_lines: input.lines.map((l) => ({ service_id: l.serviceId, quantity: l.quantity })),
   });
-  if (rpcError || !bookingId) return null;
-  return getBooking(supabase, bookingId as string);
+  if (rpcError || !bookingId) return { booking: null, errorMessage: rpcError?.message ?? null };
+  return { booking: await getBooking(supabase, bookingId as string), errorMessage: null };
 }
 
 export async function updateBookingStatus(

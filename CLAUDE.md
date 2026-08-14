@@ -900,6 +900,125 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     melding puur aan de ontbrekende Kids-dienst lag, niet aan de nieuwe
     matching-logica zelf). `npx tsc --noEmit`/`npm run lint` schoon.
     Migratie `0028` — nog te pushen door de gebruiker.
+- **Stripe-webhook-gat lokaal gevonden en gefixt (2026-08-xx)**: een
+  betaalde boeking bleef onzichtbaar voor de barber omdat er lokaal geen
+  `stripe listen --forward-to localhost:3000/api/stripe/webhook` draaide
+  — `payment_intent.succeeded` bereikte de server dus nooit, er ontstond
+  geen `payments`-rij, en `booking_has_payment()` hield de boeking terecht
+  verborgen (geen codebug). Gefixt door `stripe listen` te starten en het
+  gemiste event met `stripe events resend <id>` opnieuw af te vuren.
+  Geen migratie/code-wijziging — puur een lokale-dev-omgevingsstap, geen
+  structurele fix nodig (in productie draait de webhook altijd echt).
+- **Live gegaan op Vercel (2026-08-xx).** Project had nog geen git-repo;
+  `git init`, gecontroleerd dat `.gitignore` `.env*.local` al uitsloot,
+  gepusht naar `github.com/randylucassen/Barberapp` (gebruiker deed de
+  eigenlijke push zelf via een Personal Access Token — wachtwoord-auth is
+  door GitHub uitgefaseerd). Geïmporteerd op Vercel, gedeployed met
+  test-mode Stripe-sleutels (bewust, om eerst te kunnen itereren) →
+  `barberapp-vz1z.vercel.app`. `app_config.api_base_url` in Supabase
+  bijgewerkt naar deze URL zodat de bestaande escrow-release-`pg_cron`-job
+  (sinds Fase 6) daadwerkelijk gaat vuren — bevestigd via een directe
+  `curl` naar de cron-endpoint met `CRON_SECRET`. Security headers/CSP en
+  `robots.txt` bevestigd correct aanwezig in productie.
+  **Veiligheidsincident tijdens deze stap, direct verholpen**: bij het
+  aanmaken van een productie-Stripe-webhook-endpoint kwam de signing
+  secret per ongeluk zichtbaar in een Bash-tool-output terecht (regel 7 /
+  "nooit secrets in chat" geschonden). Direct dat endpoint verwijderd,
+  een nieuw endpoint aangemaakt met de output alleen naar een lokaal
+  scratchbestand (nooit getoond, meteen verwijderd, alleen booleaans
+  geverifieerd dat er een `whsec_`-string in zat), en de gebruiker zelf
+  de echte waarde uit het Stripe-dashboard laten overnemen. Deze regel
+  blijft hard: bij elke toekomstige secret-aanmaak-actie de output nooit
+  laten printen, altijd naar een scratchbestand omleiden of de gebruiker
+  naar de bron-UI verwijzen.
+- **PhoneShell — twee losse responsive-bugs op een echt toestel, beide
+  afgerond.** Alleen zichtbaar op de gebruiker's eigen iPhone (via een
+  in-app-browser vanuit de Notities-app), niet reproduceerbaar in welke
+  simulator/emulatie dan ook: (1) **hoogte** — `min-h-dvh` (buiten) en een
+  losse `h-dvh` (binnen) evalueerden onafhankelijk van elkaar en liepen op
+  dat toestel uiteen, met een grijze `#EDEFF1`-strook tot gevolg. CSS
+  `dvh` volledig losgelaten; `PhoneShell` is nu een client component die
+  `window.innerHeight` meet (`resize`/`orientationchange`-listeners) en
+  als inline `style` toepast — bewust niet `visualViewport.height` (die
+  krimpt zodra het toetsenbord opent, wat de hele shell dan ongewenst zou
+  verkleinen). (2) **breedte** — `max-w-phone` (390px) miste de `sm:`-
+  prefix die zijn hoogte-tegenhanger (`sm:h-[844px]`) wel had, dus elk
+  toestel breder dan 390 CSS-px (Pro Max-modellen, veel Android) werd
+  gecentreerd met grijze balken links/rechts. Gefixt met `sm:max-w-phone`
+  — dit keer wél reproduceerbaar in de browser-tool's eigen emulatie op
+  430px, bevestigd via `getBoundingClientRect()` vóór/na. Beide gepusht
+  en live bevestigd op `barberapp-vz1z.vercel.app`.
+- **Adres en persoonlijke gegevens bewerkbaar in instellingen: afgerond.**
+  `klant/instellingen` en `klant/profiel` hadden statische mockup-rijen
+  voor "Adressen"/"Persoonlijke gegevens" (nep-tekst, geen `onClick`) —
+  de backend-kolommen (`customer_profiles.default_address`,
+  `profiles.full_name`/`phone`) hadden al langer client-update-grants
+  (sinds resp. `0003` en `0001`) maar er was nooit een schrijf-functie of
+  scherm voor gebouwd. Nieuw: `updateDefaultAddress()`/
+  `updatePersonalInfo()` in `queries.ts`, nieuwe schermen `klant/adres`
+  (hergebruikt `AddressAutocomplete`) en `klant/gegevens` (naam/telefoon
+  bewerkbaar, e-mail bewust read-only met een verwijzing naar
+  contact-opnemen — e-mail-wijzigen raakt Supabase Auth zelf, niet in
+  scope). "Betaalmethoden" toont nu eerlijk "Binnenkort beschikbaar"
+  i.p.v. nep-kaartgegevens — bewust niet gebouwd: elke betaling loopt nu
+  via een verse Stripe PaymentIntent per boeking, er bestaat geen Stripe
+  Customer-object en geen SetupIntent-flow, dus opgeslagen betaalmethoden
+  vereisen echt nieuwe Stripe-architectuur (uitgesteld, met de gebruiker
+  afgestemd). Beide schermen end-to-end bevestigd via een echte
+  browsersessie + directe DB-verificatie. `npx tsc --noEmit`/`npm run
+  lint` schoon. Geen migratie nodig (grants bestonden al). Gepusht naar
+  `main` (commit `57fa268`).
+- **Herstelknop bij diensten + vooruit-plannen beperkt tot bekende
+  barbers: afgerond, migratie nog te pushen.** Twee losse, door de
+  gebruiker gevraagde features:
+  - **Herstelknop**: op `klant/home` verschijnt onder de dienst-tags nu
+    een "Herstel selectie"-link (zichtbaar zodra er iets geselecteerd
+    is) die de hele selectie in één klik terugzet naar leeg — voorkomt
+    dat een verkeerde tik (aantal te vaak opgehoogd, verkeerde dienst)
+    alleen te herstellen was door elke tag individueel weer weg te
+    tikken.
+  - **Vooruit plannen alleen bij bekende barbers**: een nieuw account
+    kan een specifieke barber pas kiezen op de "Boek vooruit"-tab
+    (`klant/barbers`) zodra er al een afgeronde boeking met die barber
+    bestaat — de eerste kennismaking moet altijd via een live aanvraag
+    lopen ("Nu"/broadcast-auto-match), niet door vooraf bij een
+    wildvreemde in te plannen. Client-side gefilterd (nieuwe
+    `getCompletedBarberIdsForCustomer()` in `queries.ts`, met een
+    uitlegzin in de lege-staat) én, belangrijker, server-side afgedwongen
+    in `create_booking_with_services()` (migratie
+    `0029_gate_advance_booking_on_history.sql`, volledige
+    `create or replace`-body per regel 22 — alleen de eerste paar regels
+    zijn nieuw): een scheduled (`p_requested_asap = false`) boeking met
+    een specifieke `p_barber_id` zonder een eerdere `completed`-boeking
+    tussen die klant en barber wordt geweigerd met een duidelijke
+    Nederlandse foutmelding. Broadcast (`p_barber_id = null`) en
+    asap-aanvragen zijn hiervan uitgezonderd — dat gebeurt altijd live,
+    ongeacht welke tab de klant gebruikte om er te komen (de check kijkt
+    naar de uiteindelijke parameters van de RPC-call, niet naar de
+    binnengekomen route — een klant die op `klant/boeking` alsnog "Plan
+    in" aanzet bij een net-nu-gekozen onbekende barber wordt dus ook
+    tegengehouden). `createBookingWithServices()` in `queries.ts` geeft
+    de rauwe RPC-foutmelding nu door aan de UI (`klant/boeking`) i.p.v.
+    'm te verzwijgen achter de generieke "niet gelukt"-tekst — specifiek
+    voor deze validatiefout is dat relevant, de client-filter dekt het
+    gewone pad al af.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. De
+    klant-query is live getest via een rechtstreekse REST-call met een
+    echte JWT van een vers aangemaakte testklant (retourneerde correct
+    alleen de ene barber met een afgeronde testboeking). De RPC-gate zelf
+    is **nog niet** end-to-end getest — migratie `0029` moet eerst
+    gepusht worden; het vóór-migratie-gedrag is wel bevestigd (dezelfde
+    aanvraag slaagt nu nog, zoals verwacht zonder de nieuwe check).
+    Browser-UI-verificatie (herstelknop aanklikken, "Boek vooruit"-tab
+    live bekijken) kon deze sessie niet: de browser-preview-tool bleef
+    vastlopen op elke klik ("Browser pane is currently hidden"), ook na
+    een schone herstart van de dev-server en een nieuw tabblad — een
+    tool-/omgevingsprobleem, geen appcode-probleem (page-tekst/network-
+    logs bevestigden dat de klik nooit aankwam). Vervolgstap zodra de
+    gebruiker `0029` gepusht heeft: de RPC nogmaals rechtstreeks
+    aanroepen (bekende barber → moet slagen, onbekende barber scheduled
+    → moet de nieuwe foutmelding geven) en, als de browser-tool het weer
+    doet, ook visueel bevestigen.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
