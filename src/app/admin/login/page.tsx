@@ -44,6 +44,7 @@ export default function AdminLoginPage() {
             label="E-mail"
             placeholder="naam@voorbeeld.nl"
             type="email"
+            name="email"
             autoComplete="email"
             required
             value={email}
@@ -53,6 +54,7 @@ export default function AdminLoginPage() {
             label="Wachtwoord"
             placeholder="••••••••"
             type="password"
+            name="password"
             autoComplete="current-password"
             required
             value={password}

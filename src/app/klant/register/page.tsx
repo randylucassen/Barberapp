@@ -53,6 +53,8 @@ export default function RegisterPage() {
           <Input
             label="Naam"
             placeholder="Voor- en achternaam"
+            name="name"
+            autoComplete="name"
             required
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
@@ -61,6 +63,7 @@ export default function RegisterPage() {
             label="E-mail"
             placeholder="naam@voorbeeld.nl"
             type="email"
+            name="email"
             autoComplete="email"
             required
             value={email}
@@ -70,6 +73,7 @@ export default function RegisterPage() {
             label="Telefoon"
             placeholder="06 12345678"
             type="tel"
+            name="tel"
             autoComplete="tel"
             required
             value={phone}
@@ -79,6 +83,7 @@ export default function RegisterPage() {
             label="Wachtwoord"
             placeholder="Minimaal 8 tekens"
             type="password"
+            name="new-password"
             autoComplete="new-password"
             required
             value={password}
