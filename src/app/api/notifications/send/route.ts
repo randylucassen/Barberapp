@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
+import * as Sentry from "@sentry/nextjs";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getResend, notificationEmailHtml } from "@/lib/resend";
 
@@ -50,9 +51,20 @@ export async function POST(request: NextRequest) {
         subject: notification.title,
         html: notificationEmailHtml(notification.title, notification.body ?? ""),
       });
-      results.email = error ? `error: ${error.message}` : "sent";
+      if (error) {
+        results.email = `error: ${error.message}`;
+        // Deze route wordt fire-and-forget aangeroepen door pg_net — zonder
+        // dit zou een mislukte verzending (bv. Resend's sandbox-restrictie
+        // "alleen naar je eigen adres") stil verdwijnen in een response die
+        // niemand leest. Zie CLAUDE.md: familie kreeg geen mail terwijl de
+        // gebruiker zelf wel mail kreeg, exact deze restrictie.
+        Sentry.captureException(new Error(`Resend-verzending mislukt naar ${profile.email}: ${error.message}`));
+      } else {
+        results.email = "sent";
+      }
     } catch (err) {
       results.email = `error: ${(err as Error).message}`;
+      Sentry.captureException(err);
     }
   }
 
