@@ -42,7 +42,12 @@ const ACTIVE_RIDE_LABEL: Record<string, string> = {
 // "Vandaag"/"Gisteren" op basis van kalenderdag, niet op een 24-uurs-
 // venster — een boeking van gisterenavond laat 23:50 en eentje van
 // vanmorgen 00:10 zijn anders nog geen 24u uit elkaar maar horen wel in
-// verschillende groepen.
+// verschillende groepen. Beide functies gebruiken `new Date()` (het
+// daadwerkelijke moment van renderen, niet iets opgeslagens) — dit
+// blijft dus vanzelf elke dag opnieuw correct, ook weken/maanden/jaren
+// terug, zonder cron/onderhoud. Alleen het jaartal erbij zodra een
+// boeking niet uit het lopende jaar is — anders zou "13 augustus" van
+// vorig jaar eruitzien als recent.
 function dayLabel(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -50,7 +55,8 @@ function dayLabel(iso: string): string {
   const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
   if (diffDays === 0) return "Vandaag";
   if (diffDays === 1) return "Gisteren";
-  return d.toLocaleDateString("nl-NL", { day: "numeric", month: "long" });
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString("nl-NL", sameYear ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" });
 }
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
