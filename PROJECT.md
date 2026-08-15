@@ -2250,8 +2250,11 @@ Migratie `0025` — al gepusht door de gebruiker tijdens deze sessie.
 
 ## Bekende gaps (bewust, voor latere fases)
 
-- Live kaart is een placeholder (zoals in het design-pakket) — echte
-  kaart/locatie hoort bij Fase 5 (Matching).
+- ~~Live kaart is een placeholder~~ — sinds 2026-08-15 daadwerkelijk
+  gebouwd (Mapbox, incl. routelijn/ETA), zie de changelog-entry in
+  CLAUDE.md en "Live locatiekaart — architectuur" hieronder. Migratie
+  `0033` moet gepusht zijn voordat de bijbehorende code live gaat (raakt
+  een gedeelde kernquery, zie CLAUDE.md voor de precieze reden).
 - **Barber-verificatiegegevens** (KvK, documenten, diensten/prijzen)
   worden sinds Fase 3 echt opgeslagen (`barber_profiles`, `services`,
   `barber-media`/`barber-documents` Storage). Nog niet gebouwd: een
@@ -2323,9 +2326,9 @@ Migratie `0025` — al gepusht door de gebruiker tijdens deze sessie.
   (zie hierboven).
 - ~~Geen echte push-notificaties~~ — sinds Fase 8 echte e-mail (Resend) en
   browser-push (Web Push/VAPID), zie "Fase 8 — architectuur" hierboven.
-- **Geen live kaart/real-time barber-tracking** — bestaat nog als
-  placeholder, ook na Fase 5. Relevant bij het Mapbox/Google-vervolgpunt
-  hieronder.
+- ~~Geen live kaart/real-time barber-tracking~~ — sinds 2026-08-15 gebouwd
+  (Mapbox), zie CLAUDE.md's changelog en "Live locatiekaart —
+  architectuur" hieronder.
 - ~~Geen barber-side notificatiescherm~~ — sinds Fase 8 bestaat
   `/barber/notificaties` + de dashboard-bell, zie "Fase 8 — architectuur"
   hierboven.
@@ -2529,13 +2532,18 @@ te lopen. Niet blokkerend voor volgende fases.
   kon ik deze sessie niet met een echte ingelogde sessie testen (geen
   testaccount-credentials beschikbaar), alleen via code-review en
   build/type-check bevestigen.
-- **Live kaart/locatie-tracking — bewust on hold, blijf hieraan
-  herinneren** (2026-08-11, herbevestigd 2026-08-14): de gebruiker wil
-  hier nu nog niet aan beginnen, maar heeft expliciet gevraagd om er
-  **telkens opnieuw** aan herinnerd te worden totdat de feature
-  daadwerkelijk gebouwd is — dit is dus geen eenmalige melding die na de
-  eerste keer noemen is afgevinkt. Kaart-SDK-keuze (Mapbox vs. Google
-  Maps) staat nog open, zie "Bekende gaps" hieronder.
+- **Live kaart — gebouwd (2026-08-15), nu een Mapbox-token nodig.** De
+  langlopende "blijf hieraan herinneren"-afspraak (2026-08-11) is
+  ingelost: op verzoek van de gebruiker daadwerkelijk gebouwd, Mapbox
+  gekozen (zie CLAUDE.md's changelog). **Openstaande actie**: een gratis
+  Mapbox-account aanmaken (mapbox.com, geen creditcard nodig), een access
+  token aanmaken onder Account → Tokens, en aanleveren als
+  `NEXT_PUBLIC_MAPBOX_TOKEN` — in `.env.local` voor lokaal testen én in
+  Vercel's project-env-vars voor productie. Zonder deze token blijft de
+  oude statische placeholder gewoon zichtbaar (niets breekt), de kaart
+  wordt pas zichtbaar zodra dit token er is. **Ook nog te pushen**:
+  migratie `0033` — moet gepusht zijn vóórdat de bijbehorende code live
+  gaat, zie CLAUDE.md voor waarom de volgorde deze keer omgedraaid is.
 - **Portfolio vooraf zichtbaar voor klanten? — open productvraag**
   (2026-08-14, nog niet besloten). Barbers uploaden al portfoliofoto's
   bij aanmelden (Fase 3, `barber-media`-bucket), maar er bestaat geen

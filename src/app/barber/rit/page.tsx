@@ -1,14 +1,15 @@
 "use client";
 import { MapPin, MessageCircle, Phone } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge, Button, IconButton, NavBar } from "@/components/ui";
-import { Avatar } from "@/components/shared";
+import { Avatar, LiveMap } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import {
   getActiveBookingForBarber,
   getBookingCustomerName,
   getBookingCustomerPhone,
+  updateBookingLiveLocation,
   updateBookingStatus,
 } from "@/lib/supabase/queries";
 import { computePriceBreakdown, euro } from "@/lib/pricing";
@@ -31,6 +32,11 @@ export default function RidePage() {
   const [customerPhone, setCustomerPhone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [myLat, setMyLat] = useState<number | null>(null);
+  const [myLng, setMyLng] = useState<number | null>(null);
+  const [myLocationUpdatedAt, setMyLocationUpdatedAt] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const lastWriteRef = useRef<number>(0);
 
   useEffect(() => {
     const supabase = createClient();
@@ -48,6 +54,40 @@ export default function RidePage() {
       setCustomerPhone(await getBookingCustomerPhone(supabase, active.id));
     })();
   }, [router]);
+
+  // Live locatie bijhouden zolang de barber onderweg is ("accepted" =
+  // nog niet vertrokken maar al zichtbaar voor de klant, "en_route" =
+  // daadwerkelijk rijdend) — stopt vanzelf bij arrived/in_progress/
+  // completed of als dit scherm verlaten wordt. Schrijft gethrottled
+  // (max. 1x per 8s) naar de database, niet bij elke GPS-tick (die soms
+  // elke seconde vuurt) — voorkomt onnodig veel writes.
+  useEffect(() => {
+    const bookingId = booking?.id;
+    const status = booking?.status;
+    if (!bookingId || (status !== "accepted" && status !== "en_route")) return;
+    if (!navigator.geolocation) {
+      setLocationError("Je browser ondersteunt geen locatiebepaling.");
+      return;
+    }
+    const supabase = createClient();
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setLocationError(null);
+        setMyLat(pos.coords.latitude);
+        setMyLng(pos.coords.longitude);
+        setMyLocationUpdatedAt(new Date().toISOString());
+        const now = Date.now();
+        if (now - lastWriteRef.current < 8000) return;
+        lastWriteRef.current = now;
+        updateBookingLiveLocation(supabase, bookingId, pos.coords.latitude, pos.coords.longitude);
+      },
+      (err) => {
+        setLocationError(err.code === err.PERMISSION_DENIED ? "Locatietoestemming geweigerd — je rit werkt gewoon door." : "Kon je locatie niet bepalen.");
+      },
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [booking?.id, booking?.status]);
 
   async function advance() {
     if (!booking) return;
@@ -77,6 +117,7 @@ export default function RidePage() {
   const stage = STAGE[booking.status as keyof typeof STAGE];
   const earningCents = computePriceBreakdown(booking.priceCents).barberPayoutCents;
   const firstName = customerName.split(" ")[0];
+  const showLiveMap = booking.status === "accepted" || booking.status === "en_route";
 
   const title =
     booking.status === "accepted" || booking.status === "en_route"
@@ -92,10 +133,26 @@ export default function RidePage() {
     <div className="flex flex-col h-full">
       <div className="flex-1 bg-[#F1F3F4] relative">
         <NavBar transparent onBack={() => router.push("/barber/dashboard")} />
-        <div className="absolute inset-0 flex items-center justify-center text-[#C6CBD1] flex-col gap-2">
-          <MapPin size={40} />
-          <span className="text-[13px] font-medium">Navigatie</span>
-        </div>
+        {showLiveMap ? (
+          <LiveMap
+            barberLat={myLat}
+            barberLng={myLng}
+            destinationLat={booking.lat}
+            destinationLng={booking.lng}
+            barberLocationUpdatedAt={myLocationUpdatedAt}
+            placeholderLabel="Navigatie"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-[#C6CBD1] flex-col gap-2">
+            <MapPin size={40} />
+            <span className="text-[13px] font-medium">Navigatie</span>
+          </div>
+        )}
+        {locationError && (
+          <div className="absolute left-3 right-3 top-16 bg-white rounded-md shadow-[0_2px_8px_rgba(0,0,0,.15)] px-3 py-2 text-[13px] text-text-secondary">
+            {locationError}
+          </div>
+        )}
       </div>
       <div className="bg-white rounded-t-xl -mt-6 px-5 pt-5 pb-2 relative">
         <div className="w-9 h-1 rounded-full bg-border mx-auto mb-4" />

@@ -285,10 +285,15 @@ interface BookingRow {
   cancelled_by: UserRole | null;
   created_at: string;
   completed_at: string | null;
+  lat: number | null;
+  lng: number | null;
+  barber_live_lat: number | null;
+  barber_live_lng: number | null;
+  barber_location_updated_at: string | null;
 }
 
 const BOOKING_COLUMNS =
-  "id, customer_id, barber_id, service_name_snapshot, price_cents_snapshot, duration_minutes_snapshot, address, note, requested_asap, scheduled_at, status, cancelled_reason, cancelled_by, created_at, completed_at";
+  "id, customer_id, barber_id, service_name_snapshot, price_cents_snapshot, duration_minutes_snapshot, address, note, requested_asap, scheduled_at, status, cancelled_reason, cancelled_by, created_at, completed_at, lat, lng, barber_live_lat, barber_live_lng, barber_location_updated_at";
 
 function mapBooking(row: BookingRow): BookingRecord {
   return {
@@ -307,6 +312,11 @@ function mapBooking(row: BookingRow): BookingRecord {
     cancelledBy: row.cancelled_by,
     createdAt: row.created_at,
     completedAt: row.completed_at,
+    lat: row.lat,
+    lng: row.lng,
+    barberLiveLat: row.barber_live_lat,
+    barberLiveLng: row.barber_live_lng,
+    barberLocationUpdatedAt: row.barber_location_updated_at,
   };
 }
 
@@ -412,6 +422,27 @@ export async function updateBookingStatus(
       status,
       ...(extra?.cancelledReason ? { cancelled_reason: extra.cancelledReason } : {}),
       ...(extra?.cancelledBy ? { cancelled_by: extra.cancelledBy } : {}),
+    })
+    .eq("id", bookingId);
+  return !error;
+}
+
+// Live positie van de barber tijdens een rit (0033) — geschreven vanaf
+// barber/rit via navigator.geolocation.watchPosition(), gethrottled
+// aangeroepen (niet bij elke GPS-tick). Gelezen door de klant via de
+// bestaande poll van getBooking() op klant/status, geen apart kanaal.
+export async function updateBookingLiveLocation(
+  supabase: SupabaseClient,
+  bookingId: string,
+  lat: number,
+  lng: number
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      barber_live_lat: lat,
+      barber_live_lng: lng,
+      barber_location_updated_at: new Date().toISOString(),
     })
     .eq("id", bookingId);
   return !error;

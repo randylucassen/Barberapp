@@ -3,7 +3,7 @@ import { MapPin, MessageCircle, Phone } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Badge, Button, IconButton, NavBar } from "@/components/ui";
-import { Avatar } from "@/components/shared";
+import { Avatar, LiveMap } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import { getBooking, getBookingBarberPhone, getReviewForBooking } from "@/lib/supabase/queries";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
@@ -92,15 +92,29 @@ function StatusContent() {
     isCompleted &&
     !!booking?.completedAt &&
     Date.now() - new Date(booking.completedAt).getTime() < 24 * 60 * 60 * 1000;
+  // Live kaart heeft alleen zin zolang de barber onderweg is — daarvoor
+  // (nog geen bevestiging) of daarna (al ter plaatse) voegt 'm niets toe.
+  const showLiveMap = booking?.status === "accepted" || booking?.status === "en_route";
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 bg-[#F1F3F4] relative">
         <NavBar transparent onBack={() => router.push("/klant/home")} />
-        <div className="absolute inset-0 flex items-center justify-center text-[#C6CBD1] flex-col gap-2">
-          <MapPin size={40} />
-          <span className="text-[13px] font-medium">Live kaart</span>
-        </div>
+        {showLiveMap ? (
+          <LiveMap
+            barberLat={booking?.barberLiveLat ?? null}
+            barberLng={booking?.barberLiveLng ?? null}
+            destinationLat={booking?.lat ?? null}
+            destinationLng={booking?.lng ?? null}
+            barberLocationUpdatedAt={booking?.barberLocationUpdatedAt ?? null}
+            placeholderLabel="Live kaart"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-[#C6CBD1] flex-col gap-2">
+            <MapPin size={40} />
+            <span className="text-[13px] font-medium">Live kaart</span>
+          </div>
+        )}
       </div>
       <div className="bg-white rounded-t-xl -mt-6 px-5 pt-5 pb-2 relative">
         <div className="w-9 h-1 rounded-full bg-border mx-auto mb-4" />

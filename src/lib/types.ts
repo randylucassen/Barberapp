@@ -118,6 +118,16 @@ export interface BookingRecord {
   // Gezet zodra status -> completed (Fase 6) — ankerpunt voor het
   // 24-uurs-geschillenvenster.
   completedAt: string | null;
+  // Gegeocodeerd klant-adres, gezet bij het boeken — bestemming voor
+  // LiveMap (0033). Kan null zijn bij een heel oude boeking van vóór
+  // matching (Fase 5) of als geocoding toen mislukte.
+  lat: number | null;
+  lng: number | null;
+  // Live positie van de barber tijdens accepted/en_route (0033), zie
+  // updateBookingLiveLocation() in queries.ts.
+  barberLiveLat: number | null;
+  barberLiveLng: number | null;
+  barberLocationUpdatedAt: string | null;
 }
 
 // Fase 6 — alleen select-baar door de klant/barber van de eigen boeking

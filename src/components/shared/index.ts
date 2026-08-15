@@ -8,3 +8,4 @@ export * from "./UploadTile";
 export * from "./PhoneShell";
 export * from "./NotificationsList";
 export * from "./NotificationBell";
+export * from "./LiveMap";

@@ -17,6 +17,7 @@
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "lucide-react": "0.469.0",
+    "mapbox-gl": "^3.28.1",
     "next": "15.5.20",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
+    "@types/mapbox-gl": "^3.4.1",
     "@types/node": "22.10.7",
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",

@@ -1242,6 +1242,63 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   alle drie de labels correct en in de juiste volgorde verschijnen.
   Testdata opgeruimd. `npx tsc --noEmit`/`npm run lint` schoon. Geen
   migratie nodig.
+- **Live locatiekaart gebouwd (2026-08-15) — de langst-openstaande
+  beslissing in dit project.** Op verzoek van de gebruiker daadwerkelijk
+  gebouwd, nu de app live staat. Met de gebruiker afgestemd (via
+  `AskUserQuestion` in plan-mode): **Mapbox** als kaart-SDK (gratis tier,
+  geen creditcard nodig — past bij de bestaande voorkeur voor
+  laagdrempelige diensten zoals Nominatim/PDOK) én **inclusief routelijn
+  + ETA** via Mapbox's Directions API (niet alleen twee pins).
+  - **Architectuur**: geen Supabase Realtime geïntroduceerd (de app
+    gebruikt dat nergens, overal `setInterval`-polling) — drie nieuwe
+    kolommen direct op `bookings` (`barber_live_lat`, `barber_live_lng`,
+    `barber_location_updated_at`, migratie `0033`), geschreven door de
+    barber via `navigator.geolocation.watchPosition()` op `barber/rit`
+    (gethrottled, max. 1x/8s — een GPS kan elke seconde ticken), gelezen
+    door de klant via de al bestaande 4s-poll van `getBooking()` op
+    `klant/status` — geen enkele nieuwe network-roundtrip aan klantkant.
+    Kolom-grant zelfde patroon als de bestaande `grant update (status,
+    ...)` in `0003`. `bookings.lat/lng` (het klant-adres, al sinds Fase 5
+    aanwezig maar nooit teruggelezen naar de client) is bij deze
+    gelegenheid ook aan `BookingRecord`/`BOOKING_COLUMNS` toegevoegd —
+    nodig als bestemmingscoördinaat voor de kaart.
+  - **Nieuw gedeeld component** `src/components/shared/LiveMap.tsx`
+    (imperatieve `mapbox-gl`-API, geen React-wrapper-dependency): markers
+    voor barber (teal) + bestemming (zwart), `fitBounds` op beide,
+    gethrottelde Directions-call voor route/ETA (max. 1x/20s of bij een
+    merkbare verplaatsing), een "laatst gezien"-notitie als de laatste
+    positie-update ouder dan 2 minuten is. **Zonder
+    `NEXT_PUBLIC_MAPBOX_TOKEN` valt dit component vanzelf terug op de
+    identieke statische placeholder van vóór deze feature** — geen crash,
+    geen kale kaart; dit was een bewuste eis zodat de rest van de app
+    nooit kan breken op een ontbrekende/nog-niet-aangevraagde token.
+    Ingezet op zowel `klant/status` ("Live kaart") als `barber/rit`
+    ("Navigatie"), alleen tijdens `accepted`/`en_route` (barber is
+    onderweg) — andere statussen behouden de oude placeholder, een live
+    kaart voegt daar niets toe.
+  - **Geweigerde locatietoestemming** op `barber/rit` blokkeert de rit
+    niet — een niet-blokkerende melding, de barber kan gewoon door de
+    rit-stappen heen (zelfde soort degradatie als eerder bij de "gebruik
+    huidige locatie"-knop en Web Push).
+  - **Belangrijk operationeel verschil met alle eerdere migraties deze
+    sessie**: `BOOKING_COLUMNS`/`mapBooking()` in `queries.ts` (gebruikt
+    door zo goed als elk boekingsscherm: `klant/status`, `klant/home`,
+    `barber/dashboard`, `barber/rit`, etc.) selecteert nu de drie nieuwe
+    kolommen. Zonder migratie `0033` gepusht faalt dus **elke**
+    boeking-fetch in productie (bevestigd: een `getBooking()`-achtige
+    query gaf `42703 column bookings.barber_live_lat does not exist`) —
+    niet alleen de nieuwe live-kaart-functionaliteit zelf. Daarom is de
+    gebruikelijke volgorde deze keer bewust omgedraaid: de migratie moet
+    gepusht zijn **vóórdat** deze code naar `main`/Vercel gaat, niet
+    erna (normaal maakt dat niet uit omdat een nieuwe kolom alleen door
+    nieuwe, geïsoleerde functies gelezen wordt — hier raakt de wijziging
+    een gedeelde kernquery).
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+    (volledige productie-build) schoon. Het schrijf-/leespad zelf kon nog
+    niet end-to-end tegen de live database getest worden — migratie moet
+    eerst gepusht worden, precies de reden voor de omgedraaide volgorde
+    hierboven; dat volgt zodra de gebruiker gepusht heeft. `npm install
+    mapbox-gl` + `@types/mapbox-gl` toegevoegd.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
