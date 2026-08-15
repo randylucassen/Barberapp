@@ -38,6 +38,8 @@ function getHref(n: AppNotification, role: "klant" | "barber"): string | null {
       return "/barber/aanvraag";
     case "payment_received":
       return "/barber/verdiensten";
+    case "review_received":
+      return "/barber/reviews";
     case "wallet_topup":
       return "/barber/wallet";
     case "completed":

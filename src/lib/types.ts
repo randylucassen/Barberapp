@@ -135,9 +135,9 @@ export interface PaymentRecord {
 }
 
 // Matcht de bestaande notification_type-enum (Fase 2, uitgebreid in
-// Fase 9 met wallet_topup/referral_bonus (0014) en in de pre-launch audit
-// met completed/cancelled (0017) — die twee ontbraken hier nog, terwijl
-// de trigger ze al langer kon insteren.
+// Fase 9 met wallet_topup/referral_bonus (0014), in de pre-launch audit
+// met completed/cancelled (0017), en met review_received (0032, barber
+// krijgt nu een melding zodra een klant een review achterlaat).
 export type NotificationType =
   | "new_request"
   | "accepted"
@@ -147,6 +147,7 @@ export type NotificationType =
   | "cancelled"
   | "payment_received"
   | "review_reminder"
+  | "review_received"
   | "dispute"
   | "wallet_topup"
   | "referral_bonus";

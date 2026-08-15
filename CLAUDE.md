@@ -1213,6 +1213,19 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   naar `/klant/review?bookingId=...` met de juiste barbernaam ("Hoe was
   Randy?") en een werkend sterren-/tekstformulier. Testdata opgeruimd.
   `npx tsc --noEmit`/`npm run lint` schoon. Geen migratie nodig.
+- **Barber kreeg geen melding bij een nieuwe review (2026-08-15).**
+  `update_barber_rating()` (0003, trigger `on_review_created`) werkte
+  alleen de `rating_avg`/`rating_count`-cache bij op `barber_profiles` —
+  nooit een `notifications`-rij, in tegenstelling tot alle andere
+  booking-events. Gefixt in `0032_notify_barber_on_review.sql`: nieuw
+  enum-lid `review_received` + de trigger-functie (volledige body
+  opnieuw, regel 22) stuurt nu ook een melding naar `new.barber_id` met
+  het aantal sterren en (indien aanwezig) de reviewtekst, gelinkt aan
+  `related_booking_id`. Klikbaar gemaakt in dezelfde beweging als de
+  vorige meldingen-fix hierboven: `getHref()` in `NotificationsList`
+  routeert `review_received` voor barbers naar `/barber/reviews`.
+  `npx tsc --noEmit`/`npm run lint` schoon. Migratie `0032` — nog te
+  pushen door de gebruiker.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
