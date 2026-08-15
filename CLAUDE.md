@@ -1226,6 +1226,22 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   routeert `review_received` voor barbers naar `/barber/reviews`.
   `npx tsc --noEmit`/`npm run lint` schoon. Migratie `0032` — nog te
   pushen door de gebruiker.
+- **"Vandaag" op barber/dashboard toonde ook gisteren/eergisteren
+  (2026-08-15).** `getRecentBookingsForBarber()` haalt de laatste 10
+  niet-`requested`-boekingen op ongeacht datum, maar de sectie had een
+  hardgecodeerde "Vandaag"-titel — dus letterlijk elke recente boeking
+  stond onder "Vandaag", ook eentje van gisteren. Nieuwe `dayLabel()`
+  groepeert nu op echte kalenderdag (niet een 24u-venster — 23:50
+  gisteren en 00:10 vandaag zijn nog geen etmaal uit elkaar maar horen
+  wél in verschillende groepen): "Vandaag"/"Gisteren"/een datum (bv. "13
+  augustus") voor ouder. De lijst was al aflopend gesorteerd op
+  `created_at`, dus aaneengesloten groeperen volstaat zonder aparte sort.
+  **Geverifieerd** met een verse testbarber + drie boekingen op drie
+  verschillende dagen (vandaag/gisteren/eergisteren, elk met een
+  bijbehorende `payments`-rij zodat RLS ze toont) — live bevestigd dat
+  alle drie de labels correct en in de juiste volgorde verschijnen.
+  Testdata opgeruimd. `npx tsc --noEmit`/`npm run lint` schoon. Geen
+  migratie nodig.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

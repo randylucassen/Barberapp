@@ -39,6 +39,20 @@ const ACTIVE_RIDE_LABEL: Record<string, string> = {
   in_progress: "Knipbeurt bezig",
 };
 
+// "Vandaag"/"Gisteren" op basis van kalenderdag, niet op een 24-uurs-
+// venster — een boeking van gisterenavond laat 23:50 en eentje van
+// vanmorgen 00:10 zijn anders nog geen 24u uit elkaar maar horen wel in
+// verschillende groepen.
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return "Vandaag";
+  if (diffDays === 1) return "Gisteren";
+  return d.toLocaleDateString("nl-NL", { day: "numeric", month: "long" });
+}
+
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="flex-1 bg-surface rounded-md px-4 py-3.5">
@@ -142,6 +156,16 @@ export default function BarberDashboardPage() {
     }
   }
 
+  // getRecentBookingsForBarber sorteert al aflopend op created_at, dus
+  // aaneengesloten groeperen op dagLabel volstaat — geen losse sort nodig.
+  const groupedBookings = bookings.reduce<{ label: string; items: typeof bookings }[]>((groups, b) => {
+    const label = dayLabel(b.createdAt);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(b);
+    else groups.push({ label, items: [b] });
+    return groups;
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       <div className="px-5 pt-4 flex items-center justify-between">
@@ -189,19 +213,26 @@ export default function BarberDashboardPage() {
         <Stat label="Rating" value={ratingAvg ? `${ratingAvg.toFixed(1).replace(".", ",")}` : "–"} />
       </div>
       <div className="px-5 pt-6 flex-1 overflow-y-auto no-scrollbar">
-        <div className="text-[17px] font-semibold tracking-[-0.01em] mb-1">Vandaag</div>
         {bookings.length === 0 && (
-          <div className="text-[14px] text-text-secondary py-4">Nog geen boekingen.</div>
+          <>
+            <div className="text-[17px] font-semibold tracking-[-0.01em] mb-1">Vandaag</div>
+            <div className="text-[14px] text-text-secondary py-4">Nog geen boekingen.</div>
+          </>
         )}
-        {bookings.map((b) => (
-          <Row
-            key={b.id}
-            left={<Avatar name={b.customerName} />}
-            title={b.customerName}
-            sub={`${b.serviceName} · ${b.address}`}
-            right={<Badge variant={STATUS_BADGE[b.status].variant}>{STATUS_BADGE[b.status].label}</Badge>}
-            onClick={ACTIVE_RIDE_STATUSES.includes(b.status) ? () => router.push("/barber/rit") : undefined}
-          />
+        {groupedBookings.map((group) => (
+          <div key={group.label}>
+            <div className="text-[17px] font-semibold tracking-[-0.01em] mb-1 mt-5 first:mt-0">{group.label}</div>
+            {group.items.map((b) => (
+              <Row
+                key={b.id}
+                left={<Avatar name={b.customerName} />}
+                title={b.customerName}
+                sub={`${b.serviceName} · ${b.address}`}
+                right={<Badge variant={STATUS_BADGE[b.status].variant}>{STATUS_BADGE[b.status].label}</Badge>}
+                onClick={ACTIVE_RIDE_STATUSES.includes(b.status) ? () => router.push("/barber/rit") : undefined}
+              />
+            ))}
+          </div>
         ))}
       </div>
       {online && hasRequest && (
