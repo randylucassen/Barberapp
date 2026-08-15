@@ -5,7 +5,12 @@ import { useEffect, useState } from "react";
 import { Badge, Button, IconButton, NavBar } from "@/components/ui";
 import { Avatar } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
-import { getActiveBookingForBarber, getBookingCustomerName, updateBookingStatus } from "@/lib/supabase/queries";
+import {
+  getActiveBookingForBarber,
+  getBookingCustomerName,
+  getBookingCustomerPhone,
+  updateBookingStatus,
+} from "@/lib/supabase/queries";
 import { computePriceBreakdown, euro } from "@/lib/pricing";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
 
@@ -23,6 +28,7 @@ export default function RidePage() {
   const router = useRouter();
   const [booking, setBooking] = useState<BookingRecord | null>(null);
   const [customerName, setCustomerName] = useState("Klant");
+  const [customerPhone, setCustomerPhone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +45,7 @@ export default function RidePage() {
       setBooking(active);
       const name = await getBookingCustomerName(supabase, active.id);
       if (name) setCustomerName(name);
+      setCustomerPhone(await getBookingCustomerPhone(supabase, active.id));
     })();
   }, [router]);
 
@@ -108,8 +115,21 @@ export default function RidePage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <IconButton label="Bericht"><MessageCircle size={18} /></IconButton>
-            <IconButton label="Bel" variant="primary"><Phone size={18} /></IconButton>
+            <IconButton
+              label="Bericht"
+              disabled={!customerPhone}
+              onClick={() => customerPhone && (window.location.href = `sms:${customerPhone}`)}
+            >
+              <MessageCircle size={18} />
+            </IconButton>
+            <IconButton
+              label="Bel"
+              variant="primary"
+              disabled={!customerPhone}
+              onClick={() => customerPhone && (window.location.href = `tel:${customerPhone}`)}
+            >
+              <Phone size={18} />
+            </IconButton>
           </div>
         </div>
         <div className="mt-4 mb-2">

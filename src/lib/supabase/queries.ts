@@ -555,6 +555,32 @@ export async function getBookingCustomerName(
   return data as string;
 }
 
+// Telefoonnummer van de klant/barber achter een boeking (het nummer dat
+// bij registreren is opgegeven, profiles.phone) — voor de Bel/Bericht-
+// knoppen op barber/rit resp. klant/status. Zelfde security-definer-
+// patroon/scope als getBookingCustomerName hierboven (0031).
+export async function getBookingCustomerPhone(
+  supabase: SupabaseClient,
+  bookingId: string
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc("get_booking_customer_phone", {
+    p_booking_id: bookingId,
+  });
+  if (error || !data) return null;
+  return data as string;
+}
+
+export async function getBookingBarberPhone(
+  supabase: SupabaseClient,
+  bookingId: string
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc("get_booking_barber_phone", {
+    p_booking_id: bookingId,
+  });
+  if (error || !data) return null;
+  return data as string;
+}
+
 // Recente niet-aangevraagde boekingen (geaccepteerd/lopend/afgerond) voor
 // het dashboard-overzicht — geen strikte "vandaag"-datumgrens, zelfde
 // schaal als de vorige mock-lijst.

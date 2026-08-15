@@ -1119,6 +1119,20 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   komen uit dezelfde `notifications`-rij, onafhankelijk van of de
   e-mailpoging slaagt. `npx tsc --noEmit`/`npm run lint` schoon. Geen
   migratie nodig.
+- **Bel/Bericht-knoppen op barber/rit en klant/status werkend gemaakt
+  (2026-08-14).** Beide waren pure designpakket-restanten (geen
+  `onClick`) — nooit gekoppeld sinds ze in Fase 4 gebouwd werden. Nu
+  echt `tel:`/`sms:`-links naar het telefoonnummer dat de andere partij
+  bij registreren heeft opgegeven (`profiles.phone`, sinds `0001`).
+  Twee nieuwe security-definer-functies (`0031_booking_contact_phone.sql`)
+  — `get_booking_customer_phone()`/`get_booking_barber_phone()` — exact
+  hetzelfde patroon/scope als het bestaande `get_booking_customer_name()`
+  (0005): alleen de daadwerkelijk toegewezen tegenpartij van díe ene
+  boeking mag het nummer zien, `profiles`/`approved_barbers` blijven
+  bewust dicht voor telefoon/e-mail (regel 7/23). Beide knoppen zijn
+  `disabled` zolang het nummer nog niet geladen is (of ontbreekt).
+  `npx tsc --noEmit`/`npm run lint` schoon. Migratie `0031` — nog te
+  pushen door de gebruiker.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

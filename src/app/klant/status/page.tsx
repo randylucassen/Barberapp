@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Badge, Button, IconButton, NavBar } from "@/components/ui";
 import { Avatar } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
-import { getBooking, getReviewForBooking } from "@/lib/supabase/queries";
+import { getBooking, getBookingBarberPhone, getReviewForBooking } from "@/lib/supabase/queries";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
 
 const STATUS_COPY: Record<BookingStatus, { title: string; sub: string; badge: string; progress: number }> = {
@@ -26,6 +26,7 @@ function StatusContent() {
   const bookingId = search.get("bookingId");
   const [booking, setBooking] = useState<BookingRecord | null>(null);
   const [barberName, setBarberName] = useState<string | null>(null);
+  const [barberPhone, setBarberPhone] = useState<string | null>(null);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
   useEffect(() => {
@@ -62,11 +63,12 @@ function StatusContent() {
       try {
         const { data } = await supabase.from("approved_barbers").select("full_name").eq("id", booking.barberId).single();
         if (data) setBarberName(data.full_name);
+        setBarberPhone(await getBookingBarberPhone(supabase, booking.id));
       } catch {
         // niets doen
       }
     })();
-  }, [booking?.barberId, booking?.status, barberName]);
+  }, [booking?.barberId, booking?.status, booking?.id, barberName]);
 
   useEffect(() => {
     if (!bookingId || booking?.status !== "completed" || alreadyReviewed) return;
@@ -121,8 +123,21 @@ function StatusContent() {
             </div>
           </div>
           <div className="flex gap-2">
-            <IconButton label="Bericht"><MessageCircle size={18} /></IconButton>
-            <IconButton label="Bel" variant="primary"><Phone size={18} /></IconButton>
+            <IconButton
+              label="Bericht"
+              disabled={!barberPhone}
+              onClick={() => barberPhone && (window.location.href = `sms:${barberPhone}`)}
+            >
+              <MessageCircle size={18} />
+            </IconButton>
+            <IconButton
+              label="Bel"
+              variant="primary"
+              disabled={!barberPhone}
+              onClick={() => barberPhone && (window.location.href = `tel:${barberPhone}`)}
+            >
+              <Phone size={18} />
+            </IconButton>
           </div>
         </div>
         <div className="mt-4 mb-2 flex flex-col gap-2">
