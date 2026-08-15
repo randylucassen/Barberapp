@@ -2482,12 +2482,26 @@ bereik, of bewust bij jou gelaten om zelf te verifiëren) — opgebouwd per
 fase, bedoeld om aan het eind van het hele traject in één keer samen door
 te lopen. Niet blokkerend voor volgende fases.
 
-- **Fase 8 — Resend-domein verifiëren**: Resend staat nu in sandbox-modus,
-  mails kunnen alleen naar je eigen accountadres verstuurd worden. Om
-  straks naar echte klant-/barber-e-mailadressen te mailen, moet je in het
-  Resend-dashboard een eigen domein toevoegen en de SPF/DKIM-DNS-records
-  bij je domeinregistrar instellen (toegang tot je domein-DNS heb ik niet).
-  Pas relevant vlak vóór een echte livegang.
+- **Fase 8 — Resend-domein verifiëren — nu daadwerkelijk blokkerend**
+  (bevestigd 2026-08-14): niet meer "pas relevant vlak vóór livegang" —
+  de app is al live en dit blokkeert nu echt. Bevestigd met een directe
+  testverzending vanuit de sandbox: Resend weigerde met `403
+  validation_error`, letterlijk *"You can only send testing emails to
+  your own email address ([je eigen adres]). To send emails to other
+  recipients, please verify a domain at resend.com/domains…"*. Dit is
+  precies waarom de gebruiker zelf wél mail kreeg (aanvraag bevestigd/
+  geld in escrow) maar familie op een ander adres niet — geen codebug.
+  Zonder een geverifieerd domein kan **niemand anders dan je eigen
+  accountadres** ooit mail krijgen, hoeveel klanten/barbers er ook
+  bijkomen. Nodig: (1) een domein (eender welk, ook een goedkoop nieuw
+  domein volstaat — hoeft niet hetzelfde te zijn als een toekomstig
+  app-domein), (2) dat domein toevoegen op resend.com/domains, (3) de
+  SPF/DKIM-DNS-records die Resend toont bij je domeinregistrar instellen
+  (toegang tot je domein-DNS heb ik niet), (4) `RESEND_FROM_EMAIL` in
+  Vercel bijwerken naar een adres op dat domein (bv.
+  `noreply@jouwdomein.nl`). Mislukte verzendingen komen sinds vandaag wel
+  zichtbaar in Sentry terecht (`src/app/api/notifications/send/route.ts`)
+  i.p.v. stil te verdwijnen in een ongelezen response.
 - **Fase 8 — Live push-aflevering zelf bevestigen**: de browser-testtool
   heeft `Notification.permission` vast op `"denied"` staan (geen
   promptbare staat), dus dit kon niet door mij end-to-end getest worden.

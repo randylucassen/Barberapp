@@ -1099,6 +1099,26 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     UI-elementen op leunen werkt dus aantoonbaar correct; alleen het
     daadwerkelijke React-klikken/renderen is niet pixel-voor-pixel gezien.
     Testdata na afloop opgeruimd.
+- **"Familie krijgt geen mail" — root cause gevonden, geen codebug
+  (2026-08-14).** Gemeld: de gebruiker kreeg zelf wel bevestigingsmails
+  (aanvraag bevestigd, geld in escrow), familie op een ander adres niet.
+  Direct gereproduceerd met een echte testverzending naar het echte
+  familie-e-mailadres: Resend weigerde met `403 validation_error` —
+  *"You can only send testing emails to your own email address"*. Zonder
+  een geverifieerd domein (nog niet gedaan, zie PROJECT.md's
+  "Openstaande acties voor jou" — Fase 8) mag Resend's sandbox-modus
+  alleen naar het eigen accountadres versturen, exact wat we zagen. Geen
+  fix mogelijk zonder een domein + DNS-toegang die ik niet heb — puur een
+  actie voor de gebruiker. Wél gefixt: deze fout verdween voorheen stil
+  in een ongelezen HTTP-response van de fire-and-forget
+  `/api/notifications/send`-route (aangeroepen via `pg_net`, niemand
+  keek ooit naar de response) — nu een `Sentry.captureException()` bij
+  elke mislukte Resend-verzending, zodat een toekomstig ander
+  mail-probleem niet weer onopgemerkt blijft. In-app-notificaties (de
+  bel/`/klant/notificaties`) werkten voor de familie wél gewoon — die
+  komen uit dezelfde `notifications`-rij, onafhankelijk van of de
+  e-mailpoging slaagt. `npx tsc --noEmit`/`npm run lint` schoon. Geen
+  migratie nodig.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
