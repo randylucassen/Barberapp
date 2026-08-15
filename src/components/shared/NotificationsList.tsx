@@ -1,5 +1,6 @@
 "use client";
 import { Bell } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NavBar } from "@/components/ui";
 import { EmptyState } from "./EmptyState";
@@ -7,6 +8,45 @@ import { Row } from "./Row";
 import { createClient } from "@/lib/supabase/client";
 import { getNotificationsForUser, markNotificationRead } from "@/lib/supabase/queries";
 import type { AppNotification } from "@/lib/types";
+
+// Waar een tik op een melding naartoe moet — per rol, want dezelfde
+// notification_type betekent een ander scherm voor klant vs. barber.
+// null = geen zinnig doel (geen booking-context, of geen scherm dat daar
+// iets mee kan) — die rijen blijven gewoon niet-klikbaar, zoals voorheen.
+function getHref(n: AppNotification, role: "klant" | "barber"): string | null {
+  const bookingId = n.relatedBookingId;
+  if (role === "klant") {
+    switch (n.type) {
+      case "review_reminder":
+        return bookingId ? `/klant/review?bookingId=${bookingId}` : null;
+      case "accepted":
+      case "en_route":
+      case "arrived":
+      case "completed":
+      case "cancelled":
+      case "dispute":
+        return bookingId ? `/klant/status?bookingId=${bookingId}` : null;
+      case "wallet_topup":
+      case "referral_bonus":
+        return "/klant/wallet";
+      default:
+        return null;
+    }
+  }
+  switch (n.type) {
+    case "new_request":
+      return "/barber/aanvraag";
+    case "payment_received":
+      return "/barber/verdiensten";
+    case "wallet_topup":
+      return "/barber/wallet";
+    case "completed":
+    case "cancelled":
+      return "/barber/dashboard";
+    default:
+      return null;
+  }
+}
 
 function NotifDot({ accent }: { accent: boolean }) {
   return (
@@ -29,8 +69,10 @@ function timeAgo(iso: string): string {
 
 // Gedeeld tussen /klant/notificaties en /barber/notificaties (Fase 8) —
 // beide rollen gebruiken dezelfde generieke getNotificationsForUser(),
-// alleen de terugknop-bestemming verschilt.
-export function NotificationsList({ onBack }: { onBack: () => void }) {
+// de terugknop-bestemming én de per-rij tik-bestemming (getHref
+// hierboven) verschillen per rol.
+export function NotificationsList({ onBack, role }: { onBack: () => void; role: "klant" | "barber" }) {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -57,14 +99,18 @@ export function NotificationsList({ onBack }: { onBack: () => void }) {
         <EmptyState icon={<Bell size={28} />} title="Nog geen meldingen" sub="Hier zie je updates over je boekingen." />
       ) : (
         <div className="px-5 pt-2 flex-1 overflow-y-auto no-scrollbar">
-          {notifications.map((n) => (
-            <Row
-              key={n.id}
-              left={<NotifDot accent={!n.read} />}
-              title={n.title}
-              sub={n.body ? `${n.body} · ${timeAgo(n.createdAt)}` : timeAgo(n.createdAt)}
-            />
-          ))}
+          {notifications.map((n) => {
+            const href = getHref(n, role);
+            return (
+              <Row
+                key={n.id}
+                left={<NotifDot accent={!n.read} />}
+                title={n.title}
+                sub={n.body ? `${n.body} · ${timeAgo(n.createdAt)}` : timeAgo(n.createdAt)}
+                onClick={href ? () => router.push(href) : undefined}
+              />
+            );
+          })}
         </div>
       )}
     </div>

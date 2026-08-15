@@ -1187,6 +1187,32 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   webview heeft geen eigen wachtwoordmanager/cookie-opslag zoals een
   volwaardige browser. `npx tsc --noEmit`/`npm run lint` schoon. Geen
   migratie nodig.
+- **Meldingen (klant/barber) waren niet klikbaar (2026-08-15).** Gemeld:
+  op `klant/notificaties` staat "Laat gerust een review achter", maar
+  geen manier om erop te klikken of alsnog een review te geven.
+  `NotificationsList` (`src/components/shared/`, gedeeld tussen klant en
+  barber) rendert de `Row`-items sinds Fase 8 zonder `onClick` — puur
+  statisch. `AppNotification.relatedBookingId` was al wel beschikbaar
+  (`getNotificationsForUser()` selecteerde 'm al), alleen nooit gebruikt.
+  Nieuwe `getHref(notification, role)`-functie mapt elk `notification_
+  type` naar een zinnig doel per rol (bv. klant `review_reminder` →
+  `/klant/review?bookingId=X`, `accepted`/`en_route`/`arrived`/
+  `completed`/`cancelled`/`dispute` → `/klant/status?bookingId=X`,
+  `wallet_topup`/`referral_bonus` → `/klant/wallet`; barber `new_request`
+  → `/barber/aanvraag`, `payment_received` → `/barber/verdiensten`, etc.)
+  — `null` voor types zonder een zinnig scherm, die rijen blijven bewust
+  gewoon niet-klikbaar in plaats van te gokken. `NotificationsList` kreeg
+  een verplichte `role`-prop (`klant/notificaties`/`barber/notificaties`
+  geven 'm nu door) zodat dezelfde melding-type voor de juiste rol naar
+  het juiste scherm gaat. Zijdelings gevonden: `NotificationType` in
+  `src/lib/types.ts` miste `completed`/`cancelled` — die zaten al langer
+  in de echte Postgres-enum (`0017`) maar nooit in de TS-type, gefixt.
+  **Geverifieerd end-to-end**: een verse testklant met een echte
+  afgeronde boeking + een echte `review_reminder`-notificatie, ingelogd
+  via een echte browsersessie — klik op de melding navigeerde correct
+  naar `/klant/review?bookingId=...` met de juiste barbernaam ("Hoe was
+  Randy?") en een werkend sterren-/tekstformulier. Testdata opgeruimd.
+  `npx tsc --noEmit`/`npm run lint` schoon. Geen migratie nodig.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
