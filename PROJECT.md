@@ -2501,7 +2501,12 @@ te lopen. Niet blokkerend voor volgende fases.
   Vercel bijwerken naar een adres op dat domein (bv.
   `noreply@jouwdomein.nl`). Mislukte verzendingen komen sinds vandaag wel
   zichtbaar in Sentry terecht (`src/app/api/notifications/send/route.ts`)
-  i.p.v. stil te verdwijnen in een ongelezen response.
+  i.p.v. stil te verdwijnen in een ongelezen response. **Bewust
+  uitgesteld** — gevraagd, gebruiker koos expliciet "laat voorlopig zo"
+  (2026-08-14). Tot dan blijft e-mail alleen naar het eigen accountadres
+  werken; in-app-notificaties (bel/`/klant/notificaties`,
+  `/barber/notificaties`) werken voor iedereen gewoon door, onafhankelijk
+  hiervan.
 - **Fase 8 — Live push-aflevering zelf bevestigen**: de browser-testtool
   heeft `Notification.permission` vast op `"denied"` staan (geen
   promptbare staat), dus dit kon niet door mij end-to-end getest worden.
