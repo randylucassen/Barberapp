@@ -1167,6 +1167,26 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   het succespad (toestemming gegeven → adres ingevuld) is alleen via de
   directe API-test bevestigd, niet pixel-voor-pixel in de browser.
   `npx tsc --noEmit`/`npm run lint` schoon. Geen migratie nodig.
+- **"Ingelogd blijven" + wachtwoord/gebruikersnaam onthouden
+  (2026-08-14).** Sessie-persistentie zelf bleek al standaard aan te
+  staan — `createBrowserClient` (`@supabase/ssr`) persist de sessie in
+  cookies met automatische token-refresh, geen aparte "blijf ingelogd"-
+  toggle nodig of aanwezig om dat gedrag te krijgen (`src/lib/supabase/
+  service.ts` zet `persistSession: false` bewust, maar dat is alleen de
+  service-role-client voor server-side calls zonder gebruikerssessie —
+  niet de browser-client die klant/barber/admin gebruiken). Wél een
+  echte, concrete gap gevonden en gefixt: alle vijf auth-formulieren
+  (klant/barber/admin-login, klant/barber-register) misten een `name`-
+  attribuut op de velden — hadden alleen `autoComplete`. Sommige browsers/
+  password-managers herkennen een veld onvoldoende betrouwbaar op enkel
+  `autoComplete` om het aanbieden-om-op-te-slaan te triggeren; `name`
+  erbij is de robuustere, bredere-compatibiliteit-aanpak. Als "ingelogd
+  blijven"/"onthouden" toch niet werkte tijdens testen, is de
+  waarschijnlijkste verklaring een ingesloten in-app-browser (bv. vanuit
+  de Notities-app, zie de eerdere PhoneShell-bug hierboven) — zo'n
+  webview heeft geen eigen wachtwoordmanager/cookie-opslag zoals een
+  volwaardige browser. `npx tsc --noEmit`/`npm run lint` schoon. Geen
+  migratie nodig.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
