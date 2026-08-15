@@ -315,7 +315,7 @@ function BookingContent() {
               onChange={setAddress}
               placeholder="Straat en huisnummer, plaats"
               className="flex-1"
-              inputClassName="w-full bg-transparent border-none outline-none text-[15px] font-medium placeholder:text-text-tertiary placeholder:font-normal"
+              inputClassName="flex-1 min-w-0 bg-transparent border-none outline-none text-[15px] font-medium placeholder:text-text-tertiary placeholder:font-normal"
             />
           </div>
           <div className="py-3 border-b border-border-soft flex items-center gap-3.5">

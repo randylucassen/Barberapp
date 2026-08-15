@@ -1133,6 +1133,40 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   `disabled` zolang het nummer nog niet geladen is (of ontbreekt).
   `npx tsc --noEmit`/`npm run lint` schoon. Migratie `0031` — nog te
   pushen door de gebruiker.
+- **"Amsterdam-adres bij opstarten" — eigen testdata-restant, geen bug,
+  + nieuwe "huidige locatie"-knop (2026-08-14).** Root cause: bij het
+  bouwen van `klant/adres` eerder deze sessie is `customer_profiles.
+  default_address` van het testaccount (`randylucassen@gmail.com`)
+  bewust op "Damrak 1, Amsterdam" gezet om de opslaan-flow te verifiëren
+  — anders dan bij het telefoonnummer (dat toen wél teruggezet is) is dit
+  adres nooit gereset. Rechtstreeks opgeruimd (`default_address = null`).
+  Het bestaande prefill-gedrag zelf (`klant/home` vult het adresveld met
+  je opgeslagen standaardadres als je die hebt ingesteld) is bewust
+  **niet** verwijderd — dat is de eigenlijke, gewenste functie van
+  `klant/adres`; zonder een opgeslagen standaardadres begint het veld
+  toch al leeg.
+  Nieuw, tweede deel van het verzoek: een "gebruik huidige locatie"-knop.
+  Toegevoegd binnen `AddressAutocomplete` zelf (niet per aanroepplek) —
+  werkt dus meteen overal waar het component al gebruikt wordt
+  (`klant/home`, `klant/boeking`, `klant/adres`), geen losse wiring per
+  scherm nodig. Vraagt `navigator.geolocation`-toestemming, zet de
+  coördinaten om naar een adres via een nieuwe route
+  `/api/reverse-geocode` (PDOK Locatieserver, dezelfde gratis/keyless
+  NL-overheidsbron als `/api/address-suggest` — bewust niet Nominatim,
+  zelfde reden als bij de suggesties tijdens typen). Rate-limited zoals
+  de andere publieke adres-route. Nette Nederlandse foutmelding bij
+  geweigerde toestemming/geen adres gevonden, knop `disabled` tijdens het
+  ophalen.
+  **Geverifieerd**: `/api/reverse-geocode` rechtstreeks getest met echte
+  coördinaten (Amsterdam/Huissen) — correcte adressen terug. Browser-UI
+  werkte deze keer wél (eerdere sessies had de preview-tool problemen):
+  bevestigd dat het adresveld na het opruimen leeg start, de knop
+  rendert, en een klik de correcte Nederlandse foutmelding
+  "Locatietoestemming geweigerd." toont — de testtool staat, net als bij
+  Web Push eerder (Fase 8), geen promptbare locatietoestemming toe, dus
+  het succespad (toestemming gegeven → adres ingevuld) is alleen via de
+  directe API-test bevestigd, niet pixel-voor-pixel in de browser.
+  `npx tsc --noEmit`/`npm run lint` schoon. Geen migratie nodig.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
