@@ -24,9 +24,13 @@ const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob:${supabaseHost ? ` https://${supabaseHost}` : ""}`,
+  `img-src 'self' data: blob: https://api.mapbox.com${supabaseHost ? ` https://${supabaseHost}` : ""}`,
   "font-src 'self' data:",
-  `connect-src 'self'${supabaseHost ? ` https://${supabaseHost}` : ""} https://api.stripe.com${sentryIngestHost ? ` https://${sentryIngestHost}` : ""}`,
+  // worker-src blob: is nodig voor mapbox-gl's tegel-verwerking (Web Workers
+  // via een blob:-URL) — zonder dit valt `script-src` terug als default en
+  // die mist blob:, waardoor de kaart nooit initialiseert.
+  "worker-src 'self' blob:",
+  `connect-src 'self' https://api.mapbox.com https://events.mapbox.com${supabaseHost ? ` https://${supabaseHost}` : ""} https://api.stripe.com${sentryIngestHost ? ` https://${sentryIngestHost}` : ""}`,
   "frame-src https://js.stripe.com https://hooks.stripe.com https://connect.stripe.com",
   "object-src 'none'",
   "base-uri 'self'",
