@@ -2532,18 +2532,16 @@ te lopen. Niet blokkerend voor volgende fases.
   kon ik deze sessie niet met een echte ingelogde sessie testen (geen
   testaccount-credentials beschikbaar), alleen via code-review en
   build/type-check bevestigen.
-- **Live kaart — gebouwd (2026-08-15), nu een Mapbox-token nodig.** De
-  langlopende "blijf hieraan herinneren"-afspraak (2026-08-11) is
-  ingelost: op verzoek van de gebruiker daadwerkelijk gebouwd, Mapbox
-  gekozen (zie CLAUDE.md's changelog). **Openstaande actie**: een gratis
-  Mapbox-account aanmaken (mapbox.com, geen creditcard nodig), een access
-  token aanmaken onder Account → Tokens, en aanleveren als
-  `NEXT_PUBLIC_MAPBOX_TOKEN` — in `.env.local` voor lokaal testen én in
-  Vercel's project-env-vars voor productie. Zonder deze token blijft de
-  oude statische placeholder gewoon zichtbaar (niets breekt), de kaart
-  wordt pas zichtbaar zodra dit token er is. **Ook nog te pushen**:
-  migratie `0033` — moet gepusht zijn vóórdat de bijbehorende code live
-  gaat, zie CLAUDE.md voor waarom de volgorde deze keer omgedraaid is.
+- ~~Live kaart — gebouwd (2026-08-15), nu een Mapbox-token nodig~~ —
+  **volledig afgerond (2026-08-16)**: migratie `0033` gepusht, Mapbox-
+  token aangeleverd en werkend bevestigd, schrijf-/leespad end-to-end
+  live getest, en een echte CSS-cascadebug (mapbox-gl.css overschreef
+  Tailwinds `absolute`-class, kaart-container stortte in tot 0px hoogte)
+  gevonden en gefixt tijdens dat testen — zie CLAUDE.md's changelog voor
+  het volledige verhaal. **Nog enige echte actie**: `NEXT_PUBLIC_MAPBOX_
+  TOKEN` ook toevoegen aan Vercel's productie-env-vars (lokaal in
+  `.env.local` staat 'ie al) — zonder die stap werkt de kaart alleen
+  lokaal, niet op de live site.
 - **Portfolio vooraf zichtbaar voor klanten? — open productvraag**
   (2026-08-14, nog niet besloten). Barbers uploaden al portfoliofoto's
   bij aanmelden (Fase 3, `barber-media`-bucket), maar er bestaat geen

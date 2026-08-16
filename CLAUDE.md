@@ -1293,12 +1293,29 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     erna (normaal maakt dat niet uit omdat een nieuwe kolom alleen door
     nieuwe, geïsoleerde functies gelezen wordt — hier raakt de wijziging
     een gedeelde kernquery).
-  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
-    (volledige productie-build) schoon. Het schrijf-/leespad zelf kon nog
-    niet end-to-end tegen de live database getest worden — migratie moet
-    eerst gepusht worden, precies de reden voor de omgedraaide volgorde
-    hierboven; dat volgt zodra de gebruiker gepusht heeft. `npm install
-    mapbox-gl` + `@types/mapbox-gl` toegevoegd.
+  - **Geverifieerd end-to-end (2026-08-16)**, ná de migratie-push: een
+    verse testklant/-barber met een `accepted`-boeking, live positie
+    geschreven via de barber's eigen sessie (exact wat
+    `updateBookingLiveLocation()` doet) en direct daarna via de klant's
+    sessie teruggelezen — de juiste coördinaten kwamen aan. Mapbox-token
+    zelf ook los bevestigd geldig (rechtstreekse curl naar de Directions
+    API gaf een echte route terug). `npx tsc --noEmit`/`npm run lint`/
+    `npm run build` schoon.
+    **Echte bug gevonden en gefixt tijdens dit testen**: de kaart was in
+    de browser onzichtbaar (grijs vlak, geen tegels/markers) terwijl 'm
+    intern prima rendered (bevestigd via een DOM-inspectie: canvas had
+    inhoud, beide markers bestonden) — `mapbox-gl.css`'s eigen `.mapboxgl-
+    map { position: relative }`-regel wint de CSS-cascade van Tailwinds
+    `absolute`-class op precies het element waar `mapboxgl.Map()` z'n
+    eigen classname aan toevoegt (allebei één-klasse-selectors, mapbox-gl
+    z'n stylesheet laadt na Tailwind), waardoor die container zonder
+    intrinsieke hoogte instort tot 0px. Gefixt door voor dát specifieke
+    element een inline `style={{position:"absolute",inset:0}}` te
+    gebruiken i.p.v. een className — inline styles winnen altijd,
+    ongeacht laadvolgorde. Ná de fix bevestigd via browser-screenshot:
+    kaarttegels, beide pins (bestemming zwart, barber teal) en de teal
+    routelijn + zoom-knoppen allemaal zichtbaar. Testdata opgeruimd.
+    `npm install mapbox-gl` + `@types/mapbox-gl` toegevoegd.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

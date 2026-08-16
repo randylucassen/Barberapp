@@ -176,7 +176,14 @@ export function LiveMap({
 
   return (
     <div className="absolute inset-0">
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* mapbox-gl.css zet `.mapboxgl-map { position: relative }` op dit
+          element zodra mapboxgl.Map() 'm initialiseert — dat wint de
+          cascade van Tailwinds `absolute` class (allebei één-klasse-
+          selectors, mapbox-gl.css laadt na Tailwind), waardoor de
+          container zonder intrinsieke hoogte instort tot 0px terwijl de
+          kaart er intern prima uitziet. Inline style wint altijd,
+          ongeacht laadvolgorde — vandaar hier bewust geen className. */}
+      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
       {barberLat != null ? (
         <div className="absolute left-3 bottom-3 bg-white rounded-md shadow-[0_2px_8px_rgba(0,0,0,.15)] px-3 py-2 text-[13px] font-medium text-text-primary">
           {stale ? "Laatst gezien een tijdje geleden" : etaMinutes != null ? `Nog ongeveer ${etaMinutes} min` : "Route wordt berekend…"}
