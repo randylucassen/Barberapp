@@ -2533,15 +2533,20 @@ te lopen. Niet blokkerend voor volgende fases.
   testaccount-credentials beschikbaar), alleen via code-review en
   build/type-check bevestigen.
 - ~~Live kaart — gebouwd (2026-08-15), nu een Mapbox-token nodig~~ —
-  **volledig afgerond (2026-08-16)**: migratie `0033` gepusht, Mapbox-
-  token aangeleverd en werkend bevestigd, schrijf-/leespad end-to-end
-  live getest, en een echte CSS-cascadebug (mapbox-gl.css overschreef
-  Tailwinds `absolute`-class, kaart-container stortte in tot 0px hoogte)
-  gevonden en gefixt tijdens dat testen — zie CLAUDE.md's changelog voor
-  het volledige verhaal. **Nog enige echte actie**: `NEXT_PUBLIC_MAPBOX_
-  TOKEN` ook toevoegen aan Vercel's productie-env-vars (lokaal in
-  `.env.local` staat 'ie al) — zonder die stap werkt de kaart alleen
-  lokaal, niet op de live site.
+  **volledig afgerond en live bevestigd (2026-08-16)**: migratie `0033`
+  gepusht, schrijf-/leespad end-to-end live getest. Drie echte bugs
+  onderweg gevonden en gefixt: (1) een CSS-cascadebug (mapbox-gl.css
+  overschreef Tailwinds `absolute`-class, kaart-container stortte in tot
+  0px hoogte), (2) de Mapbox-token stond in Vercel als "Sensitive"
+  (wordt niet aan de build-stap gegeven, terwijl `NEXT_PUBLIC_`-vars
+  juist tíjdens de build ingebakken moeten worden) én de eerste
+  verwijder-en-opnieuw-aanmaken-poging was nooit daadwerkelijk
+  opgeslagen — pas na een tijdelijke debug-probe en een derde poging
+  bevestigd aanwezig, (3) de CSP (Fase 11) miste `worker-src`/
+  `api.mapbox.com` in `connect-src`, waardoor de browser zelf elke
+  Mapbox-aanroep blokkeerde ondanks een geldige token. Volledig verhaal
+  + de gevonden les over Vercel's "Redeploy"-knop (hergebruikt soms een
+  oude commit i.p.v. de nieuwste `main`) in CLAUDE.md's changelog.
 - **Portfolio vooraf zichtbaar voor klanten? — open productvraag**
   (2026-08-14, nog niet besloten). Barbers uploaden al portfoliofoto's
   bij aanmelden (Fase 3, `barber-media`-bucket), maar er bestaat geen

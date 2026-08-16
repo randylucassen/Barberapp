@@ -1317,6 +1317,55 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     routelijn + zoom-knoppen allemaal zichtbaar. Testdata opgeruimd.
     `npm install mapbox-gl` + `@types/mapbox-gl` toegevoegd.
 
+- **Live locatiekaart werkte nog niet in productie (2026-08-16) — twee
+  losstaande, echte bugs gevonden en gefixt, ná een lange
+  deploy-diagnose.**
+  - **Bug 1 — Vercel's "Sensitive" environment variable wordt niet aan
+    de build-stap meegegeven.** `NEXT_PUBLIC_MAPBOX_TOKEN` was per
+    ongeluk als "Sensitive" aangemaakt; Next.js bakt `NEXT_PUBLIC_`-vars
+    juist tíjdens de build in de clientbundel, dus die token kwam nooit
+    aan. Vercel staat niet toe een Sensitive-variabele terug te zetten
+    naar gewoon — moet verwijderd en opnieuw aangemaakt worden.
+  - **Bug 2 — de eerste verwijder-en-opnieuw-aanmaken-poging is nooit
+    daadwerkelijk opgeslagen.** Onduidelijk waarom (mogelijk niet op
+    Save geklikt), maar de variabele stond erna die actie gewoon niet
+    meer — elke volgende rebuild had dus terecht geen waarde om in te
+    bakken, ongeacht hoe vaak geredeployed of gecachet werd. Pas
+    zichtbaar geworden door een tijdelijke debug-probe die de rauwe
+    `process.env`-waarde zichtbaar in de pagina rendert (zowel server-
+    als clientcomponent) — bevestigde dat *andere* `NEXT_PUBLIC_`-vars
+    prima inlineden, alleen deze ene niet, wat naar de configuratie zelf
+    wees i.p.v. een cache/build-probleem. Opnieuw aangemaakt (niet-
+    Sensitive) en ditmaal bevestigd zichtbaar in de variabelenlijst
+    vóórdat verder getest werd.
+  - **Bug 3 — CSP blokkeerde Mapbox volledig, los van de token-bug.**
+    Zodra de token wél aankwam, bleek de Content-Security-Policy (Fase
+    11) geen `worker-src` te hebben (viel terug op `script-src`, dat
+    geen `blob:` toestaat — mapbox-gl maakt een Web Worker van een
+    blob:-URL voor tegelverwerking) en geen `api.mapbox.com`/
+    `events.mapbox.com` in `connect-src` — dus elke Mapbox-netwerkaanroep
+    en de worker werden stilzwijgend geweigerd door de browser zelf,
+    ook met een geldige token. Gefixt in `next.config.ts`: `worker-src
+    'self' blob:` toegevoegd, en `api.mapbox.com`/`events.mapbox.com`
+    aan zowel `img-src` als `connect-src` toegevoegd.
+  - **Waarom dit zo lang duurde om te vinden**: elke afzonderlijke
+    Vercel-"Redeploy"-actie in het dashboard bleek de git-commit van de
+    deployment die geredeployed werd te hergebruiken (niet per se de
+    nieuwste `main`), en de CDN/ISR-cache van het productiedomein bleef
+    stug oude JS-bestanden serveren zelfs na "geslaagde" nieuwe
+    deployments. De uiteindelijk betrouwbare methode was steeds: een
+    verse `git push` naar `main` (triggert Vercel's normale
+    GitHub-pipeline, niet de dashboard-Redeploy-knop) + de cache-leeftijd
+    (`age`-header) direct met `curl -D-` controleren totdat die op 0
+    terugviel, in plaats van op de dashboardstatus alleen te vertrouwen.
+  - **Geverifieerd (2026-08-16)**: met een verse wegwerp-testboeking
+    rechtstreeks op `barberapp-vz1z.vercel.app` ingelogd (niet lokaal) —
+    volledige Amsterdamse straatkaart met beide pins zichtbaar, geen
+    console-CSP-fouten meer, alle testdata nadien opgeruimd. Tijdelijke
+    debug-probes (`page.tsx`, `LiveMap.tsx`'s `Placeholder`) weer
+    verwijderd; het losse `NEXT_PUBLIC_DEBUG_TEST`-variabele mag uit
+    Vercel's env-vars verwijderd worden, dient nergens meer voor.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van
