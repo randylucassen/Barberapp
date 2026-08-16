@@ -15,6 +15,7 @@ export default function RootPage() {
           <Scissors size={32} />
         </div>
         <div className="text-[28px] font-bold tracking-[-0.02em]">Groomy</div>
+        <span data-debug-test={process.env.NEXT_PUBLIC_DEBUG_TEST} className="hidden" />
         <div className="text-[15px] text-text-secondary mt-2 leading-[22px]">
           Kies welke app je wilt bekijken.
         </div>
