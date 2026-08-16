@@ -35,6 +35,10 @@ function Placeholder({ label }: { label: string }) {
     <div className="absolute inset-0 flex items-center justify-center text-[#C6CBD1] flex-col gap-2">
       <MapPin size={40} />
       <span className="text-[13px] font-medium">{label}</span>
+      <span className="text-[10px] font-mono">
+        DEBUG mapbox=[{JSON.stringify(process.env.NEXT_PUBLIC_MAPBOX_TOKEN)}] test=[
+        {JSON.stringify(process.env.NEXT_PUBLIC_DEBUG_TEST)}]
+      </span>
     </div>
   );
 }
