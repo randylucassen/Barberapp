@@ -41,6 +41,15 @@ inmiddels van af):
   account moet de eerste keer altijd via een live aanvraag (Nu/broadcast)
   gaan. Zowel client-side gefilterd als server-side afgedwongen in
   `create_booking_with_services()`.
+- **Een geaccepteerde, vooruit-geplande boeking is pas "actief" binnen 2
+  uur voor `scheduled_at`** (geen migratie op `bookings`, wel `0034` voor
+  de herinnering): de gedeelde helper `isRideDue()` in
+  `src/lib/booking-timing.ts` bepaalt dit nu overal waar voorheen puur op
+  `status = 'accepted'` werd beslist of de live-rit-ervaring (GPS-tracking,
+  live kaart, "Actieve rit"-kaart) getoond mocht worden —
+  `getActiveBookingForBarber()`, `barber/dashboard`, `klant/status`. Zie
+  de CLAUDE.md-changelog-entry "Geplande boekingen niet meer als 'nu'
+  behandelen" voor de volledige toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 

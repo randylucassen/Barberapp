@@ -1445,6 +1445,77 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     apart gebied ernaast, niet als bestemming), en de teal routelijn
     van Arnhem naar Westervoort werd getekend — beide onderdelen van
     deze bugmelding nu bevestigd opgelost. Testdata opgeruimd.
+- **Geplande boekingen niet meer als "nu" behandelen (2026-08-17).**
+  Gemeld: een boeking gepland voor volgende week werd door de barber
+  geaccepteerd en meteen behandeld alsof de afspraak nu was — barber
+  werd direct de rit-flow in gestuurd (GPS-tracking begon meteen), klant
+  zag "Barber komt eraan" + live kaart, en het dashboard toonde de
+  boeking als "Actieve rit". Nergens in de code werd na het boeken nog
+  naar `scheduled_at`/`requested_asap` gekeken.
+  - **Met de gebruiker afgestemd**: optie B — geen nieuwe databasestatus,
+    wel een expliciete "Start rit"-stap (geen automatische omschakeling
+    op tijd), die pas binnen 2 uur voor `scheduled_at` beschikbaar wordt.
+    Plus: een overzicht van geplande afspraken op het barber-dashboard
+    (bestond nog niet), een botsingswaarschuwing bij het accepteren van
+    een overlappende afspraak (bestond nog niet), en een herinnering
+    voor de barber 1 uur van tevoren.
+  - **Nieuwe gedeelde helper** `src/lib/booking-timing.ts`:
+    `isRideDue(booking)` — waar zodra een geaccepteerde boeking als
+    "live"/klaar-om-te-starten mag gelden (altijd waar voor asap of
+    voorbij 'accepted', anders pas binnen `RIDE_START_WINDOW_MS` = 2u
+    voor `scheduled_at`). Overal hergebruikt waar voorheen puur op
+    `status` werd beslist.
+  - **`queries.ts`**: `getActiveBookingForBarber()` filtert het resultaat
+    nu door `isRideDue()` — een nog-niet-actuele geplande boeking telt
+    niet meer als actieve rit (raakt zowel de "Actieve rit"-kaart als
+    `/barber/rit`'s eigen fetch-bij-mount, zonder dat laatste scherm zelf
+    te hoeven aanpassen). Nieuwe `getScheduledBookingsForBarber()` (het
+    omgekeerde filter, voor de nieuwe dashboardsectie) en
+    `getConflictingScheduledBooking()` (tijdvak-overlapcheck in JS tegen
+    de barber's andere geaccepteerde geplande boekingen — puur
+    adviserend, geen db-constraint).
+  - **`barber/aanvraag`**: `accept()` checkt bij een niet-asap aanvraag
+    eerst op een botsing en toont zo nodig een bevestigingsdialoog
+    ("Toch accepteren"/"Annuleer", zelfde `Dialog`-patroon als
+    `klant/boeking`). Na een geslaagde accept van een geplande boeking:
+    terug naar het dashboard i.p.v. automatisch naar `/barber/rit` (waar
+    de GPS-tracking start) — dat gebeurt nu pas zodra de barber zelf op
+    de boeking tikt zodra 'm due is.
+  - **`barber/dashboard`**: nieuwe "Geplande afspraken"-sectie
+    (`getScheduledBookingsForBarber()`, dezelfde 5s-polltick als de rest
+    van het scherm). Een item verdwijnt daar vanzelf uit en verschijnt
+    als "Actieve rit" zodra `isRideDue()` omslaat — geen apart "Start
+    rit"-knopje nodig, de bestaande "Actieve rit"-kaart vervult die rol.
+    De "Vandaag"-lijst se tik-naar-rit is nu ook op `isRideDue()` gegate.
+  - **`klant/status`**: toont "Afspraak bevestigd — Gepland voor [datum/
+    tijd]" i.p.v. de live kaart zolang de boeking geaccepteerd maar nog
+    niet due is; schakelt vanzelf om zodra dat wel zo is (geen nieuwe
+    markup, de bestaande statische placeholder-tak wordt hiervoor
+    hergebruikt).
+  - **Migratie `0034_booking_reminders.sql`**: `booking_reminder`
+    toegevoegd aan `notification_type`; `trigger_booking_reminders()` —
+    zelfde patroon als `trigger_review_reminders()` (0013), puur SQL via
+    `pg_cron` elke 5 min, venster 55-65 min voor `scheduled_at`, dedup
+    via `not exists ... type='booking_reminder'` (geen nieuwe kolom op
+    `bookings`). **Nog te pushen door de gebruiker.**
+  - **Geverifieerd (2026-08-17)**: `npx tsc --noEmit`/`npm run lint`/
+    `npm run build` schoon. Browser-UI-klikken bleven onbetrouwbaar
+    (zelfde bekende tool-flakiness als bij de vorige twee bugfixes deze
+    sessie), dus het volledige pad op API-niveau geverifieerd tegen
+    productie met echte sessies (niet service role waar RLS het toelaat):
+    een geaccepteerde, 3-dagen-vooruit geplande testboeking bleek
+    zichtbaar via de exacte `getScheduledBookingsForBarber`-queryvorm en
+    afwezig via de exacte `getActiveBookingForBarber`-queryvorm zodra de
+    `isRideDue()`-logica (apart met echte tijdstempels doorgerekend) erop
+    toegepast wordt; een tweede, overlappende testboeking liet de
+    `getConflictingScheduledBooking`-overlapcheck (ook apart
+    doorgerekend, inclusief rand-gevallen als exact-aansluitend) correct
+    een conflict vinden tegen de eerste. Onderweg ontdekt: de RLS-policy
+    "Assigned barbers can update/view paid bookings" blokkeert barber-
+    toegang tot een testboeking zonder een echte `payments`-rij — geen
+    bug, bevestigt gewoon dat het bestaande "barbers zien pas iets ná
+    betaling"-ontwerp (Fase 6) ook hier correct gehandhaafd wordt.
+    Testdata opgeruimd.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
