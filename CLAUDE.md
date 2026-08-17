@@ -1878,6 +1878,27 @@ rekening gebrachte annuleringskosten? Antwoord was nee op twee plekken:
     telling 1, alleen waarschuwing; 2e incident: telling 2, schorsing +
     andere melding). **Nog te pushen door de gebruiker** — zie het
     migratie-commando hieronder in de sessie.
+- **Annuleringsmeldingen noemden nooit de reden (2026-08-17).**
+  Gemeld: klant/barber zagen bij een annulering alleen "Boeking
+  geannuleerd", nooit de daadwerkelijke reden — die stond al op
+  `bookings.cancelled_reason`, werd alleen nooit meegestuurd. Nieuwe
+  migratie `0036_cancellation_reason_in_notification.sql`: de twee
+  door-een-partij-geannuleerde takken van `notify_customer_on_status_
+  change()` (klant->barber, barber->klant) noemen nu `coalesce(new.
+  cancelled_reason, 'niet opgegeven')` in de melding. De systeem-timeout-
+  takken (onbeantwoorde aanvraag, no-show) blijven ongewijzigd — daar is
+  geen door-een-gebruiker-gekozen reden, de vaste tekst is al
+  zelfverklarend. Bewust niet ook toegevoegd aan de losse geld-
+  notificaties in `/api/stripe/cancel-and-refund` (annuleringskosten/
+  terugbetaling) — die zijn al context-rijk genoeg met bedragen, de reden
+  staat al in de eerdere, primaire "Boeking geannuleerd"-melding.
+  **Terugkerende afspraak met de gebruiker**: dit soort dingen (een
+  notificatie die evident onvolledige info toont terwijl de data er al
+  is) voortaan zelf oppikken tijdens het bouwen, niet pas als de
+  gebruiker het achteraf meldt.
+  - **Geverifieerd**: geen TS geraakt (puur SQL), `npx tsc --noEmit`/
+    `npm run lint` toch preventief gedraaid, schoon. **Nog te pushen door
+    de gebruiker**, samen met 0035 hierboven.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
