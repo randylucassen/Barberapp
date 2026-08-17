@@ -1405,6 +1405,46 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     boekingsscherm online gaat, en een mislukte Mapbox-aanroep — geen
     van drie op afroep te forceren) — puur code-niveau geverifieerd
     tegen de exacte, door de gebruiker beschreven symptomen.
+- **Vervolgmelding van de gebruiker op bug #3 hierboven — echte, andere
+  root cause gevonden (2026-08-17).** "Duckers Boulant 10, Westervoort"
+  ingevuld als adres, maar de live kaart toonde niets herkenbaars en
+  centreerde automatisch op Huissen (een ander, nabijgelegen dorp);
+  route/ETA bleven nog steeds hangen op "Route wordt berekend…". Niet
+  de CSP (die stond al goed) en niet de geocoding zelf (rechtstreeks
+  tegen zowel Nominatim als onze eigen `/api/geocode` getest — geeft
+  voor dit exacte adres correct Westervoort terug) — het echte probleem
+  zat in `klant/boeking`: `handleConfirm()` stuurde `lat`/`lng` alleen
+  mee als `auto` (de "automatisch toewijzen"-matchflow) — bij een
+  **directe** boeking (een specifieke barber uit de lijst kiezen, de
+  gebruikelijkste flow) werd het adres nooit gegeocodet en bleven
+  `bookings.lat`/`lng` permanent `null`. Gevolg: `LiveMap` had geen
+  bestemming om te tonen, viel terug op de barber's eigen live positie
+  als kaartcentrum (leek dan willekeurig — in dit geval Huissen, waar
+  de teststbarber toevallig stond), en de Directions-effect's
+  guard-clause (`destinationLat == null`) keerde meteen terug zonder
+  ooit een aanroep te doen — dus ook de `directionsFailed`-terugval van
+  de vorige fix werd nooit bereikt, "Route wordt berekend…" bleef voor
+  altijd hangen.
+  - **Fix**: `handleStartConfirm()` geocodet het adres nu voor **beide**
+    paden (niet alleen `auto`), vóór de bevestig-dialoog opent.
+    `handleConfirm()` stuurt `lat`/`lng` nu onvoorwaardelijk mee zodra
+    geocoding gelukt is. Knoptekst tijdens het geocoden aangepast
+    ("Bezig…" i.p.v. het misleidende "Barber zoeken…" bij een directe
+    boeking).
+  - **Geverifieerd end-to-end tegen productie (2026-08-17)**: browser-
+    UI-klikken bleef onbetrouwbaar (bekende tool-flakiness), dus
+    geverifieerd op API-niveau met een echte klant-sessie (niet service
+    role) — `/api/geocode?address=...` voor het exacte adres gaf
+    `{lat: 51.951352, lng: 5.9735497}` (Westervoort, niet Huissen);
+    `create_booking_with_services`-RPC met die coördinaten opgeroepen
+    zoals de gefixte client nu doet, en de resulterende boeking had
+    exact die `lat`/`lng` opgeslagen. Vervolgens de boeking op
+    `accepted` gezet met een testbarber-positie in Arnhem en
+    daadwerkelijk in de browser bekeken op `barberapp-vz1z.vercel.app`:
+    de kaart centreerde correct op Westervoort (Huissen zichtbaar als
+    apart gebied ernaast, niet als bestemming), en de teal routelijn
+    van Arnhem naar Westervoort werd getekend — beide onderdelen van
+    deze bugmelding nu bevestigd opgelost. Testdata opgeruimd.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
