@@ -2517,13 +2517,17 @@ te lopen. Niet blokkerend voor volgende fases.
   laptop, niet de testtool), zet "Pushmeldingen" aan via
   `/klant/instellingen` of `/barber/profiel`, accepteer de
   toestemmingsvraag, en bevestig dat een testmelding verschijnt.
-- **Fase 11 — accounts aanmaken + livegang-checklist doorlopen**: Vercel-
-  project, Sentry-project (DSN), Upstash-database (of de Vercel
-  Marketplace-integratie) — ik kan geen van deze accounts voor je
-  aanmaken. Volledige stap-voor-stap in "Checklist voor live gaan"
-  (onder "Fase 11 — architectuur" hierboven), inclusief wanneer Stripe
-  naar live mode moet en wanneer `app_config.api_base_url` bijgewerkt
-  moet worden. Pas relevant zodra je daadwerkelijk wil lanceren.
+- ~~Fase 11 — accounts aanmaken + livegang-checklist doorlopen~~ —
+  **Sentry-project + DSN afgerond (2026-08-16)**: `NEXT_PUBLIC_SENTRY_
+  DSN` staat in `.env.local` en Vercel (niet-Sensitive, Production +
+  Preview) en is live getest — twee handmatig gegooide testfouten op
+  `barberapp-vz1z.vercel.app` kwamen aan in Sentry's Issues-overzicht.
+  Nog open: Vercel-project stond al (app draait live), maar Upstash-
+  database (of de Vercel Marketplace-integratie) voor rate limiting is
+  nog niet aangemaakt — zonder die vars valt `src/lib/rate-limit.ts`
+  terug op geen limiet (zie Fase 11-architectuur hierboven). Rest van de
+  livegang-checklist (Stripe naar live mode, `app_config.api_base_url`)
+  pas relevant zodra je daadwerkelijk wil lanceren.
 - **Pre-launch audit — migratie pushen + met een echt account
   doorlopen**: `npx supabase db push` voor `0017_prelaunch_audit_fixes.sql`
   (bevat alle Critical/High database-fixes — zie "Pre-launch audit —
