@@ -1834,6 +1834,50 @@ rekening gebrachte annuleringskosten? Antwoord was nee op twee plekken:
     krijgt hoe dan ook zijn geld terug en wil weten waarheen);
   - beide takken van `klant/geannuleerd` (met en zonder fee).
   - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon.
+- **Barber-no-show-strike-systeem voor geplande afspraken (2026-08-17).**
+  Gemeld: een barber die een geaccepteerde, vooruit-geplande afspraak niet
+  binnen 60 minuten ná de afgesproken tijd bevestigt onderweg te zijn,
+  moet de boeking automatisch laten vervallen — klant krijgt het volledige
+  bedrag terug (incl. servicekosten, want dit is niet de klant z'n
+  schuld), barber krijgt een waarschuwing, bij een 2e waarschuwing
+  automatische schorsing. Admin moet dit kunnen terugzien met namen/data.
+  - **Nieuwe migratie `0035_barber_no_show_expiry.sql`**: nieuwe tabel
+    `barber_no_show_warnings` (één rij per waarschuwing — dubbelt als
+    telling via rij-aantal i.p.v. een apart mutable-counter-veld, zelfde
+    "ledger i.p.v. losse counter"-voorkeur als de wallet-architectuur uit
+    Fase 9). `notify_customer_on_status_change()` uitgebreid: de
+    bestaande null-`cancelled_by`-tak (voorheen alleen voor de
+    onbeantwoorde-aanvraag-timeout uit 0019) kreeg een `old.status`-check
+    zodat een no-show (old.status = 'accepted') niet per ongeluk de
+    "niemand heeft binnen 30 minuten gereageerd"-tekst krijgt, en een
+    nieuwe eigen tak voor de klant-kant excuses-en-refund-melding.
+    `trigger_expire_noshow_bookings()` + `pg_cron`-job (elke 5 min, zelfde
+    cadans als expire-stale-requests) — zelfde `net.http_post`-naar-Route-
+    Handler-opzet als alle andere tijd-gebaseerde crons in dit project.
+  - **Nieuwe route `/api/cron/expire-noshow-bookings`**: zelfde
+    claim-dan-verwerken-patroon als `expire-stale-requests` (voorkomt
+    dubbele verwerking bij overlappende cron-runs). Volledige refund
+    (bewust géén annuleringskosten-logica — die geldt alleen bij een te
+    late annulering dóór de klant). Barber-kant: eigen waarschuwing
+    insert-en-tellen, bij 2 automatisch `barber_status = 'suspended'`
+    zetten (dezelfde status als een handmatige admin-schorsing, dus
+    meteen zichtbaar/effectief overal waar die status al gebruikt wordt)
+    + notificatie; anders een "1e waarschuwing"-notificatie. De
+    klant-kant-notificatie komt niet uit deze route maar uit de
+    trigger hierboven (die vuurt al bij de status-update zelf).
+  - **Nieuwe admin-pagina `/admin/no-shows`** ("Gemiste afspraken", toegevoegd
+    aan `AdminShell`'s navigatie): leest `getNoShowWarningsForAdmin()`
+    (nieuw in `queries.ts`) — barbernaam, klantnaam, dienst, geplande
+    tijd, wanneer de waarschuwing viel, en het volgnummer (1e/2e) voor die
+    barber, met een "Geschorst"-badge zodra dat volgnummer 2 bereikt.
+    Puur read-only (geen acties nodig — het systeem handelt al automatisch
+    af), dus dichter bij het simpele `admin/logboek`-patroon dan bij de
+    actie-rijke `DisputesTable`.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon, plus de
+    warning-telling-en-schorsingslogica los doorgeredeneerd (1e incident:
+    telling 1, alleen waarschuwing; 2e incident: telling 2, schorsing +
+    andere melding). **Nog te pushen door de gebruiker** — zie het
+    migratie-commando hieronder in de sessie.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

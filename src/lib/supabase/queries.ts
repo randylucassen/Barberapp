@@ -1634,3 +1634,67 @@ export async function getAdminActionLog(supabase: SupabaseClient): Promise<Admin
     createdAt: row.created_at,
   }));
 }
+
+export interface AdminNoShowRow {
+  id: string;
+  barberId: string;
+  barberName: string;
+  bookingId: string;
+  customerName: string;
+  serviceName: string;
+  scheduledAt: string | null;
+  createdAt: string;
+  // Volgnummer van deze waarschuwing voor déze barber (chronologisch,
+  // 1e/2e/...) — bij 2 wordt de barber automatisch geschorst, zie
+  // /api/cron/expire-noshow-bookings.
+  warningNumber: number;
+}
+
+// Voor het admin-overzicht van gemiste geplande afspraken (0035) — elke
+// rij in barber_no_show_warnings is één automatische annulering omdat de
+// barber niet op tijd bevestigde onderweg te zijn.
+export async function getNoShowWarningsForAdmin(supabase: SupabaseClient): Promise<AdminNoShowRow[]> {
+  const { data: warnings, error } = await supabase
+    .from("barber_no_show_warnings")
+    .select("id, barber_id, booking_id, created_at")
+    .order("created_at", { ascending: false });
+  if (error || !warnings || warnings.length === 0) return [];
+
+  const bookingIds = warnings.map((w) => w.booking_id);
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select("id, customer_id, service_name_snapshot, scheduled_at")
+    .in("id", bookingIds);
+  const bookingById = new Map((bookings ?? []).map((b) => [b.id, b]));
+
+  const profileIds = Array.from(
+    new Set([...warnings.map((w) => w.barber_id), ...(bookings ?? []).map((b) => b.customer_id)])
+  );
+  const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", profileIds);
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  // Volgnummer per barber chronologisch (oud->nieuw) bepalen, los van de
+  // weergavevolgorde hierboven (nieuw->oud).
+  const countByBarber = new Map<string, number>();
+  const numberByWarningId = new Map<string, number>();
+  for (const w of [...warnings].reverse()) {
+    const n = (countByBarber.get(w.barber_id) ?? 0) + 1;
+    countByBarber.set(w.barber_id, n);
+    numberByWarningId.set(w.id, n);
+  }
+
+  return warnings.map((w) => {
+    const booking = bookingById.get(w.booking_id);
+    return {
+      id: w.id,
+      barberId: w.barber_id,
+      barberName: nameById.get(w.barber_id) ?? "Onbekend",
+      bookingId: w.booking_id,
+      customerName: booking ? (nameById.get(booking.customer_id) ?? "Onbekend") : "Onbekend",
+      serviceName: booking?.service_name_snapshot ?? "Onbekend",
+      scheduledAt: booking?.scheduled_at ?? null,
+      createdAt: w.created_at,
+      warningNumber: numberByWarningId.get(w.id) ?? 1,
+    };
+  });
+}

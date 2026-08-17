@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/admin/barbers", label: "Barbers" },
   { href: "/admin/geschillen", label: "Geschillen" },
   { href: "/admin/boekingen", label: "Vastgelopen boekingen" },
+  { href: "/admin/no-shows", label: "Gemiste afspraken" },
   { href: "/admin/betalingen", label: "Betalingen" },
   { href: "/admin/reviews", label: "Reviews" },
   { href: "/admin/kortingscodes", label: "Kortingscodes" },

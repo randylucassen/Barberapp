@@ -59,6 +59,15 @@ inmiddels van af):
   gedeeltelijke-refund-plus-directe-transfer-patroon als het bestaande
   `/api/admin/disputes/resolve`). Alleen van toepassing als de **klant**
   annuleert, nooit als de barber zelf annuleert.
+- **Barber-no-show-strike-systeem** (migratie `0035`): een geaccepteerde,
+  geplande boeking die de barber niet binnen 60 minuten ná `scheduled_at`
+  bevestigt (nog steeds status 'accepted', nooit naar 'en_route'), vervalt
+  automatisch — volledige refund voor de klant, een waarschuwing voor de
+  barber (`barber_no_show_warnings`-tabel, telling via rij-aantal), en bij
+  de 2e waarschuwing automatische schorsing (`barber_status =
+  'suspended'`). Nieuwe cron `/api/cron/expire-noshow-bookings` (elke 5
+  min) en admin-overzicht `/admin/no-shows`. Zie de CLAUDE.md-changelog-
+  entry voor de volledige toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 
