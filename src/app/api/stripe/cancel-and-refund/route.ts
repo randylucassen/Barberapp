@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
 import { cancellationFeeApplies, CANCELLATION_FEE_PERCENTAGE } from "@/lib/booking-timing";
-import { PLATFORM_FEE_RATE } from "@/lib/pricing";
+import { PLATFORM_FEE_RATE, euro } from "@/lib/pricing";
 
 export async function POST(request: NextRequest) {
   const { bookingId, cancelledReason } = (await request.json()) as {
@@ -106,6 +106,20 @@ export async function POST(request: NextRequest) {
 
       await getStripe().refunds.create({ payment_intent: payment.stripe_payment_intent_id, amount: refundCents });
 
+      // De generieke notify_customer_on_status_change()-trigger (0017)
+      // stuurt bij het annuleren zelf al een kale "boeking geannuleerd"-
+      // melding naar de barber — die weet op dat moment nog niets van een
+      // bedrag, want deze berekening gebeurt hier in de route, ná die
+      // trigger. Dit is dus een aparte, tweede melding specifiek over het
+      // geld, niet een vervanging van die eerste.
+      await service.from("notifications").insert({
+        user_id: booking.customer_id,
+        type: "cancelled",
+        title: "Annuleringskosten in rekening gebracht",
+        body: `Je hebt €${euro(refundCents)} teruggekregen. €${euro(keptAmountCents)} (incl. servicekosten) is in rekening gebracht vanwege een late annulering.`,
+        related_booking_id: bookingId,
+      });
+
       try {
         const transfer = await getStripe().transfers.create({
           amount: forfeitedBarberPayoutCents,
@@ -124,6 +138,13 @@ export async function POST(request: NextRequest) {
             stripe_transfer_id: transfer.id,
           })
           .eq("id", payment.id);
+        await service.from("notifications").insert({
+          user_id: booking.barber_id,
+          type: "cancelled",
+          title: "Compensatie voor late annulering",
+          body: `Je hebt €${euro(forfeitedBarberPayoutCents)} ontvangen als compensatie voor een geannuleerde afspraak.`,
+          related_booking_id: bookingId,
+        });
       } catch (err) {
         // De klant is op dit punt al (deels) terugbetaald bij Stripe — de
         // boeking blijft geannuleerd (dat mag niet meer terugdraaien), maar

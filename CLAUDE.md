@@ -1792,6 +1792,35 @@ accepteren.
     geannuleerd-met-fee, volledig-refunded — voor de omzet-som) — beide
     kloppen exact.
 
+## Beide partijen kregen geen melding van annuleringskosten (2026-08-17)
+
+Gemeld: krijgt de klant/barber wel een melding van de daadwerkelijk in
+rekening gebrachte annuleringskosten? Antwoord was nee op twee plekken:
+- De bestaande `notify_customer_on_status_change()`-trigger (0017) stuurt
+  bij annuleren altijd al een kale "Boeking geannuleerd"-melding naar de
+  andere partij, maar die trigger vuurt als onderdeel van de
+  `bookings`-UPDATE, dus *vóórdat* de annuleringskosten-berekening in de
+  route überhaupt draait — die kan het bedrag dus nooit kennen. Geen optie
+  om de trigger zelf uit te breiden; wel een tweede, aparte notification-
+  insert nodig ná de berekening.
+- `klant/geannuleerd` was volledig statisch en beweerde altijd "Er is nog
+  geen betaling in rekening gebracht" — sinds annuleringskosten bestaan
+  simpelweg onwaar zodra die daadwerkelijk werden geheven.
+- **`/api/stripe/cancel-and-refund`**: bij een toegepaste fee nu twee
+  losse `notifications`-inserts (niet ter vervanging van de generieke
+  trigger-melding, als aanvulling erop): klant krijgt "Annuleringskosten
+  in rekening gebracht" met het exacte terug-/ingehouden bedrag, barber
+  krijgt "Compensatie voor late annulering" met het exacte
+  uitbetaalde bedrag — pas ná een geslaagde Stripe-transfer, dus nooit
+  een meldingsbelofte die niet ook echt is uitbetaald.
+- **`klant/geannuleerd`**: leest nu `bookingId` en haalt de betaling op
+  (`getPayment()`) — `escrow_state = 'released'` betekent hier
+  ondubbelzinnig "annuleringskosten toegepast" (dat gebeurt anders alleen
+  via de normale, hier onbereikbare completed-booking-escrow-cron), dus
+  op basis daarvan het echte bedrag tonen i.p.v. de oude, nu soms onware
+  vaste tekst.
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

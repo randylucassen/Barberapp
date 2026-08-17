@@ -1,10 +1,36 @@
 "use client";
 import { X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import { createClient } from "@/lib/supabase/client";
+import { getPayment } from "@/lib/supabase/queries";
+import { euro } from "@/lib/pricing";
+import type { PaymentRecord } from "@/lib/types";
 
-export default function CancelledPage() {
+// Voorheen altijd het statische "Er is nog geen betaling in rekening
+// gebracht" — dat is sinds de annuleringskosten-feature niet meer
+// waar zodra een late annulering écht geld kostte. Haalt nu de
+// betaling op en toont het daadwerkelijke bedrag.
+function CancelledContent() {
   const router = useRouter();
+  const search = useSearchParams();
+  const bookingId = search.get("bookingId");
+  const [payment, setPayment] = useState<PaymentRecord | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!bookingId) {
+      setPayment(null);
+      return;
+    }
+    getPayment(createClient(), bookingId).then(setPayment);
+  }, [bookingId]);
+
+  // escrow_state 'released' met een stripe_transfer_id betekent hier: een
+  // deel is ingehouden als annuleringskosten (zie /api/stripe/cancel-and-
+  // refund) — 'refunded' of geen payments-rij betekent volledig gratis.
+  const feeCharged = payment?.escrowState === "released";
+
   return (
     <div className="flex flex-col h-full items-center justify-center px-7 text-center">
       <div className="w-[88px] h-[88px] rounded-full bg-surface text-text-secondary flex items-center justify-center">
@@ -12,11 +38,23 @@ export default function CancelledPage() {
       </div>
       <div className="text-[26px] font-bold tracking-[-0.02em] mt-6">Boeking geannuleerd</div>
       <div className="text-[15px] text-text-secondary mt-2 leading-[22px]">
-        Je aanvraag is geannuleerd. Er is nog geen betaling in rekening gebracht.
+        {payment === undefined
+          ? "Je aanvraag is geannuleerd."
+          : feeCharged
+            ? `Je aanvraag is geannuleerd. Omdat dit vlak voor de afspraak was, is €${euro(payment!.amountCents)} in rekening gebracht als compensatie voor je barber.`
+            : "Je aanvraag is geannuleerd. Er is geen betaling in rekening gebracht."}
       </div>
       <div className="mt-8 w-full">
         <Button full onClick={() => router.push("/klant/home")}>Naar home</Button>
       </div>
     </div>
+  );
+}
+
+export default function CancelledPage() {
+  return (
+    <Suspense>
+      <CancelledContent />
+    </Suspense>
   );
 }
