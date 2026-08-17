@@ -167,17 +167,31 @@ function BookingContent() {
   }, [barberId, auto]);
 
   async function handleStartConfirm() {
-    if (!auto) {
-      setDlg(true);
-      return;
-    }
-    if (wantedServices.length === 0 || !address) return;
+    if (!address) return;
+    // Geocoden gebeurt nu voor beide paden — voorheen alleen bij "auto"
+    // (nodig voor de matching-zoekopdracht), waardoor een directe boeking
+    // bij een specifieke barber nooit lat/lng meekreeg. Gevolg: de live
+    // kaart kreeg geen bestemming, viel terug op de barber's eigen positie
+    // als kaartcentrum (leek dan alsof de rit "naar" die willekeurige
+    // plek ging), en de routelijn/ETA werd nooit opgehaald omdat de
+    // bestemming ontbrak.
     setMatching(true);
     setMatchError(null);
     const geo = await geocodeAddress(address);
     if (!geo) {
       setMatching(false);
       setMatchError("Kon je adres niet automatisch lokaliseren. Controleer het adres en probeer opnieuw.");
+      return;
+    }
+    setMatchedGeo(geo);
+
+    if (!auto) {
+      setMatching(false);
+      setDlg(true);
+      return;
+    }
+    if (wantedServices.length === 0) {
+      setMatching(false);
       return;
     }
     const match = await findNearestEligibleBarber(
@@ -207,7 +221,6 @@ function BookingContent() {
         })
         .filter((l): l is DisplayLine => l !== null)
     );
-    setMatchedGeo(geo);
     setDlg(true);
   }
 
@@ -230,7 +243,7 @@ function BookingContent() {
       note: note || null,
       requestedAsap: asap,
       scheduledAt,
-      ...(auto && matchedGeo ? { lat: matchedGeo.lat, lng: matchedGeo.lng } : {}),
+      ...(matchedGeo ? { lat: matchedGeo.lat, lng: matchedGeo.lng } : {}),
     });
 
     setSubmitting(false);
@@ -385,7 +398,7 @@ function BookingContent() {
           disabled={(auto ? !address : !hasLines || !address) || matching}
           onClick={handleStartConfirm}
         >
-          {matching ? "Barber zoeken…" : "Bevestig aanvraag"}
+          {matching ? (auto ? "Barber zoeken…" : "Bezig…") : "Bevestig aanvraag"}
         </Button>
       </div>
       <Dialog
