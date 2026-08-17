@@ -1820,6 +1820,20 @@ rekening gebrachte annuleringskosten? Antwoord was nee op twee plekken:
   op basis daarvan het echte bedrag tonen i.p.v. de oude, nu soms onware
   vaste tekst.
 - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon.
+- **Update (zelfde dag)**: gebruiker vroeg door — gaat het terugbetaalde
+  bedrag terug naar de bankrekening, en hoe lang duurt dat? Stripe stort
+  een refund altijd terug op de oorspronkelijke betaalmethode (iDEAL ->
+  bank, kaart -> kaart), nooit ergens anders heen, indicatie 5-10
+  werkdagen. Nieuwe gedeelde `REFUND_TIMING_NOTE`-tekst (los gedefinieerd
+  in zowel `cancel-and-refund/route.ts` als `klant/geannuleerd`, geen
+  gedeelde module voor zo'n korte constante) toegevoegd aan:
+  - de al bestaande annuleringskosten-notificatie aan de klant;
+  - een **nieuwe** notificatie "Betaling terugbetaald" voor het pad
+    zónder fee (volledige refund) — bestond nog niet, ongeacht wie
+    annuleert (ook als de bárber annuleert krijgt de klant dit, want die
+    krijgt hoe dan ook zijn geld terug en wil weten waarheen);
+  - beide takken van `klant/geannuleerd` (met en zonder fee).
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

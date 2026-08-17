@@ -6,6 +6,14 @@ import { getStripe } from "@/lib/stripe";
 import { cancellationFeeApplies, CANCELLATION_FEE_PERCENTAGE } from "@/lib/booking-timing";
 import { PLATFORM_FEE_RATE, euro } from "@/lib/pricing";
 
+// Stripe stort een refund altijd terug op de oorspronkelijke betaalmethode
+// (iDEAL -> bank, kaart -> kaart) — nooit naar een andere rekening en nooit
+// als wallet-tegoed. Doorlooptijd verschilt per betaalmethode maar 5-10
+// werkdagen is Stripe's eigen indicatie voor beide, dus één vaste tekst
+// i.p.v. de werkelijke betaalmethode per keer op te zoeken.
+const REFUND_TIMING_NOTE =
+  "Het terugbetaalde bedrag gaat naar je oorspronkelijke betaalmethode (bank bij iDEAL, kaart bij een kaartbetaling) en is meestal binnen 5-10 werkdagen zichtbaar.";
+
 export async function POST(request: NextRequest) {
   const { bookingId, cancelledReason } = (await request.json()) as {
     bookingId?: string;
@@ -116,7 +124,7 @@ export async function POST(request: NextRequest) {
         user_id: booking.customer_id,
         type: "cancelled",
         title: "Annuleringskosten in rekening gebracht",
-        body: `Je hebt €${euro(refundCents)} teruggekregen. €${euro(keptAmountCents)} (incl. servicekosten) is in rekening gebracht vanwege een late annulering.`,
+        body: `Je hebt €${euro(refundCents)} teruggekregen. €${euro(keptAmountCents)} (incl. servicekosten) is in rekening gebracht vanwege een late annulering. ${REFUND_TIMING_NOTE}`,
         related_booking_id: bookingId,
       });
 
@@ -161,6 +169,20 @@ export async function POST(request: NextRequest) {
         .from("payments")
         .update({ escrow_state: "refunded", refunded_at: new Date().toISOString() })
         .eq("id", payment.id);
+
+      // Geldt ongeacht wie annuleert — of de klánt zelf annuleert of de
+      // barber (bv. ziek), de klant krijgt hier hoe dan ook zijn volledige
+      // geld terug en wil weten waar dat naartoe gaat. De bestaande
+      // trigger stuurt bij een barber-annulering al een "boeking
+      // geannuleerd"-melding, maar noemt geen bedrag — deze is daar een
+      // aanvulling op, niet een vervanging.
+      await service.from("notifications").insert({
+        user_id: booking.customer_id,
+        type: "cancelled",
+        title: "Betaling terugbetaald",
+        body: `Je hebt €${euro(payment.amount_cents)} terugbetaald gekregen. ${REFUND_TIMING_NOTE}`,
+        related_booking_id: bookingId,
+      });
     }
   }
 
