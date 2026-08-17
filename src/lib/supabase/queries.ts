@@ -1217,13 +1217,25 @@ export interface AdminStats {
 export async function getAdminStats(supabase: SupabaseClient): Promise<AdminStats> {
   const [bookings, payments, activeBarbers, pendingApprovals, openDisputes] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }),
-    supabase.from("payments").select("platform_fee_cents"),
+    supabase.from("payments").select("amount_cents, barber_payout_cents, escrow_state"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "barber").eq("barber_status", "approved"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "barber").eq("barber_status", "pending"),
     supabase.from("disputes").select("id", { count: "exact", head: true }).eq("status", "open"),
   ]);
 
-  const totalRevenueCents = (payments.data ?? []).reduce((sum, p) => sum + (p.platform_fee_cents ?? 0), 0);
+  // Vroeger puur platform_fee_cents (alleen de klant-kant-opslag) — miste
+  // de helft van de echte marge: de barber ontvangt ook 15% minder dan de
+  // dienstprijs (barber_payout_cents), en dat verschil (amount_cents -
+  // barber_payout_cents) blijft óók bij het platform, alleen stond het
+  // nergens los geboekt. Een volledig terugbetaalde boeking (escrow_state
+  // 'refunded') telt niet mee — amount_cents blijft daar bewust op het
+  // oorspronkelijke bedrag staan (voor de betalingen-lijst, zie
+  // admin/betalingen), maar er is dan feitelijk niets overgebleven om als
+  // omzet te tellen.
+  const totalRevenueCents = (payments.data ?? []).reduce((sum, p) => {
+    if (p.escrow_state === "refunded") return sum;
+    return sum + (p.amount_cents - p.barber_payout_cents);
+  }, 0);
 
   return {
     totalBookings: bookings.count ?? 0,

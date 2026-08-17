@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
 import { cancellationFeeApplies, CANCELLATION_FEE_PERCENTAGE } from "@/lib/booking-timing";
+import { PLATFORM_FEE_RATE } from "@/lib/pricing";
 
 export async function POST(request: NextRequest) {
   const { bookingId, cancelledReason } = (await request.json()) as {
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
   const service = createServiceClient();
   const { data: payment } = await service
     .from("payments")
-    .select("id, stripe_payment_intent_id, escrow_state, amount_cents, barber_payout_cents")
+    .select("id, stripe_payment_intent_id, escrow_state, amount_cents, platform_fee_cents, barber_payout_cents")
     .eq("booking_id", bookingId)
     .maybeSingle();
 
@@ -89,9 +90,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (feeApplies && barberStripeAccountId) {
-      const refundCents = payment.amount_cents - Math.round((payment.amount_cents * CANCELLATION_FEE_PERCENTAGE) / 100);
-      const forfeitedBarberPayoutCents = Math.round((payment.barber_payout_cents * CANCELLATION_FEE_PERCENTAGE) / 100);
+      // De servicekosten (platform_fee_cents) zijn nooit onderdeel van de
+      // annuleringskosten-korting — die blijft de klant sowieso al
+      // volledig betalen, los van annuleren. Alleen het dienstbedrag zelf
+      // (amount_cents minus die servicekosten — "het oorspronkelijke
+      // bedrag") valt onder de 50%-regel. De barber ontvangt zijn helft
+      // daarvan min de normale 15% servicekosten (zelfde tarief als
+      // altijd), en die 15% komt — net als anders — bovenop bij het
+      // platform.
+      const priceValueCents = payment.amount_cents - payment.platform_fee_cents;
+      const halfPriceCents = Math.round((priceValueCents * CANCELLATION_FEE_PERCENTAGE) / 100);
+      const refundCents = halfPriceCents;
       const keptAmountCents = payment.amount_cents - refundCents;
+      const forfeitedBarberPayoutCents = Math.round(halfPriceCents * (1 - PLATFORM_FEE_RATE));
 
       await getStripe().refunds.create({ payment_intent: payment.stripe_payment_intent_id, amount: refundCents });
 

@@ -1744,6 +1744,53 @@ accepteren.
   end-to-end getest (vereist een écht gekoppelde testbarber-account, niet
   triviaal na te bootsen) — de route hergebruikt bewust exact hetzelfde,
   al eerder geschreven transfer-patroon als disputes/resolve.
+- **Update (zelfde dag) — annuleringskosten-model verfijnd + een losse,
+  ernstigere ontdekking over platformomzet.** Doorgevraagd door de
+  gebruiker over waar het geld precies naartoe gaat bij een late
+  annulering. Twee wijzigingen:
+  1. **De servicekosten (15%) zijn nooit onderdeel van de 50%-korting** —
+     die betaalt de klant sowieso altijd, annuleren of niet. Voorheen
+     werd de 50% over het hele betaalde bedrag (incl. servicekosten)
+     berekend; nu alleen over het dienstbedrag zelf (`amount_cents -
+     platform_fee_cents`). De barber krijgt de helft daarvan, min de
+     normale 15% servicekosten (`PLATFORM_FEE_RATE`, hergebruikt uit
+     `src/lib/pricing.ts` i.p.v. het tarief te dupliceren) — dus exact
+     hetzelfde tarief als altijd, alleen over een kleiner bedrag. Bij
+     dienst €30 (klant betaalde €34,50): klant krijgt €15 terug, blijft
+     €19,50 kwijt (€4,50 servicekosten + helft van €30), barber krijgt
+     €12,75, platform houdt €6,75 — allemaal opnieuw doorgerekend en
+     klopt (`priceValueCents`/`halfPriceCents`-aanpak in
+     `/api/stripe/cancel-and-refund`, `klant/annuleren` toont nu ook het
+     juiste bedrag).
+  2. **Los daarvan, een echte ontdekking**: het gesprek over "waar gaat
+     het geld heen" legde bloot dat `admin`'s "Platformomzet"-tegel al
+     véél langer maar de helft van de werkelijke marge telde — niet
+     specifiek voor annuleringen, voor élke boeking. `computePriceBreakdown()`
+     trekt de 15% servicekosten *twee* keer af van de dienstprijs: één
+     keer als opslag bovenop wat de klant betaalt (`totalCents`), én
+     nogmaals als korting op wat de barber ontvangt
+     (`barberPayoutCents`). Het platform houdt dus in werkelijkheid
+     `amount_cents - barber_payout_cents` over (bij €30 dienst: €9,00),
+     maar `getAdminStats()` telde alleen `platform_fee_cents` op (€4,50)
+     — de barber-kant-helft van de marge werd nergens meegeteld, voor
+     geen enkele boeking, al sinds Fase 10. **Op verzoek van de
+     gebruiker gefixt**: `totalRevenueCents` in
+     `src/lib/supabase/queries.ts` som nu `amount_cents -
+     barber_payout_cents` per betaling, met een uitzondering voor
+     `escrow_state = 'refunded'` (die tellen voor €0 mee — daar is
+     feitelijk niets overgebleven, ook al blijven `amount_cents` e.d. op
+     die rij bewust op het oorspronkelijke bedrag staan, voor de
+     leesbaarheid van de betalingen-lijst in `admin/betalingen`). Dit
+     verdubbelt het "Platformomzet"-cijfer op het admin-dashboard
+     ongeveer (was voorheen structureel te laag) — geen boekingen zelf
+     veranderd, puur hoe de bestaande data wordt opgeteld.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Beide
+    rekenmodellen (annuleringskosten-split, omzet-som) los doorgerekend
+    met een node-script (4 verschillende dienstprijzen voor de
+    annuleringskosten, incl. een niet-rond bedrag €33,33 om
+    afrondingsfouten te vangen; een 3-betalingen-mix — voltooid,
+    geannuleerd-met-fee, volledig-refunded — voor de omzet-som) — beide
+    kloppen exact.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

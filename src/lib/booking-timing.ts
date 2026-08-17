@@ -26,9 +26,11 @@ export function isRideDue(booking: {
 // alleen was er nooit logica die dat afdwong (elke annulering was altijd
 // 100% gratis, ongeacht timing). Zie CLAUDE.md-changelog.
 export const CANCELLATION_FEE_WINDOW_MS = 60 * 60 * 1000;
-// Percentage van het betaalde bedrag dat de klant kwijt is bij een late
-// annulering — de rest gaat als compensatie naar de barber (zie
-// cancellationFeeApplies() en /api/stripe/cancel-and-refund).
+// Percentage van het dienstbedrag (dus ná aftrek van de servicekosten —
+// die blijft de klant sowieso altijd volledig betalen, annulering of
+// niet) dat de klant kwijt is bij een late annulering. De rest van dat
+// dienstbedrag gaat als compensatie naar de barber, min de normale 15%
+// servicekosten daarop (zie /api/stripe/cancel-and-refund).
 export const CANCELLATION_FEE_PERCENTAGE = 50;
 
 // Bepaalt of een late-annuleringskosten van toepassing is. Alleen

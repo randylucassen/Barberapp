@@ -30,8 +30,12 @@ function CancelContent() {
   // Vóór het laden van de boeking bewust nog geen kosten-waarschuwing
   // tonen — beter even niets zeggen dan ten onrechte "gratis" beloven.
   const feeApplies = booking ? cancellationFeeApplies(booking) : null;
-  const { totalCents } = booking ? computePriceBreakdown(booking.priceCents) : { totalCents: 0 };
-  const keptCents = Math.round((totalCents * CANCELLATION_FEE_PERCENTAGE) / 100);
+  // De servicekosten (feeCents) blijven bij een late annulering altijd
+  // volledig staan — de 50%-regel geldt alleen op het dienstbedrag zelf
+  // (priceCents), zelfde model als /api/stripe/cancel-and-refund.
+  const { priceCents, totalCents } = booking ? computePriceBreakdown(booking.priceCents) : { priceCents: 0, totalCents: 0 };
+  const refundCents = Math.round((priceCents * CANCELLATION_FEE_PERCENTAGE) / 100);
+  const keptCents = totalCents - refundCents;
 
   async function handleCancel() {
     if (!bookingId || !canSubmit) return;
@@ -60,8 +64,8 @@ function CancelContent() {
           <div className="mt-2 bg-error-soft rounded-md px-4 py-3 text-[13px] text-error-text leading-[19px]">
             {feeApplies
               ? `Je annuleert vlak voor de afspraak (of terwijl je barber al onderweg is) — je krijgt €${euro(
-                  totalCents - keptCents
-                )} terug, €${euro(keptCents)} gaat als compensatie naar je barber. Je barber ontvangt direct bericht van de annulering.`
+                  refundCents
+                )} terug, €${euro(keptCents)} (incl. servicekosten) blijft staan als compensatie voor je barber. Je barber ontvangt direct bericht van de annulering.`
               : "Annuleren is nu nog gratis. Je barber ontvangt direct bericht van de annulering."}
           </div>
         )}
