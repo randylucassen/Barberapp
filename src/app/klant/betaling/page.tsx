@@ -11,6 +11,7 @@ import { computePriceBreakdown, euro } from "@/lib/pricing";
 import type { BookingRecord, DiscountPreview } from "@/lib/types";
 
 function CheckoutForm({ bookingId, totalCents }: { bookingId: string; totalCents: number }) {
+  const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -20,13 +21,24 @@ function CheckoutForm({ bookingId, totalCents }: { bookingId: string; totalCents
     if (!stripe || !elements) return;
     setSubmitting(true);
     setError(null);
-    const { error: confirmError } = await stripe.confirmPayment({
+    // redirect: "if_required" — zonder deze optie stuurt Stripe.js élke
+    // betaling (ook een kaart zonder 3D Secure-stap) via een volledige
+    // pagina-rondreis naar een Stripe-gehoste pagina en terug, ook als dat
+    // niet nodig is. Alleen betaalmethodes die dat daadwerkelijk vereisen
+    // (iDEAL is altijd een bank-redirect, een kaart met 3DS-uitdaging soms)
+    // verlaten deze pagina nog; de rest rondt hier meteen af.
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: `${window.location.origin}/klant/succes?bookingId=${bookingId}` },
+      redirect: "if_required",
     });
     if (confirmError) {
       setError(confirmError.message ?? "Betaling mislukt. Probeer het opnieuw.");
       setSubmitting(false);
+      return;
+    }
+    if (paymentIntent) {
+      router.push(`/klant/succes?bookingId=${bookingId}&payment_intent=${paymentIntent.id}`);
     }
   }
 

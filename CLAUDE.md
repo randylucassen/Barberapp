@@ -1516,6 +1516,60 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     bug, bevestigt gewoon dat het bestaande "barbers zien pas iets ná
     betaling"-ontwerp (Fase 6) ook hier correct gehandhaafd wordt.
     Testdata opgeruimd.
+- **"Betaling verwerken…" bleef consistent (te) lang duren (2026-08-17).**
+  Gemeld: elke betaling duurde merkbaar lang voordat `klant/succes` de
+  bevestiging toonde — niet incidenteel, maar structureel.
+  - **Twee onafhankelijke root causes gevonden**:
+    1. `stripe.confirmPayment()` in `klant/betaling` riep geen `redirect`-
+       optie mee — Stripe.js' default is `redirect: "always"`, wat
+       betekent dat *elke* betaling (ook een kaart zonder 3D Secure-
+       stap, die eigenlijk niets hoeft te redirecten) via een volledige
+       pagina-rondreis naar een Stripe-gehoste tussenpagina en terug
+       ging, i.p.v. direct op de pagina zelf af te ronden.
+    2. Ná die rondreis wachtte `klant/succes` puur passief op óf de
+       `payment_intent.succeeded`-webhook óf, als vangnet, de
+       `reconcile-payments`-cron die maar elke 2 minuten draait (zie het
+       2026-08-14-incident hierboven). Als de webhook in productie niet
+       snel genoeg binnenkomt — vermoeden, kon niet rechtstreeks
+       geverifieerd worden zonder toegang tot het Stripe-webhooklog —
+       viel elke betaling terug op die 2-minuten-cadans, wat de
+       structurele (niet incidentele) traagheid verklaart.
+  - **Fix 1 — onnodige redirect weg**: `handlePay()` in
+    `src/app/klant/betaling/page.tsx` roept nu `redirect: "if_required"`
+    mee. Betaalmethodes die een redirect daadwerkelijk vereisen (iDEAL
+    altijd, een kaart soms bij een 3DS-uitdaging) doen dat nog gewoon;
+    de rest rondt nu direct op de pagina zelf af. Bij een geslaagde
+    non-redirect-confirm navigeert de pagina zelf naar `/klant/succes`
+    met `payment_intent=<id>` in de query — dezelfde parametervorm die
+    Stripe sowieso al aanplakt aan de `return_url` bij een redirect, dus
+    `klant/succes` hoeft geen onderscheid te maken tussen beide paden.
+  - **Fix 2 — actief navragen i.p.v. alleen passief wachten**: nieuwe
+    route `POST /api/stripe/confirm-payment`
+    (`src/app/api/stripe/confirm-payment/route.ts`) — zelfde
+    auth/ownership-check als `create-payment-intent`, haalt de
+    PaymentIntent rechtstreeks bij Stripe op (`paymentIntents.retrieve`)
+    en roept bij status `succeeded` direct dezelfde
+    `recordSucceededPaymentIntent()` aan die de webhook en de
+    reconcile-cron ook gebruiken (`src/lib/payment-reconcile.ts`) — geen
+    aparte/afwijkende schrijflogica, alleen een derde, snellere trigger.
+    `klant/succes` roept dit meteen aan zodra 'ie een `payment_intent`-
+    query-param ziet, vóórdat de bestaande DB-polling (elke 2s) start —
+    die polling blijft als vangnet staan voor het geval de intent op dat
+    moment nog niet `succeeded` is (bv. een net-nog-niet-voltooide iDEAL-
+    afhandeling).
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Een
+    volledige browser-E2E-test (echte testkaart door de Payment Element
+    heen) kon dit keer niet — de preview-devserver crashte meteen bij
+    opstarten op een omgevingsfout (`EPERM: process.cwd failed`,
+    duidelijk een sandbox-/tool-probleem, niet iets in de code zelf).
+    De nieuwe route hergebruikt bewust dezelfde, al eerder end-to-end
+    geverifieerde `recordSucceededPaymentIntent()`-functie i.p.v. nieuwe
+    schrijflogica te verzinnen, wat het risico beperkt — maar de
+    daadwerkelijke snelheidswinst in productie is dus nog niet met eigen
+    ogen bevestigd. **Aanbevolen**: na deploy een keer een echte
+    testbetaling doen (kaart 4242 4242 4242 4242 in Stripe test-mode) en
+    kijken of `klant/succes` nu vrijwel meteen omslaat i.p.v. na een
+    volle pagina-redirect + wachttijd.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

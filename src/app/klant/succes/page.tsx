@@ -26,6 +26,7 @@ function SuccessContent() {
   const router = useRouter();
   const search = useSearchParams();
   const bookingId = search.get("bookingId");
+  const paymentIntentId = search.get("payment_intent");
   const [booking, setBooking] = useState<BookingRecord | null>(null);
   const [barberName, setBarberName] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
@@ -46,6 +47,21 @@ function SuccessContent() {
         if (data) setBarberName(data.full_name);
       }
     })();
+
+    // Vraag meteen bij Stripe zelf na of de betaling al geslaagd is, i.p.v.
+    // puur te wachten op de webhook (kan in productie soms traag/gemist
+    // zijn, zie payment-reconcile.ts) of de reconcile-payments-cron (elke
+    // 2 min) — dit is de snelle route, de polling hieronder blijft als
+    // vangnet staan voor het geval de intent hier nog niet 'succeeded' is.
+    if (paymentIntentId) {
+      fetch("/api/stripe/confirm-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId, paymentIntentId }),
+      }).catch(() => {
+        // niets doen — de polling hieronder vangt dit gewoon op
+      });
+    }
 
     let attempts = 0;
     const interval = setInterval(async () => {
@@ -71,7 +87,7 @@ function SuccessContent() {
       }
     }, POLL_MS);
     return () => clearInterval(interval);
-  }, [bookingId]);
+  }, [bookingId, paymentIntentId]);
 
   const { totalCents } = computePriceBreakdown(booking?.priceCents ?? 0);
   const firstName = barberName?.split(" ")[0] ?? "Je barber";
