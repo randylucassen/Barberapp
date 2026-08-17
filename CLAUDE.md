@@ -1606,6 +1606,45 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     vier wijzigingen zijn puur weergave van al bestaande, al eerder
     geverifieerde velden (`booking.scheduledAt`, de lokale `date`/`time`-
     inputs) — geen nieuwe databaselogica of queries.
+- **Geplande afspraken op barber/dashboard waren niet klikbaar (2026-08-17).**
+  Direct gemeld ná de vorige entry hierboven: de barber kon een geaccepteerde,
+  nog-niet-due geplande boeking wél zien staan onder "Geplande afspraken",
+  maar er verder niets mee — geen contact opnemen, geen annuleren. Dat kón
+  vóór deze sessie ook niet (de sectie zelf bestond nog niet), dus dit is
+  geen regressie, wel een missend stuk van dezelfde feature.
+  - **Nieuw scherm `src/app/barber/afspraak/page.tsx`** (bereikbaar via
+    een tik op een kaart in "Geplande afspraken"): toont klantnaam,
+    datum/tijd, dienst, adres, opmerking en verdienste — zelfde
+    databronnen/patroon als `barber/rit` (`getBookingCustomerName`,
+    `getBookingCustomerPhone`, allebei al bestaande security-definer
+    RPC's uit 0031). Bel/bericht-knoppen zijn dezelfde `tel:`/`sms:`-
+    `IconButton`'s als daar. Als de boeking inmiddels due is geworden
+    (barber had dit scherm bv. al open staan) redirect't 'ie meteen naar
+    `barber/rit` i.p.v. een inmiddels-verkeerd scherm te tonen.
+  - **Nieuw scherm `src/app/barber/afspraak/annuleren/page.tsx`** — zelfde
+    opzet als het bestaande `klant/annuleren` (radiolijst + bestaande
+    `/api/stripe/cancel-and-refund`-route, die op basis van de sessie zelf
+    al bepaalde of de aanroeper klant of barber is en dienovereenkomstig
+    `cancelled_by`/volledige refund afhandelt — geen wijziging aan die
+    route nodig). Nieuwe `BARBER_CANCEL_REASONS`-lijst in `mock-data.ts`
+    (naast de bestaande `CANCEL_REASONS` voor klanten): "Vervoer kapot",
+    "Ziek geworden", "Datum verkeerd gelezen", "Dubbele boeking", "Anders".
+    Bij "Anders" verschijnt een vrij-tekstveld; de reden wordt dan als
+    `Anders: <tekst>` opgeslagen in `cancelled_reason` i.p.v. het kale
+    "Anders" dat `klant/annuleren`'s bestaande "Anders"-optie nog steeds
+    doet (dat gat bestond al, hier bewust niet meegefixt — puur de
+    barber-kant was gevraagd; laat het weten als de klant-kant hetzelfde
+    verdient).
+  - **`barber/dashboard`**: de kaarten in "Geplande afspraken" kregen
+    `onClick` naar `/barber/afspraak?bookingId=` plus een `ChevronRight`-
+    icoon als klik-affordance (`Card` ondersteunde `onClick`+cursor-stijl
+    al, geen wijziging aan dat component nodig).
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Geen
+    browser-verificatie mogelijk (zelfde `EPERM`-omgevingsfout als de
+    vorige twee entries). De nieuwe schermen hergebruiken bewust bestaande,
+    al geteste bouwstenen (`getBooking`, `getBookingCustomerPhone`, de
+    cancel-and-refund-route, het `klant/annuleren`-patroon) i.p.v. nieuwe
+    logica te verzinnen, wat het risico beperkt.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

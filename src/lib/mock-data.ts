@@ -95,6 +95,8 @@ export const NOTIFICATIONS_CUSTOMER = [
 
 export const CANCEL_REASONS = ["Barber duurt te lang", "Verkeerd adres gekozen", "Plannen gewijzigd", "Anders"];
 
+export const BARBER_CANCEL_REASONS = ["Vervoer kapot", "Ziek geworden", "Datum verkeerd gelezen", "Dubbele boeking", "Anders"];
+
 export const AVAILABILITY_DEFAULT: Record<string, boolean> = {
   Ma: true, Di: true, Wo: true, Do: true, Vr: true, Za: true, Zo: false,
 };

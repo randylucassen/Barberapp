@@ -234,13 +234,22 @@ export default function BarberDashboardPage() {
               weg zodra isRideDue() waar wordt (binnen 2 uur) — die
               verschijnt op datzelfde moment als "Actieve rit" hierboven,
               met dezelfde tik-naar-/barber/rit-actie. Geen apart "Start
-              rit"-knopje hier nodig — dat zou dubbelop zijn. */}
+              rit"-knopje hier nodig — dat zou dubbelop zijn. Wél klikbaar
+              naar /barber/afspraak — anders kon de barber niet meer bij de
+              klant terecht (bellen/berichten) of vroegtijdig annuleren. */}
           {scheduledBookings.map((b) => (
-            <Card key={b.id} variant="outline" padding={14} className="mb-2">
-              <div className="min-w-0">
+            <Card
+              key={b.id}
+              variant="outline"
+              padding={14}
+              className="mb-2 flex items-center gap-2"
+              onClick={() => router.push(`/barber/afspraak?bookingId=${b.id}`)}
+            >
+              <div className="min-w-0 flex-1">
                 <div className="text-[14px] font-semibold truncate">{formatScheduledLabel(b.scheduledAt!)}</div>
                 <div className="text-[13px] text-text-secondary truncate">{b.serviceName}</div>
               </div>
+              <ChevronRight size={18} className="text-text-tertiary shrink-0" />
             </Card>
           ))}
         </div>
