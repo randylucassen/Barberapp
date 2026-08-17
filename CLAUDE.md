@@ -1645,6 +1645,42 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     al geteste bouwstenen (`getBooking`, `getBookingCustomerPhone`, de
     cancel-and-refund-route, het `klant/annuleren`-patroon) i.p.v. nieuwe
     logica te verzinnen, wat het risico beperkt.
+  - **Update (zelfde dag)**: het hierboven genoemde gat — `klant/
+    annuleren`'s "Anders"-optie sloeg alleen het kale woord "Anders" op,
+    geen vrije tekst — is alsnog gelijkgetrokken met de barber-kant.
+    Zelfde `isOther`/`customReason`-patroon, zelfde `Anders: <tekst>`-
+    opslagformaat. `npx tsc --noEmit`/`npm run lint` schoon; ditmaal ook
+    de dev-server zelf beschikbaar (zie de losse entry hieronder) al
+    kon de daadwerkelijke klik-doorloop niet — de bekende klik/submit-
+    flakiness van de browser-testtool deze sessie trad ook hier weer op
+    (typen in een veld werkt betrouwbaar, klikken/submitten regelmatig
+    niet). Risico laag: identiek patroon aan de al bestaande barber-versie.
+
+## Lokale dev-server startte niet in de preview-tool (EPERM)
+
+Symptoom: `preview_start` met de `groomy-dev`-launch-config crashte
+telkens meteen bij opstarten met `EPERM: process.cwd failed with error
+operation not permitted, uv_cwd` — een fout diep in npm's eigen
+`Config`-klasse, vóórdat er ook maar iets van het project geladen wordt.
+`npm run dev` rechtstreeks via Bash werkte intussen prima (bewijs dat het
+project/npm zelf niet stuk was).
+
+**Root cause**: er bestaan *twee* `.claude/launch.json`-bestanden — een in
+de projectmap zelf (`groomy-mvp/groomy/.claude/launch.json`, degene die
+in deze repo staat) én een tweede op het hoofdmapniveau
+(`/Users/randy/Desktop/Projecten/.claude/launch.json`, buiten deze repo).
+De preview-tool bleek de tweede te lezen (haar eigen sessie-cwd is de
+hoofdmap, niet de projectmap), en die had een *relatief* `"cwd":
+"groomy-mvp/groomy"`-veld. Dat relatieve pad liet npm's eigen
+cwd-afhandeling (`process.wrappedCwd`) stuklopen op OS-niveau.
+
+**Fix**: dat relatieve pad in de hoofdmap-`launch.json` vervangen door
+een absoluut pad (`/Users/randy/Desktop/Projecten/groomy-mvp/groomy`).
+Werkt sindsdien weer normaal. Dit bestand staat buiten de repo, dus deze
+fix zit niet in git — puur ter documentatie hier voor een volgende sessie
+die tegen dezelfde `EPERM` aanloopt: check eerst of er een tweede
+`launch.json` op een hoger niveau bestaat vóórdat je tijd steekt in het
+(zinloos) herschrijven van de projectmap-versie.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

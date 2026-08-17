@@ -1,7 +1,7 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { Button, NavBar, Radio } from "@/components/ui";
+import { Button, Input, NavBar, Radio } from "@/components/ui";
 import { Row } from "@/components/shared";
 import { CANCEL_REASONS } from "@/lib/mock-data";
 
@@ -10,17 +10,22 @@ function CancelContent() {
   const search = useSearchParams();
   const bookingId = search.get("bookingId");
   const [reason, setReason] = useState<string | null>(null);
+  const [customReason, setCustomReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isOther = reason === "Anders";
+  const canSubmit = reason !== null && (!isOther || customReason.trim().length > 0);
+
   async function handleCancel() {
-    if (!bookingId || !reason) return;
+    if (!bookingId || !canSubmit) return;
     setSubmitting(true);
     setError(null);
+    const cancelledReason = isOther ? `Anders: ${customReason.trim()}` : reason!;
     const res = await fetch("/api/stripe/cancel-and-refund", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId, cancelledReason: reason }),
+      body: JSON.stringify({ bookingId, cancelledReason }),
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -48,9 +53,19 @@ function CancelContent() {
             <Row key={r} onClick={() => setReason(r)} title={r} right={<Radio checked={reason === r} onChange={() => setReason(r)} />} />
           ))}
         </div>
+        {isOther && (
+          <div className="mt-3">
+            <Input
+              label="Reden"
+              placeholder="Vertel ons waarom"
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+            />
+          </div>
+        )}
       </div>
       <div className="px-5 pt-3 pb-2 flex flex-col gap-2">
-        <Button full variant="secondary" disabled={!reason || submitting} onClick={handleCancel}>
+        <Button full variant="secondary" disabled={!canSubmit || submitting} onClick={handleCancel}>
           {submitting ? "Bezig…" : "Annuleer boeking"}
         </Button>
         <Button full variant="ghost" onClick={() => router.back()}>Toch niet</Button>
