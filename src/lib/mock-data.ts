@@ -93,9 +93,9 @@ export const NOTIFICATIONS_CUSTOMER = [
   { title: "Welkom bij Groomy", sub: "Boek je eerste barber op locatie · 3 weken geleden", accent: false },
 ];
 
-export const CANCEL_REASONS = ["Barber duurt te lang", "Verkeerd adres gekozen", "Plannen gewijzigd", "Anders"];
+export const CANCEL_REASONS = ["De wachttijd is te lang", "Onjuist adres opgegeven", "Planning gewijzigd", "Overig"];
 
-export const BARBER_CANCEL_REASONS = ["Vervoer kapot", "Ziek geworden", "Datum verkeerd gelezen", "Dubbele boeking", "Anders"];
+export const BARBER_CANCEL_REASONS = ["Vervoersprobleem", "Wegens ziekte", "Datum of tijd verkeerd genoteerd", "Overlappende boeking", "Overig"];
 
 export const AVAILABILITY_DEFAULT: Record<string, boolean> = {
   Ma: true, Di: true, Wo: true, Do: true, Vr: true, Za: true, Zo: false,

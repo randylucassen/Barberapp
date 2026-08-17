@@ -25,7 +25,7 @@ function CancelContent() {
     getBooking(createClient(), bookingId).then(setBooking);
   }, [bookingId]);
 
-  const isOther = reason === "Anders";
+  const isOther = reason === "Overig";
   const canSubmit = reason !== null && (!isOther || customReason.trim().length > 0);
   // Vóór het laden van de boeking bewust nog geen kosten-waarschuwing
   // tonen — beter even niets zeggen dan ten onrechte "gratis" beloven.
@@ -41,7 +41,7 @@ function CancelContent() {
     if (!bookingId || !canSubmit) return;
     setSubmitting(true);
     setError(null);
-    const cancelledReason = isOther ? `Anders: ${customReason.trim()}` : reason!;
+    const cancelledReason = isOther ? `Overig: ${customReason.trim()}` : reason!;
     const res = await fetch("/api/stripe/cancel-and-refund", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -14,14 +14,14 @@ function CancelContent() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isOther = reason === "Anders";
+  const isOther = reason === "Overig";
   const canSubmit = reason !== null && (!isOther || customReason.trim().length > 0);
 
   async function handleCancel() {
     if (!bookingId || !canSubmit) return;
     setSubmitting(true);
     setError(null);
-    const cancelledReason = isOther ? `Anders: ${customReason.trim()}` : reason!;
+    const cancelledReason = isOther ? `Overig: ${customReason.trim()}` : reason!;
     const res = await fetch("/api/stripe/cancel-and-refund", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
