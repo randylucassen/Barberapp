@@ -50,6 +50,15 @@ inmiddels van af):
   `getActiveBookingForBarber()`, `barber/dashboard`, `klant/status`. Zie
   de CLAUDE.md-changelog-entry "Geplande boekingen niet meer als 'nu'
   behandelen" voor de volledige toelichting.
+- **Annuleren door de klant is niet meer altijd 100% gratis** — de app
+  beloofde dit al langer in de UI-tekst, maar niets dwong het af. Nieuwe
+  helper `cancellationFeeApplies()` in `src/lib/booking-timing.ts` bepaalt
+  of een late annulering (binnen 1 uur voor `scheduled_at`, of zodra de
+  barber al onderweg is) 50% van het bedrag kost — de andere 50% gaat als
+  compensatie naar de barber, via `/api/stripe/cancel-and-refund` (zelfde
+  gedeeltelijke-refund-plus-directe-transfer-patroon als het bestaande
+  `/api/admin/disputes/resolve`). Alleen van toepassing als de **klant**
+  annuleert, nooit als de barber zelf annuleert.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 

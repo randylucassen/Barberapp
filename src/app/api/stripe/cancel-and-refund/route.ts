@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
+import { cancellationFeeApplies, CANCELLATION_FEE_PERCENTAGE } from "@/lib/booking-timing";
 
 export async function POST(request: NextRequest) {
   const { bookingId, cancelledReason } = (await request.json()) as {
@@ -20,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   const { data: booking } = await supabase
     .from("bookings")
-    .select("id, customer_id, barber_id")
+    .select("id, customer_id, barber_id, status, requested_asap, scheduled_at")
     .eq("id", bookingId)
     .single();
   if (!booking) {
@@ -36,6 +38,16 @@ export async function POST(request: NextRequest) {
   if (!cancelledBy) {
     return NextResponse.json({ error: "Geen toegang tot deze boeking" }, { status: 403 });
   }
+
+  // Late-annuleringskosten gelden alleen als de klánt zelf annuleert (niet
+  // als de barber annuleert — dat is niet de klant z'n schuld) en alleen
+  // op basis van de staat van vóór deze update (isRideDue/scheduled_at op
+  // dit moment, niet ná het zetten van status='cancelled').
+  const feeApplies = cancelledBy === "customer" && cancellationFeeApplies({
+    status: booking.status,
+    requestedAsap: booking.requested_asap,
+    scheduledAt: booking.scheduled_at,
+  });
 
   // Zelfde update als de bestaande directe client-call — loopt via de
   // gebruikers-sessie (niet de service role), dus check_booking_status_
@@ -53,16 +65,71 @@ export async function POST(request: NextRequest) {
   const service = createServiceClient();
   const { data: payment } = await service
     .from("payments")
-    .select("id, stripe_payment_intent_id, escrow_state")
+    .select("id, stripe_payment_intent_id, escrow_state, amount_cents, barber_payout_cents")
     .eq("booking_id", bookingId)
     .maybeSingle();
 
   if (payment && payment.escrow_state === "held" && payment.stripe_payment_intent_id) {
-    await getStripe().refunds.create({ payment_intent: payment.stripe_payment_intent_id });
-    await service
-      .from("payments")
-      .update({ escrow_state: "refunded", refunded_at: new Date().toISOString() })
-      .eq("id", payment.id);
+    // De fee kan alleen daadwerkelijk uitbetaald worden aan een barber met
+    // een werkende Stripe Connect-koppeling — zonder die koppeling zou het
+    // ingehouden bedrag nergens heen kunnen (geen "half vrij/half held"-
+    // stand mogelijk op dit payments-record), dus dan blijft het gewoon
+    // een volledige, gratis annulering i.p.v. de klant te laten betalen
+    // voor iets dat de barber toch niet ontvangt.
+    let barberStripeAccountId: string | null = null;
+    if (feeApplies) {
+      const { data: barberProfile } = await service
+        .from("barber_profiles")
+        .select("stripe_account_id, stripe_payouts_enabled")
+        .eq("id", booking.barber_id)
+        .maybeSingle();
+      if (barberProfile?.stripe_account_id && barberProfile.stripe_payouts_enabled) {
+        barberStripeAccountId = barberProfile.stripe_account_id;
+      }
+    }
+
+    if (feeApplies && barberStripeAccountId) {
+      const refundCents = payment.amount_cents - Math.round((payment.amount_cents * CANCELLATION_FEE_PERCENTAGE) / 100);
+      const forfeitedBarberPayoutCents = Math.round((payment.barber_payout_cents * CANCELLATION_FEE_PERCENTAGE) / 100);
+      const keptAmountCents = payment.amount_cents - refundCents;
+
+      await getStripe().refunds.create({ payment_intent: payment.stripe_payment_intent_id, amount: refundCents });
+
+      try {
+        const transfer = await getStripe().transfers.create({
+          amount: forfeitedBarberPayoutCents,
+          currency: "eur",
+          destination: barberStripeAccountId,
+        });
+        await service
+          .from("payments")
+          .update({
+            escrow_state: "released",
+            amount_cents: keptAmountCents,
+            platform_fee_cents: keptAmountCents - forfeitedBarberPayoutCents,
+            barber_payout_cents: forfeitedBarberPayoutCents,
+            refunded_at: new Date().toISOString(),
+            released_at: new Date().toISOString(),
+            stripe_transfer_id: transfer.id,
+          })
+          .eq("id", payment.id);
+      } catch (err) {
+        // De klant is op dit punt al (deels) terugbetaald bij Stripe — de
+        // boeking blijft geannuleerd (dat mag niet meer terugdraaien), maar
+        // de uitbetaling aan de barber is mislukt en moet later alsnog
+        // handmatig gebeuren. Niet de hele request laten falen, want de
+        // annulering zelf is al onomkeerbaar geslaagd.
+        Sentry.captureException(
+          new Error(`Annuleringskosten-transfer naar barber mislukt voor boeking ${bookingId}: ${(err as Error).message}`)
+        );
+      }
+    } else {
+      await getStripe().refunds.create({ payment_intent: payment.stripe_payment_intent_id });
+      await service
+        .from("payments")
+        .update({ escrow_state: "refunded", refunded_at: new Date().toISOString() })
+        .eq("id", payment.id);
+    }
   }
 
   return NextResponse.json({ success: true });

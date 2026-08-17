@@ -1682,6 +1682,69 @@ die tegen dezelfde `EPERM` aanloopt: check eerst of er een tweede
 `launch.json` op een hoger niveau bestaat vóórdat je tijd steekt in het
 (zinloos) herschrijven van de projectmap-versie.
 
+## Late annulering was overal "gratis" beloofd zonder dat iets dat afdwong (2026-08-17)
+
+Gemeld: bij annuleren binnen het uur voor de afspraak stond er nog steeds
+"geen kosten in rekening gebracht". Onderzocht: `"Annuleren kan gratis tot
+1 uur vooraf"` stond op twee plekken (`klant/boeking`, `klant/annuleren`)
+als statische tekst, maar nergens in de code werd ooit gekeken hoe dicht
+de annulering op de afspraak zat — `/api/stripe/cancel-and-refund`
+betaalde altijd 100% terug, ongeacht timing. De belofte was dus nooit
+ergens afgedwongen.
+
+**Met de gebruiker afgestemd**: een echte late-annuleringskosten bouwen
+(i.p.v. alleen de tekst corrigeren) — 50% van het bedrag, de andere 50%
+gaat als compensatie naar de barber. Voor een asap-boeking (geen vaste
+`scheduled_at` om "1 uur vooraf" aan af te meten) geldt de fee zodra de
+barber onderweg is (`status = 'en_route'` of verder), niet al bij
+accepteren.
+
+- **`src/lib/booking-timing.ts`**: nieuwe `cancellationFeeApplies()`,
+  naast de bestaande `isRideDue()`. Waar zodra (a) de boeking al
+  `en_route`/`arrived`/`in_progress` is (geldt voor zowel asap als
+  gepland — de barber heeft dan sowieso al reistijd geïnvesteerd), of (b)
+  het een geaccepteerde, geplande (niet-asap) boeking is binnen
+  `CANCELLATION_FEE_WINDOW_MS` (1 uur) vóór `scheduled_at`. Een nog niet
+  geaccepteerde boeking, of een net-geaccepteerde asap-boeking waar de
+  barber nog niet vertrokken is, blijft altijd gratis annuleerbaar. Apart
+  geverifieerd met 9 tijdstip/status-combinaties (`node -e`, zelfde
+  aanpak als eerder bij `isRideDue`) — allemaal correct.
+- **`/api/stripe/cancel-and-refund`**: fee geldt alleen als de **klant**
+  annuleert (niet als de barber zelf annuleert — dat is niet de klant
+  z'n schuld). Bij een toepasselijke fee: gedeeltelijke Stripe-refund
+  (50%) + een directe Stripe Connect-transfer van 50% van
+  `barber_payout_cents` naar de barber, `payments`-rij bijgewerkt
+  (`amount_cents`/`platform_fee_cents`/`barber_payout_cents` herzien naar
+  het ingehouden deel) — zelfde patroon (proportionele refund + directe
+  transfer + payments-rij herschrijven) als het al bestaande gedeeltelijke-
+  terugbetaling-pad in `/api/admin/disputes/resolve`. Als de barber nog
+  geen werkende Stripe Connect-koppeling heeft kán het ingehouden deel
+  nergens heen — dan blijft het gewoon een volledige, gratis annulering
+  i.p.v. de klant te laten betalen voor iets dat de barber toch niet
+  ontvangt. Een mislukte transfer (ná een geslaagde klant-refund) laat de
+  annulering niet alsnog falen — die blijft geannuleerd — maar wordt via
+  Sentry gelogd voor handmatige opvolging.
+- **`klant/annuleren`**: haalt nu de boeking op (deed dat voorheen niet)
+  en toont een dynamische waarschuwing i.p.v. de statische tekst — "nu
+  nog gratis" of het exacte bedrag dat wordt ingehouden, afhankelijk van
+  `cancellationFeeApplies()`.
+- **`klant/boeking`**: de informatieve annuleerregel eronder is bijgewerkt
+  zodat 'ie ook de asap/onderweg-uitzondering noemt, niet alleen "1 uur
+  vooraf".
+- **Bekende, bewust ongefixte edge case**: bij een boeking met een
+  toegepaste kortingscode is `payments.barber_payout_cents` gebaseerd op
+  de *onverdisconteerde* prijs (zie `payment-reconcile.ts`) — een fee op
+  zo'n boeking zou in theorie een negatieve `platform_fee_cents` kunnen
+  opleveren (DB-constraint zou de update dan laten falen, opgevangen via
+  dezelfde Sentry-catch). Exact dezelfde bestaande blootstelling zit al in
+  `/api/admin/disputes/resolve`'s partial-refund-pad — geen nieuwe
+  regressie, wel iets om ooit gezamenlijk te harden.
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon, plus de
+  losstaande logica-check hierboven. Geen live Stripe-Connect-transfer
+  end-to-end getest (vereist een écht gekoppelde testbarber-account, niet
+  triviaal na te bootsen) — de route hergebruikt bewust exact hetzelfde,
+  al eerder geschreven transfer-patroon als disputes/resolve.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

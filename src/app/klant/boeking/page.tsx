@@ -393,7 +393,9 @@ function BookingContent() {
         {totalDurationMinutes !== null && (
           <div className="mt-2 text-[13px] text-text-secondary">Totale duur: {totalDurationMinutes} min</div>
         )}
-        <div className="mt-2 text-[13px] text-text-secondary">Annuleren kan gratis tot 1 uur vooraf.</div>
+        <div className="mt-2 text-[13px] text-text-secondary">
+          Annuleren is gratis tot 1 uur vooraf — of tot je barber onderweg is bij een boeking voor nu.
+        </div>
         {matchError && (
           <div className="mt-3 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">
             {matchError}
