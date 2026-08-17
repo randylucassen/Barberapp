@@ -1570,6 +1570,42 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     testbetaling doen (kaart 4242 4242 4242 4242 in Stripe test-mode) en
     kijken of `klant/succes` nu vrijwel meteen omslaat i.p.v. na een
     volle pagina-redirect + wachttijd.
+- **Geplande datum/tijd was nergens zichtbaar bij een vooruit-geboekte
+  aanvraag (2026-08-17).** Gemeld: als klant zag je bij het aanvragen niet
+  terug welke datum je nou eigenlijk had ingepland, en dat bleef ook later
+  onzichtbaar; als barber zag je bij een binnenkomende aanvraag ook niet
+  voor wanneer 'ie precies was. Root cause: puur een weergavegat — overal
+  stond alleen het generieke label "Ingepland", nooit de daadwerkelijke
+  `scheduledAt`, terwijl die data allang gewoon op de boeking stond. Vier
+  plekken gefixt:
+  - **`klant/boeking`**: nieuwe `formatPlannedLabel(date, time)`-helper.
+    De Klok-rij toont nu de gekozen datum/tijd onder "Ingepland" zodra
+    beide ingevuld zijn, en de bevestigingsdialoog ("Aanvraag versturen?")
+    noemt 'm ook expliciet — voorheen zag de klant nergens terug wat 'ie
+    net had getypt vóórdat de aanvraag de deur uit ging.
+  - **`klant/status`**: `copy`-berekening kreeg een derde tak naast de
+    bestaande "geaccepteerd maar nog niet due"-override (zie de vorige
+    changelog-entry) — nu ook tijdens `status === 'requested'` (nog geen
+    bevestiging van de barber) toont de sub-tekst "Gepland voor …" i.p.v.
+    het generieke "Wachten op bevestiging van de barber", zodra het een
+    niet-asap boeking met een `scheduledAt` betreft.
+  - **`barber/aanvraag`**: de Klok-`Row` had al een `formatDateTime()`-
+    helper (gebruikt in de botsingsdialoog, zie vorige changelog-entry) —
+    nu ook hergebruikt als `sub` op die rij zelf, zodat de barber bij het
+    accepteren/weigeren meteen het exacte moment ziet i.p.v. alleen
+    "Ingepland".
+  - **Barber kan een geaccepteerde geplande boeking terugvinden**: dit
+    bestond al — de "Geplande afspraken"-sectie op `barber/dashboard`
+    (zie de vorige changelog-entry, `getScheduledBookingsForBarber()`)
+    toont dit al met datum/tijd. Gecontroleerd en ongewijzigd gelaten,
+    geen apart gat gevonden.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Geen
+    browser-verificatie mogelijk — de lokale dev-server crasht op
+    opstarten met dezelfde omgevingsfout (`EPERM: process.cwd failed`)
+    als bij de vorige entry, nog steeds niet iets in de code zelf. Alle
+    vier wijzigingen zijn puur weergave van al bestaande, al eerder
+    geverifieerde velden (`booking.scheduledAt`, de lokale `date`/`time`-
+    inputs) — geen nieuwe databaselogica of queries.
 
 ## Bestandsuploads testen zonder een echte file-picker
 

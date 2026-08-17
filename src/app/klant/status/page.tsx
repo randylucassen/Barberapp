@@ -102,17 +102,17 @@ function StatusContent() {
   // zou ten onrechte "komt eraan" + een live kaart suggereren voor een
   // afspraak die pas volgende week is.
   const rideDue = booking ? isRideDue(booking) : true;
-  const copy =
-    booking && booking.status === "accepted" && !rideDue
-      ? {
-          ...STATUS_COPY.accepted,
-          title: "Afspraak bevestigd",
-          sub: booking.scheduledAt ? `Gepland voor ${formatScheduledAt(booking.scheduledAt)}` : STATUS_COPY.accepted.sub,
-          badge: "Gepland",
-        }
-      : booking
-        ? STATUS_COPY[booking.status]
-        : null;
+  const scheduledLabel = booking?.scheduledAt ? `Gepland voor ${formatScheduledAt(booking.scheduledAt)}` : null;
+  const copy = !booking
+    ? null
+    : booking.status === "accepted" && !rideDue
+      ? { ...STATUS_COPY.accepted, title: "Afspraak bevestigd", sub: scheduledLabel ?? STATUS_COPY.accepted.sub, badge: "Gepland" }
+      : // Nog niet bevestigd door de barber, maar wel al een gekozen datum/
+        // tijd — anders zag de klant hier alleen "Wachten op bevestiging"
+        // zonder terug te zien wát 'ie eigenlijk had ingepland.
+        booking.status === "requested" && !booking.requestedAsap && scheduledLabel
+        ? { ...STATUS_COPY.requested, sub: scheduledLabel }
+        : STATUS_COPY[booking.status];
   const canCancel = booking && ["requested", "accepted", "en_route"].includes(booking.status);
   const isCompleted = booking?.status === "completed";
   const canDispute =

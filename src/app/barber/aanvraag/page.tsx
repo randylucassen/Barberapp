@@ -231,6 +231,7 @@ export default function RequestPage() {
           <Row
             left={<span className="text-primary"><Clock size={20} /></span>}
             title={booking.requestedAsap ? "Zo snel mogelijk" : "Ingepland"}
+            sub={!booking.requestedAsap && booking.scheduledAt ? formatDateTime(booking.scheduledAt) : undefined}
           />
           {booking.note && (
             <div className="mt-2 bg-surface rounded-md px-4 py-3 text-[13px] text-text-secondary">

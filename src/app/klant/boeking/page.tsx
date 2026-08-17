@@ -32,6 +32,16 @@ interface WantedService {
   quantity: number;
 }
 
+function formatPlannedLabel(date: string, time: string): string {
+  return new Date(`${date}T${time}`).toLocaleDateString("nl-NL", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function BookingContent() {
   const router = useRouter();
   const search = useSearchParams();
@@ -355,6 +365,9 @@ function BookingContent() {
             <span className="text-primary"><Clock size={20} /></span>
             <div className="flex-1">
               <div className="text-[15px] font-medium">{asap ? "Zo snel mogelijk" : "Ingepland"}</div>
+              {!asap && date && time && (
+                <div className="text-[13px] text-text-secondary mt-0.5">{formatPlannedLabel(date, time)}</div>
+              )}
             </div>
             <Button size="sm" variant="ghost" onClick={() => setAsap(!asap)}>
               {asap ? "Plan in" : "Nu"}
@@ -417,6 +430,7 @@ function BookingContent() {
         {auto
           ? "De dichtstbijzijnde geschikte barber krijgt je aanvraag direct. Je betaling staat veilig vast tot na afloop."
           : `${barber?.fullName?.split(" ")[0] ?? "De barber"} krijgt je aanvraag direct. Je betaling staat veilig vast tot na afloop.`}
+        {!asap && date && time && ` Gepland voor ${formatPlannedLabel(date, time)}.`}
         {bookingError && (
           <div className="mt-3 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">
             {bookingError}
