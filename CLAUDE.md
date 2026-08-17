@@ -1365,6 +1365,46 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     debug-probes (`page.tsx`, `LiveMap.tsx`'s `Placeholder`) weer
     verwijderd; het losse `NEXT_PUBLIC_DEBUG_TEST`-variabele mag uit
     Vercel's env-vars verwijderd worden, dient nergens meer voor.
+- **Drie bugs uit live gebruik gemeld door de gebruiker, alle drie
+  gefixt (2026-08-16).**
+  - **"Betaling verwerken duurt heel lang"**: `klant/succes` pollt 30
+    seconden (15× om de 2s) op een `payments`-rij, maar **stopte** daarna
+    hard met pollen en toonde alleen een statische "duurt langer dan
+    verwacht"-tekst — terwijl de bestaande `reconcile-payments`-cron
+    (elke 2 minuten, vangnet voor een trage eerste webhook-aflevering,
+    zie het 2026-08-14-incident hierboven) de betaling meestal binnen
+    afzienbare tijd alsnog bevestigt. De klant zat dus op een dode
+    pagina en moest zelf wegnavigeren en terugkomen om het resultaat te
+    zien. Gefixt: pollen loopt nu door tot 100 pogingen (~3 minuten,
+    ruim boven de cron-cadans), de "duurt langer"-tekst verschijnt nog
+    steeds na dezelfde 30s maar het scherm blijft actief checken en
+    springt vanzelf door zodra de betaling binnenkomt.
+  - **"Klant krijgt 'barber niet online' terwijl de barber wél online
+    is"**: `klant/boeking` checkte `barber_is_online_and_available` één
+    keer bij het laden van het scherm, nooit daarna. Ging de barber pas
+    ná het laden van die pagina online, dan bleef de klant de
+    verouderde "niet online"-waarschuwing zien — puur een race tussen
+    laadmoment en de daadwerkelijke status, geen block op het boeken
+    zelf (dat kon altijd al gewoon doorgezet worden) maar wel verwarrend.
+    Gefixt: aparte polling-`useEffect` die elke 5s herchecked, zelfde
+    patroon als andere near-realtime schermen in de app.
+  - **"'Route wordt berekend' maar er verschijnt nooit een lijn/tijd"**:
+    zeer waarschijnlijk grotendeels al opgelost door de CSP-fix
+    hierboven in dezelfde sessie (Mapbox's Directions-aanroep werd
+    daarvoor stilzwijgend geblokkeerd). Wél een echte, losstaande bug
+    gevonden en gefixt: `LiveMap` had geen foutstatus voor een mislukte
+    Directions-fetch — bij elke fout (netwerkhapering, tijdelijke
+    Mapbox-storing) bleef de tekst voor altijd op "Route wordt
+    berekend…" staan i.p.v. iets te tonen dat het opgeven aangeeft.
+    Nieuwe `directionsFailed`-state toegevoegd met een "Onderweg"-
+    terugval zodra de fetch (blijvend) faalt.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon voor alle
+    drie. Geen van de drie kon deze sessie end-to-end in de browser
+    gereproduceerd worden (vereist respectievelijk een trage/gemiste
+    Stripe-webhook, een barber die precies ná het laden van het
+    boekingsscherm online gaat, en een mislukte Mapbox-aanroep — geen
+    van drie op afroep te forceren) — puur code-niveau geverifieerd
+    tegen de exacte, door de gebruiker beschreven symptomen.
 
 ## Bestandsuploads testen zonder een echte file-picker
 
