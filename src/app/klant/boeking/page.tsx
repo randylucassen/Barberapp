@@ -146,6 +146,26 @@ function BookingContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barberId, auto, search.get("lines"), search.get("services")]);
 
+  // Losse, herhalende check (i.p.v. één keer bij het laden) — de eenmalige
+  // versie hierboven kon een gedateerde "niet online"-melding tonen als de
+  // barber ná het laden van dit scherm alsnog online kwam; de klant zag dan
+  // ten onrechte de waarschuwing terwijl boeken allang weer gewoon zou
+  // lukken, zonder dat er iets was om dat te corrigeren.
+  useEffect(() => {
+    if (auto || !barberId) return;
+    const supabase = createClient();
+    let cancelled = false;
+    async function check() {
+      const { data: available } = await supabase.rpc("barber_is_online_and_available", { p_barber_id: barberId });
+      if (!cancelled) setBarberAvailable(available ?? false);
+    }
+    const interval = setInterval(check, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [barberId, auto]);
+
   async function handleStartConfirm() {
     if (!auto) {
       setDlg(true);

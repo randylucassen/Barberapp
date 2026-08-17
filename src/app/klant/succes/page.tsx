@@ -9,7 +9,18 @@ import { computePriceBreakdown, euro } from "@/lib/pricing";
 import type { BookingRecord } from "@/lib/types";
 
 const POLL_MS = 2000;
-const MAX_ATTEMPTS = 15;
+// Ná deze poging tonen we "duurt langer dan verwacht" (30s) — maar we
+// blijven gewoon doorpollen, want de reconcile-payments-cron (elke 2
+// minuten, zie payment-reconcile.ts) vangt een gemiste eerste webhook-
+// aflevering vanzelf op. Voorheen stopte het pollen hier hard, waardoor
+// de klant op een dode pagina bleef staan terwijl de betaling alsnog
+// binnen enkele minuten bevestigd werd — moest dan zelf terugnavigeren
+// om het te zien.
+const SOFT_TIMEOUT_ATTEMPTS = 15;
+// Absolute bovengrens: ruim boven de cron-cadans (2 min) + marge, zodat
+// een écht mislukte/nooit-bevestigde betaling niet voor altijd blijft
+// pollen.
+const MAX_ATTEMPTS = 100;
 
 function SuccessContent() {
   const router = useRouter();
@@ -52,8 +63,10 @@ function SuccessContent() {
       } catch {
         // niets doen, telt als mislukte poging hieronder
       }
-      if (attempts >= MAX_ATTEMPTS) {
+      if (attempts >= SOFT_TIMEOUT_ATTEMPTS) {
         setTimedOut(true);
+      }
+      if (attempts >= MAX_ATTEMPTS) {
         clearInterval(interval);
       }
     }, POLL_MS);

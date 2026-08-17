@@ -61,6 +61,7 @@ export function LiveMap({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+  const [directionsFailed, setDirectionsFailed] = useState(false);
 
   // Kaart één keer opzetten.
   useEffect(() => {
@@ -145,7 +146,11 @@ export function LiveMap({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const route = data?.routes?.[0];
-        if (!route) return;
+        if (!route) {
+          setDirectionsFailed(true);
+          return;
+        }
+        setDirectionsFailed(false);
         setEtaMinutes(Math.round(route.duration / 60));
         const geojson: GeoJSON.Feature = { type: "Feature", properties: {}, geometry: route.geometry };
         const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
@@ -163,8 +168,11 @@ export function LiveMap({
         }
       })
       .catch(() => {
-        // Stil negeren — de markers/kaart blijven gewoon werken zonder
-        // route/ETA, niet blokkerend voor de rest van het scherm.
+        // De markers/kaart blijven gewoon werken zonder route/ETA — niet
+        // blokkerend voor de rest van het scherm, maar wél zichtbaar
+        // maken i.p.v. voor altijd "Route wordt berekend…" te laten staan
+        // (bv. bij een netwerkfout of een tijdelijke Mapbox-storing).
+        setDirectionsFailed(true);
       });
   }, [token, mapLoaded, barberLat, barberLng, destinationLat, destinationLng]);
 
@@ -186,7 +194,13 @@ export function LiveMap({
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
       {barberLat != null ? (
         <div className="absolute left-3 bottom-3 bg-white rounded-md shadow-[0_2px_8px_rgba(0,0,0,.15)] px-3 py-2 text-[13px] font-medium text-text-primary">
-          {stale ? "Laatst gezien een tijdje geleden" : etaMinutes != null ? `Nog ongeveer ${etaMinutes} min` : "Route wordt berekend…"}
+          {stale
+            ? "Laatst gezien een tijdje geleden"
+            : etaMinutes != null
+              ? `Nog ongeveer ${etaMinutes} min`
+              : directionsFailed
+                ? "Onderweg"
+                : "Route wordt berekend…"}
         </div>
       ) : (
         <div className="absolute left-3 bottom-3 bg-white rounded-md shadow-[0_2px_8px_rgba(0,0,0,.15)] px-3 py-2 text-[13px] font-medium text-text-secondary">
