@@ -158,6 +158,7 @@ export type NotificationType =
   | "payment_received"
   | "review_reminder"
   | "review_received"
+  | "booking_reminder"
   | "dispute"
   | "wallet_topup"
   | "referral_bonus";

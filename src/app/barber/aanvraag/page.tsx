@@ -2,19 +2,30 @@
 import { Clock, MapPin, Scissors } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button, Card, NavBar } from "@/components/ui";
+import { Badge, Button, Card, Dialog, NavBar } from "@/components/ui";
 import { Avatar, Row } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import {
   claimBooking,
   getBookingCustomerName,
   getBookingServiceLines,
+  getConflictingScheduledBooking,
   getOpenBroadcastRequestForBarber,
   getPendingRequestForBarber,
   updateBookingStatus,
 } from "@/lib/supabase/queries";
 import { computePriceBreakdown, euro } from "@/lib/pricing";
 import type { BookingRecord, BookingServiceLine } from "@/lib/types";
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleDateString("nl-NL", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const RESPONSE_WINDOW_SEC = 5 * 60;
 
@@ -34,6 +45,7 @@ export default function RequestPage() {
   const [busy, setBusy] = useState(false);
   const [takenError, setTakenError] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<BookingRecord | null>(null);
   const userIdRef = useRef<string | null>(null);
   const handledRef = useRef(false);
 
@@ -99,19 +111,26 @@ export default function RequestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sec]);
 
-  async function accept() {
-    if (!booking || handledRef.current) return;
+  // Uitgevoerd het echte accepteren — losgetrokken van accept() zodat de
+  // botsingsdialoog hieronder deze pas na bevestigen hoeft aan te roepen.
+  async function performAccept() {
+    if (!booking) return;
     handledRef.current = true;
     setBusy(true);
     setAcceptError(null);
     const supabase = createClient();
+    // Een geplande (niet-asap) boeking moet niet meteen de rit-flow in —
+    // die opent pas zodra de barber zelf op "Start rit" drukt (binnen het
+    // 2-uur-venster, zie isRideDue/barber/dashboard). Terug naar het
+    // dashboard laat de nieuwe "Geplande afspraken"-sectie 'm meteen zien.
+    const destination = booking.requestedAsap ? "/barber/rit" : "/barber/dashboard";
 
     if (isBroadcast) {
       const barberId = userIdRef.current;
       if (!barberId) return;
       const { success } = await claimBooking(supabase, booking.id, barberId);
       if (success) {
-        router.push("/barber/rit");
+        router.push(destination);
       } else {
         setTakenError(true);
         setBusy(false);
@@ -122,12 +141,37 @@ export default function RequestPage() {
 
     const ok = await updateBookingStatus(supabase, booking.id, "accepted");
     if (ok) {
-      router.push("/barber/rit");
+      router.push(destination);
     } else {
       handledRef.current = false;
       setBusy(false);
       setAcceptError("Accepteren is niet gelukt. Probeer het opnieuw.");
     }
+  }
+
+  async function accept() {
+    if (!booking || handledRef.current) return;
+    // Alleen voor een geplande aanvraag de moeite waard om te checken —
+    // een asap-aanvraag heeft geen vast tijdvak om mee te botsen.
+    if (!booking.requestedAsap && booking.scheduledAt) {
+      const barberId = userIdRef.current;
+      if (barberId) {
+        setBusy(true);
+        const supabase = createClient();
+        const found = await getConflictingScheduledBooking(
+          supabase,
+          barberId,
+          booking.scheduledAt,
+          booking.durationMinutes
+        );
+        setBusy(false);
+        if (found) {
+          setConflict(found);
+          return;
+        }
+      }
+    }
+    await performAccept();
   }
 
   if (takenError) {
@@ -212,6 +256,23 @@ export default function RequestPage() {
           <Button full variant="ghost" disabled={busy} onClick={decline}>Weiger</Button>
         </div>
       </div>
+      <Dialog
+        open={!!conflict}
+        title="Overlapt met een andere afspraak"
+        onClose={() => setConflict(null)}
+        actions={
+          <>
+            <Button variant="ghost" onClick={() => setConflict(null)}>Annuleer</Button>
+            <Button variant="accent" onClick={() => { setConflict(null); performAccept(); }}>Toch accepteren</Button>
+          </>
+        }
+      >
+        <div className="text-[14px] text-text-secondary leading-[20px]">
+          Je hebt al een bevestigde afspraak — <b className="text-text-primary">{conflict?.serviceName}</b>
+          {conflict?.scheduledAt && ` op ${formatDateTime(conflict.scheduledAt)}`} — die overlapt met deze
+          aanvraag. Weet je zeker dat je &apos;m ook wilt accepteren?
+        </div>
+      </Dialog>
     </div>
   );
 }

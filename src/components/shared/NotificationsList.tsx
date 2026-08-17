@@ -44,6 +44,7 @@ function getHref(n: AppNotification, role: "klant" | "barber"): string | null {
       return "/barber/wallet";
     case "completed":
     case "cancelled":
+    case "booking_reminder":
       return "/barber/dashboard";
     default:
       return null;

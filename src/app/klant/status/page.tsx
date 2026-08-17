@@ -6,7 +6,18 @@ import { Badge, Button, IconButton, NavBar } from "@/components/ui";
 import { Avatar, LiveMap } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import { getBooking, getBookingBarberPhone, getReviewForBooking } from "@/lib/supabase/queries";
+import { isRideDue } from "@/lib/booking-timing";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
+
+function formatScheduledAt(iso: string): string {
+  return new Date(iso).toLocaleDateString("nl-NL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const STATUS_COPY: Record<BookingStatus, { title: string; sub: string; badge: string; progress: number }> = {
   requested: { title: "Aanvraag verstuurd", sub: "Wachten op bevestiging van de barber", badge: "Aangevraagd", progress: 10 },
@@ -85,7 +96,23 @@ function StatusContent() {
     );
   }
 
-  const copy = booking ? STATUS_COPY[booking.status] : null;
+  // Een geaccepteerde, geplande (niet-asap) boeking die nog niet due is
+  // (buiten het 2-uur-venster, zie isRideDue) is bevestigd maar de barber
+  // is nog niet "onderweg" — daarvoor gewoon de gewone STATUS_COPY tonen
+  // zou ten onrechte "komt eraan" + een live kaart suggereren voor een
+  // afspraak die pas volgende week is.
+  const rideDue = booking ? isRideDue(booking) : true;
+  const copy =
+    booking && booking.status === "accepted" && !rideDue
+      ? {
+          ...STATUS_COPY.accepted,
+          title: "Afspraak bevestigd",
+          sub: booking.scheduledAt ? `Gepland voor ${formatScheduledAt(booking.scheduledAt)}` : STATUS_COPY.accepted.sub,
+          badge: "Gepland",
+        }
+      : booking
+        ? STATUS_COPY[booking.status]
+        : null;
   const canCancel = booking && ["requested", "accepted", "en_route"].includes(booking.status);
   const isCompleted = booking?.status === "completed";
   const canDispute =
@@ -93,8 +120,9 @@ function StatusContent() {
     !!booking?.completedAt &&
     Date.now() - new Date(booking.completedAt).getTime() < 24 * 60 * 60 * 1000;
   // Live kaart heeft alleen zin zolang de barber onderweg is — daarvoor
-  // (nog geen bevestiging) of daarna (al ter plaatse) voegt 'm niets toe.
-  const showLiveMap = booking?.status === "accepted" || booking?.status === "en_route";
+  // (nog geen bevestiging, of een geplande afspraak die nog niet due is)
+  // of daarna (al ter plaatse) voegt 'm niets toe.
+  const showLiveMap = (booking?.status === "accepted" || booking?.status === "en_route") && rideDue;
 
   return (
     <div className="flex flex-col h-full">

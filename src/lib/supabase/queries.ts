@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isRideDue } from "@/lib/booking-timing";
 import type {
   AppNotification,
   BarberListItem,
@@ -554,7 +555,12 @@ export async function getPendingRequestForBarber(
 }
 
 // Actief lopende opdracht (geaccepteerd t/m in_progress) — gebruikt door
-// /barber/rit.
+// /barber/rit. Een geaccepteerde maar nog niet "due" geplande boeking
+// (zie isRideDue) telt hier bewust niet mee — anders zou een afspraak van
+// volgende week meteen als actieve rit getoond worden (barber/dashboard's
+// "Actieve rit"-kaart, /barber/rit zelf). We halen daarom iets breder op
+// dan het uiteindelijke resultaat en filteren daarna in JS, want de
+// 2-uur-drempel is niet zinvol als los PostgREST-filter uit te drukken.
 export async function getActiveBookingForBarber(
   supabase: SupabaseClient,
   barberId: string
@@ -564,11 +570,67 @@ export async function getActiveBookingForBarber(
     .select(BOOKING_COLUMNS)
     .eq("barber_id", barberId)
     .in("status", ["accepted", "en_route", "arrived", "in_progress"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: false });
   if (error || !data) return null;
-  return mapBooking(data as unknown as BookingRow);
+  const due = (data as unknown as BookingRow[]).map(mapBooking).find(isRideDue);
+  return due ?? null;
+}
+
+// Geaccepteerde, geplande (niet-asap) boekingen die nog niet due zijn —
+// voor de "Geplande afspraken"-sectie op /barber/dashboard. Oplopend op
+// scheduled_at, niet op created_at (i.t.t. de rest van dit bestand) —
+// hier gaat het om wanneer de afspraak is, niet wanneer 'm is aangemaakt.
+export async function getScheduledBookingsForBarber(
+  supabase: SupabaseClient,
+  barberId: string
+): Promise<BookingRecord[]> {
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(BOOKING_COLUMNS)
+    .eq("barber_id", barberId)
+    .eq("status", "accepted")
+    .eq("requested_asap", false)
+    .not("scheduled_at", "is", null)
+    .order("scheduled_at", { ascending: true });
+  if (error || !data) return [];
+  return (data as unknown as BookingRow[]).map(mapBooking).filter((b) => !isRideDue(b));
+}
+
+// Checkt of een kandidaat-tijdvak overlapt met een al geaccepteerde
+// geplande boeking van dezelfde barber — puur adviserend (geen db-
+// constraint), gebruikt door /barber/aanvraag vóór het accepteren van een
+// niet-asap aanvraag om dubbele boekingen te voorkomen. excludeBookingId
+// is voor toekomstig hergebruik bij het verzetten van een bestaande
+// afspraak (nu altijd undefined bij accept()).
+export async function getConflictingScheduledBooking(
+  supabase: SupabaseClient,
+  barberId: string,
+  scheduledAt: string,
+  durationMinutes: number,
+  excludeBookingId?: string
+): Promise<BookingRecord | null> {
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(BOOKING_COLUMNS)
+    .eq("barber_id", barberId)
+    .eq("status", "accepted")
+    .eq("requested_asap", false)
+    .not("scheduled_at", "is", null);
+  if (error || !data) return null;
+
+  const candidateStart = new Date(scheduledAt).getTime();
+  const candidateEnd = candidateStart + durationMinutes * 60000;
+
+  const conflict = (data as unknown as BookingRow[])
+    .map(mapBooking)
+    .filter((b) => b.id !== excludeBookingId)
+    .find((b) => {
+      if (!b.scheduledAt) return false;
+      const existingStart = new Date(b.scheduledAt).getTime();
+      const existingEnd = existingStart + b.durationMinutes * 60000;
+      return candidateStart < existingEnd && existingStart < candidateEnd;
+    });
+  return conflict ?? null;
 }
 
 // Naam van de klant achter een boeking — via de security-definer functie

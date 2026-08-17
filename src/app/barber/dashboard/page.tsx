@@ -13,11 +13,23 @@ import {
   getPaymentsForBarber,
   getPendingRequestForBarber,
   getRecentBookingsForBarber,
+  getScheduledBookingsForBarber,
   hasUnreadNotifications,
   setBarberOnline,
 } from "@/lib/supabase/queries";
 import { euro } from "@/lib/pricing";
+import { isRideDue } from "@/lib/booking-timing";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
+
+function formatScheduledLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString("nl-NL", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const STATUS_BADGE: Record<BookingStatus, { label: string; variant: "success" | "accent" | "neutral" | "error" }> = {
   requested: { label: "Nieuw", variant: "accent" },
@@ -75,6 +87,7 @@ export default function BarberDashboardPage() {
   const [onlineError, setOnlineError] = useState(false);
   const [hasRequest, setHasRequest] = useState(false);
   const [activeBooking, setActiveBooking] = useState<BookingRecord | null>(null);
+  const [scheduledBookings, setScheduledBookings] = useState<BookingRecord[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
   const [bookings, setBookings] = useState<(BookingRecord & { customerName: string })[]>([]);
   const [ratingAvg, setRatingAvg] = useState<number | null>(null);
@@ -132,6 +145,7 @@ export default function BarberDashboardPage() {
         const broadcast = online ? await getOpenBroadcastRequestForBarber(supabase) : null;
         setHasRequest(!!pending || !!broadcast);
         setActiveBooking(await getActiveBookingForBarber(supabase, userId!));
+        setScheduledBookings(await getScheduledBookingsForBarber(supabase, userId!));
         setHasUnread(await hasUnreadNotifications(supabase, userId!));
       } catch {
         // stil negeren, volgende tick probeert opnieuw
@@ -213,6 +227,24 @@ export default function BarberDashboardPage() {
           </Card>
         </div>
       )}
+      {scheduledBookings.length > 0 && (
+        <div className="px-5 pt-4">
+          <div className="text-[15px] font-semibold mb-2">Geplande afspraken</div>
+          {/* getScheduledBookingsForBarber laat een boeking hier vanzelf
+              weg zodra isRideDue() waar wordt (binnen 2 uur) — die
+              verschijnt op datzelfde moment als "Actieve rit" hierboven,
+              met dezelfde tik-naar-/barber/rit-actie. Geen apart "Start
+              rit"-knopje hier nodig — dat zou dubbelop zijn. */}
+          {scheduledBookings.map((b) => (
+            <Card key={b.id} variant="outline" padding={14} className="mb-2">
+              <div className="min-w-0">
+                <div className="text-[14px] font-semibold truncate">{formatScheduledLabel(b.scheduledAt!)}</div>
+                <div className="text-[13px] text-text-secondary truncate">{b.serviceName}</div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
       <div className="px-5 pt-4 flex gap-2.5">
         <Stat label="Vandaag" value={`€${euro(todayCents)}`} accent />
         <Stat label="Boekingen" value={String(bookings.length)} />
@@ -235,7 +267,9 @@ export default function BarberDashboardPage() {
                 title={b.customerName}
                 sub={`${b.serviceName} · ${b.address}`}
                 right={<Badge variant={STATUS_BADGE[b.status].variant}>{STATUS_BADGE[b.status].label}</Badge>}
-                onClick={ACTIVE_RIDE_STATUSES.includes(b.status) ? () => router.push("/barber/rit") : undefined}
+                onClick={
+                  ACTIVE_RIDE_STATUSES.includes(b.status) && isRideDue(b) ? () => router.push("/barber/rit") : undefined
+                }
               />
             ))}
           </div>
