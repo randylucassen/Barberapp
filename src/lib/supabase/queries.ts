@@ -1639,6 +1639,7 @@ export interface AdminNoShowRow {
   id: string;
   barberId: string;
   barberName: string;
+  barberStatus: BarberStatus | null;
   bookingId: string;
   customerName: string;
   serviceName: string;
@@ -1670,8 +1671,12 @@ export async function getNoShowWarningsForAdmin(supabase: SupabaseClient): Promi
   const profileIds = Array.from(
     new Set([...warnings.map((w) => w.barber_id), ...(bookings ?? []).map((b) => b.customer_id)])
   );
-  const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", profileIds);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, barber_status")
+    .in("id", profileIds);
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+  const barberStatusById = new Map((profiles ?? []).map((p) => [p.id, p.barber_status as BarberStatus | null]));
 
   // Volgnummer per barber chronologisch (oud->nieuw) bepalen, los van de
   // weergavevolgorde hierboven (nieuw->oud).
@@ -1689,6 +1694,7 @@ export async function getNoShowWarningsForAdmin(supabase: SupabaseClient): Promi
       id: w.id,
       barberId: w.barber_id,
       barberName: nameById.get(w.barber_id) ?? "Onbekend",
+      barberStatus: barberStatusById.get(w.barber_id) ?? null,
       bookingId: w.booking_id,
       customerName: booking ? (nameById.get(booking.customer_id) ?? "Onbekend") : "Onbekend",
       serviceName: booking?.service_name_snapshot ?? "Onbekend",

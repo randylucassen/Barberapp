@@ -1682,6 +1682,42 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     geverifieerd document — aanbevolen door een jurist te laten
     tegenlezen vóór het als bindend beleid gepresenteerd wordt.
   - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon.
+- **Auth-schermen linken nu echt naar de nieuwe documenten (zelfde dag).**
+  De registratieschermen (`klant/register`, `barber/register`) hadden al
+  langer de tekst "voorwaarden"/"privacybeleid" staan — designpakket-
+  restanten zonder `onClick`, nu echte `Link`'s. Beide loginschermen
+  (`klant/login`, `barber/login`) kregen een nieuwe voettekst met dezelfde
+  twee links (bestond nog nergens op die schermen).
+- **Twee kleinere verbeteringen n.a.v. het annuleringskosten-/
+  no-show-beleid (2026-08-18).**
+  - **Herstelknop op `/admin/no-shows`**: een geschorste barber kon daar
+    wel gezien worden, maar terugzetten moest via het aparte
+    `/admin/barbers`-scherm. Nieuwe client component
+    `src/components/admin/NoShowWarningsList.tsx` (zelfde
+    fetch/busy/error-patroon als `BarbersTable.tsx`) met een "Herstel"-
+    knop die dezelfde bestaande `/api/admin/barbers/status`-route aanroept
+    (`status: "approved"`) — geen nieuwe route nodig. Bijkomende, eerder
+    onopgemerkte inconsistentie gefixt: de "Geschorst"-badge werd puur
+    afgeleid uit `warningNumber >= 2` (historisch, kan achterhaald zijn
+    als een admin al eerder handmatig herstelde) i.p.v. de echte
+    `barber_status`. `getNoShowWarningsForAdmin()` (`queries.ts`) haalt nu
+    ook `barber_status` op per barber en geeft die als `barberStatus` mee
+    in `AdminNoShowRow` — badge én knop-zichtbaarheid gebruiken nu de
+    actuele status, niet een afgeleide.
+  - **No-show-strikebeleid nu ook in de voorwaarden** (`voorwaarden/
+    page.tsx`, hoofdstuk 6): tot nu toe stond dit alleen impliciet in de
+    notificatietekst na afloop. Nieuwe alinea legt uit dat een barber die
+    bij een geplande afspraak niet binnen 60 minuten bevestigt onderweg te
+    zijn een waarschuwing krijgt (klant krijgt volledige refund), en dat
+    een 2e waarschuwing tot automatische schorsing leidt.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Geen
+    browser-klik-doorloop van de nieuwe herstelknop deze sessie — vereist
+    een ingelogde adminsessie waarvan ik de inloggegevens niet heb (bewust,
+    zie regel 7). De knop hergebruikt ongewijzigd dezelfde
+    `/api/admin/barbers/status`-route die al sinds Fase 10 via
+    `BarbersTable.tsx` end-to-end getest is, dus het risico is beperkt tot
+    de nieuwe query-uitbreiding (`barber_status` erbij selecteren) en de
+    weergavelogica zelf.
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 

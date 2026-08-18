@@ -79,6 +79,14 @@ export default function VoorwaardenPage() {
           verzekering, en voor het naleven van hygiëne- en
           veiligheidsnormen.
         </P>
+        <P>
+          Bevestigt een barber bij een vooraf ingeplande afspraak niet
+          binnen 60 minuten na de afgesproken tijd dat hij onderweg is, dan
+          vervalt de afspraak automatisch en krijgt de klant het volledige
+          bedrag terug. De barber ontvangt hierbij een waarschuwing; bij een
+          tweede waarschuwing wordt het barber-account automatisch
+          geschorst.
+        </P>
 
         <H2>7. Aansprakelijkheid van Groomy</H2>
         <P>
