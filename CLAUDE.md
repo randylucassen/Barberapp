@@ -1718,6 +1718,54 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     `BarbersTable.tsx` end-to-end getest is, dus het risico is beperkt tot
     de nieuwe query-uitbreiding (`barber_status` erbij selecteren) en de
     weergavelogica zelf.
+- **"Bij Gemiste afspraken staat niets" — echte bug gevonden, geen
+  testdata-probleem (2026-08-18).** Gemeld nadat er via een wegwerp-
+  testbarber (zie hieronder) daadwerkelijk 2 no-show-waarschuwingen waren
+  aangemaakt: `/admin/no-shows` toonde alsnog "Nog geen gemiste
+  afspraken." Rechtstreeks met de service role geverifieerd dat de data
+  gewoon in `barber_no_show_warnings` stond (2 rijen, barber correct
+  `suspended`) en dat de laatste commit al live stond (`/voorwaarden`
+  bevatte de nieuwste tekst) — dus geen data- en geen deploy-probleem.
+  **Root cause**: `/admin/no-shows/page.tsx` leest geen `searchParams`/
+  cookies, dus Next.js rendert 'm statisch tijdens de build — de pagina
+  toonde sindsdien permanent de databasestand van bouwmoment (destijds 0
+  rijen, want deze feature was net toegevoegd), volledig losgekoppeld van
+  de live database. Bij controle bleken **zes van de negen** admin-
+  subpagina's hetzelfde lek te hebben: `boekingen`, `geschillen`,
+  `kortingscodes`, `logboek`, `no-shows`, `reviews`, plus het
+  hoofddashboard (`admin/page.tsx`) — alleen `barbers`/`betalingen`/
+  `gebruikers` ontsnapten hieraan toevallig omdat ze `searchParams` lezen
+  (filter-query-params), wat Next.js automatisch dynamisch rendert.
+  **Fix**: `export const dynamic = "force-dynamic";` toegevoegd aan
+  `src/app/admin/layout.tsx` i.p.v. los aan elke individuele pagina — een
+  `dynamic`-route-config op een layout cascadeert naar alle onderliggende
+  pagina's (Next.js-documentatiegedrag), dus dit dekt in één keer alle
+  huidige én toekomstige adminschermen, zonder dat een nieuwe pagina
+  straks weer per ongeluk hetzelfde lek erft.
+  **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Root cause
+  hard bevestigd via directe REST-calls (data aanwezig, deploy actueel)
+  vóór de fix geschreven werd — niet geraden. Browser-bevestiging dat
+  `/admin/no-shows` na deploy de 2 testrijen toont vereist een
+  adminsessie die ik niet heb; gebruiker bevestigt zelf na deze push.
+- **Wegwerp-testbarber met 2 no-shows aangemaakt (2026-08-18)**, op
+  verzoek, om de nieuwe herstelknop hierboven te kunnen testen.
+  Rechtstreeks via de service role (niet via `create_booking_with_
+  services()` — die weigert een vooraf-geplande boeking bij een barber
+  zonder eerdere afgeronde geschiedenis, zie 0029): twee `bookings`-rijen
+  met `status: 'accepted'`, `requested_asap: false`,
+  `scheduled_at` >60 min in het verleden, rechtstreeks ingevoegd (de
+  `set_booking_snapshot_on_insert`-trigger forceert bij élke insert
+  alsnog `status = 'requested'`, dus een losse tweede `update` naar
+  `accepted` was nodig — de statusovergang-trigger slaat validatie over
+  zodra `auth.uid()` null is, dus dat mislukt niet). Daarna handmatig
+  `/api/cron/expire-noshow-bookings` aangeroepen (lokale dev-server, met
+  `CRON_SECRET` uit `.env.local` — beide draaien tegen dezelfde
+  productiedatabase): 1e boeking gaf een waarschuwing, 2e schorste de
+  barber automatisch, precies zoals bedoeld. Testaccount:
+  `test@test.nl` / `test1234` (e-mail/wachtwoord op verzoek vereenvoudigd
+  van het oorspronkelijke gegenereerde testaccount). **Nog op te ruimen**
+  zodra het testen klaar is: barber-profiel, testklant, 2 testboekingen,
+  2 `barber_no_show_warnings`-rijen — vraag het me, dan ruim ik ze op.
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 
