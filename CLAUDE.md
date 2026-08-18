@@ -1655,6 +1655,33 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     flakiness van de browser-testtool deze sessie trad ook hier weer op
     (typen in een veld werkt betrouwbaar, klikken/submitten regelmatig
     niet). Risico laag: identiek patroon aan de al bestaande barber-versie.
+- **Privacybeleid + algemene voorwaarden gepubliceerd (2026-08-18).**
+  Nodig voor Stripe live-mode-verificatie, een toekomstige App Store-
+  indiening en wettelijke verplichting. Twee nieuwe publieke pagina's:
+  `src/app/privacybeleid/page.tsx` en `src/app/voorwaarden/page.tsx` —
+  root-niveau routes (niet onder `klant/`/`barber/`), erven dus geen
+  `PhoneShell` — zelfde "geen telefoonframe, volle breedte"-keuze als
+  `admin/layout.tsx` al maakt voor niet-mobiele schermen. Puur statische
+  content, geen nieuwe query's/UI-primitives.
+  - **Inhoud afgestemd met de gebruiker**: bedrijfsgegevens (Barbershop
+    Noviomagus, eenmanszaak, KvK 83716580, Plein 1944-17, 6511 JC
+    Nijmegen), contact `barbershopnoviomagus@gmail.com`. De
+    privacyverklaring benoemt concreet welke gegevens verzameld worden en
+    waarom (account, adres, live GPS-locatie tijdens een rit,
+    betaalgegevens via Stripe, barber-verificatiedocumenten) en welke
+    verwerkers data ontvangen (Supabase, Stripe, Resend, Mapbox, Vercel,
+    Sentry). De voorwaarden leggen het bemiddelingsmodel vast (barbers
+    zijn zelfstandig ondernemer, niet in dienst) en het bestaande
+    annuleringsbeleid (gratis tot 1 uur vooraf/barber onderweg, anders 50%
+    van het dienstbedrag als compensatie voor de barber — zie de eerdere
+    "Late annulering"-entry hieronder).
+  - **Belangrijk, nog niet afgerond**: de handelsnaam "Groomy" zelf ligt
+    nog niet vast (zie "Openstaande beslissingen" in PROJECT.md) — beide
+    nieuwe bestanden hebben hier een verwijzende code-comment bovenaan
+    staan. Dit is bovendien een AI-opgesteld concept, geen juridisch
+    geverifieerd document — aanbevolen door een jurist te laten
+    tegenlezen vóór het als bindend beleid gepresenteerd wordt.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon.
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 

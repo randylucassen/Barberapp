@@ -2594,6 +2594,46 @@ te lopen. Niet blokkerend voor volgende fases.
   Een opgeslagen-kaart-feature vereist dus echt nieuwe Stripe-
   architectuur, geen quick fix. De UI toont voorlopig eerlijk "Binnenkort
   beschikbaar" i.p.v. de oude nep-kaartgegevens uit het designpakket.
+- **De handelsnaam "Groomy" ligt nog niet definitief vast** (2026-08-18).
+  Bedrijfsgegevens (Barbershop Noviomagus, KvK 83716580, Plein 1944-17
+  Nijmegen) staan inmiddels wel vast en zijn verwerkt in de nieuwe
+  privacy-/voorwaardenpagina's (zie hieronder), maar de **app-naam**
+  "Groomy" zelf is nog een placeholder. Als die wijzigt, moet dat overal
+  worden doorgevoerd, niet alleen in de UI: `src/app/layout.tsx` (title/
+  description/OG-metadata), `src/app/privacybeleid/page.tsx` en
+  `src/app/voorwaarden/page.tsx` (komt tientallen keren voor in de
+  juridische tekst zelf), en later de App Store/Play Store-listing-teksten
+  en het app-icoon. Beide nieuwe pagina's hebben hier een verwijzende
+  code-comment bovenaan staan als geheugensteun.
+
+## Privacybeleid + algemene voorwaarden (2026-08-18)
+
+Twee nieuwe publieke pagina's, `src/app/privacybeleid/page.tsx` en
+`src/app/voorwaarden/page.tsx` — nodig voor Stripe live-mode-verificatie,
+een toekomstige App Store-indiening en gewoon wettelijke verplichting.
+Root-niveau routes (niet onder `klant/`/`barber/`), dus ze erven geen
+`PhoneShell` — zelfde "geen telefoonframe, volle breedte"-keuze als
+`admin/layout.tsx` al maakt voor niet-mobiele schermen.
+
+Inhoud tot stand gekomen in overleg met de gebruiker: bedrijfsgegevens
+(Barbershop Noviomagus, eenmanszaak, KvK 83716580, Plein 1944-17, 6511 JC
+Nijmegen), contactadres voor privacy-/klachtvragen
+`barbershopnoviomagus@gmail.com`. De privacyverklaring benoemt concreet
+welke gegevens de app verzamelt en waarom (account, adres, live
+GPS-locatie tijdens een rit, betaalgegevens via Stripe, barber-
+verificatiedocumenten) en welke verwerkers data ontvangen (Supabase,
+Stripe, Resend, Mapbox, Vercel, Sentry). De voorwaarden leggen het
+bemiddelingsmodel vast (barbers zijn zelfstandig ondernemer, niet in
+dienst) en het daadwerkelijke, deze sessie eerder gebouwde
+annuleringsbeleid (gratis tot 1 uur vooraf / barber onderweg, anders 50%
+van het dienstbedrag als compensatie voor de barber).
+
+**Bewust nog placeholder/onafgerond**: de naam "Groomy" zelf (zie het punt
+hierboven in "Openstaande acties voor jou"), en deze tekst is een
+AI-opgesteld concept — geen juridisch geverifieerd document. Aanbevolen om
+dit door een jurist te laten tegenlezen vóór het écht als bindend beleid
+gepresenteerd wordt, met name hoofdstuk 2 van de voorwaarden
+(bemiddelingsmodel/aansprakelijkheid).
 
 ## Roadmap
 

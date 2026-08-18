@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button, Input, NavBar } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { authErrorMessage } from "@/lib/supabase/errors";
@@ -99,6 +100,11 @@ export default function LoginPage() {
         <span onClick={() => router.push("/klant/register")} className="font-semibold text-text-primary cursor-pointer">
           Registreer
         </span>
+      </div>
+      <div className="px-5 pb-4 text-center text-[12px] text-text-tertiary">
+        <Link href="/privacybeleid" className="underline">Privacybeleid</Link>
+        {" · "}
+        <Link href="/voorwaarden" className="underline">Voorwaarden</Link>
       </div>
     </div>
   );

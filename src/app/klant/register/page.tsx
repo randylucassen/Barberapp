@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button, Input, NavBar } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { authErrorMessage } from "@/lib/supabase/errors";
@@ -102,8 +103,9 @@ export default function RegisterPage() {
           </div>
         )}
         <div className="mt-4 text-[13px] text-text-secondary leading-[19px]">
-          Door te registreren ga je akkoord met de <span className="font-semibold text-text-primary">voorwaarden</span> en het{" "}
-          <span className="font-semibold text-text-primary">privacybeleid</span>.
+          Door te registreren ga je akkoord met de{" "}
+          <Link href="/voorwaarden" className="font-semibold text-text-primary underline">voorwaarden</Link> en het{" "}
+          <Link href="/privacybeleid" className="font-semibold text-text-primary underline">privacybeleid</Link>.
         </div>
         <div className="mt-auto pb-2 pt-3">
           <Button full type="submit" variant="accent" disabled={loading}>
