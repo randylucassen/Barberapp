@@ -2367,6 +2367,45 @@ nu toe nergens in de app berekend.
   €42,00, totaal verschuldigde btw €14,58 = 2×€7,29 — allemaal met de
   hand nagerekend via een tijdelijke debug-route (na gebruik verwijderd).
 
+## Facturen-lijst: maandgroepering + zoeken-op-klik (2026-08-20)
+
+Vervolg op de bulk-testdata hierboven: de gebruiker vroeg om `/admin/
+facturen` te herbouwen tot een lijstweergave per maand met een aparte
+downloadknop per factuur, en om de bestaande instant-filters te
+vervangen door een expliciete "Zoeken"-knop — nu het aantal facturen
+door de bulk-testdata (zie hieronder) flink gegroeid is, is dat
+prettiger dan bij elke toetsaanslag opnieuw filteren.
+
+**`InvoicesTable.tsx` herbouwd**:
+- Twee losse filter-state-lagen: `draft` (wat je typt, reageert nergens
+  op) en `applied` (wat daadwerkelijk filtert, alleen bijgewerkt door
+  "Zoeken"-knop of Enter in een veld). "Herstel filters" reset beide
+  meteen.
+- Facturen gegroepeerd op maand (`period_start`), nieuwste maand eerst,
+  binnen een maand alfabetisch op barbernaam. Groepskop toont het aantal
+  ("Juli 2026 (22)").
+- Elke rij heeft nu een losse, zichtbare "Download"-knop i.p.v. de hele
+  rij als link — met de barbernaam/factuurlabel/bedrag ernaast, geen
+  functiewijziging van de download zelf (blijft dezelfde `/api/barber/
+  invoices/[id]/pdf`-route).
+
+**Testdata om dit te kunnen testen**: de 20 barbers/200 klanten uit de
+eerdere bulk-dataset kregen ook boekingen voor februari t/m juni 2026
+(elk 400, zelfde patroon als de eerdere juli-batch), gevolgd door de
+factuur-cron voor elk van die 5 maanden. Resultaat: 123 facturen over 6
+maanden (20-22 per maand). Onderweg opnieuw dezelfde twee scriptfouten
+als eerder voorkomen door het eerdere seed-script als basis te
+hergebruiken in plaats van opnieuw te schrijven.
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Live
+  bekeken via een tijdelijk aangemaakt (en na gebruik weer verwijderd)
+  admin-account: alle 6 maandgroepen met de juiste aantallen (22/21/20/
+  20/20/20 = 123), filteren op "Test Barber" reduceert correct tot alleen
+  de 2 maanden waarin die barber facturen heeft (juni/juli) zónder dat
+  typen alleen al filtert, "Herstel filters" zet de volledige lijst
+  terug. Download-knoppen wijzen naar de al eerder geverifieerde
+  PDF-route, niet opnieuw doorgeklikt.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

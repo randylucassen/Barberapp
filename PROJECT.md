@@ -99,6 +99,11 @@ inmiddels van af):
   21%-terugrekening (`splitBtwInclusive()`, verplaatst naar
   `src/lib/pricing.ts` en nu gedeeld met de barber-facturatie-cron). Zie
   de CLAUDE.md-changelog-entry voor de volledige toelichting.
+- **`/admin/facturen` gegroepeerd per maand** (2026-08-20) — was een
+  platte, instant-gefilterde lijst; nu gegroepeerd op factuurmaand
+  (nieuwste eerst) met een losse downloadknop per factuur, en filters die
+  pas toepassen na een klik op "Zoeken" i.p.v. bij elke toetsaanslag. Zie
+  de CLAUDE.md-changelog-entry voor de volledige toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 
