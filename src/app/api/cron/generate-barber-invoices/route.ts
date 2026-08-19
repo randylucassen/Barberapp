@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { splitBtwInclusive } from "@/lib/pricing";
 
 // Zelfde patroon als de andere tijd-gebaseerde crons (expire-noshow-
 // bookings, reconcile-payments): geen Supabase-sessie, CRON_SECRET i.p.v.
@@ -7,7 +8,6 @@ import { createServiceClient } from "@/lib/supabase/service";
 // period-body). Btw-rondrekening/jsonb-opbouw hoort hier in TypeScript
 // i.p.v. in een SQL-functie — zelfde afweging als waarom Stripe-refunds
 // ook altijd in een Route Handler zitten.
-const BTW_RATE = 0.21;
 
 interface PaymentJoinRow {
   booking_id: string;
@@ -89,8 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     const feeInclBtwCents = rows.reduce((sum, r) => sum + r.platform_fee_cents, 0);
-    const feeExclBtwCents = Math.round(feeInclBtwCents / (1 + BTW_RATE));
-    const btwCents = feeInclBtwCents - feeExclBtwCents;
+    const { exclBtwCents: feeExclBtwCents, btwCents } = splitBtwInclusive(feeInclBtwCents);
 
     const lineItems = rows.map((r) => ({
       bookingId: r.booking_id,

@@ -80,6 +80,25 @@ inmiddels van af):
   eigen btw-nummer staat nog als placeholder tot de gebruiker het
   aanlevert. Zie de CLAUDE.md-changelog-entry voor de volledige
   toelichting.
+- **Downloadbare boekhouder-exports** (`/admin/administratief`, geen
+  migratie — puur uitlezen van bestaande data): per gekozen periode een
+  omzet-overzicht, kosten-overzicht (alleen wallet-/referral-bonussen —
+  het enige wat het platform zelf als "kosten" in de eigen data heeft),
+  een bruto-samenvatting (bewust geen "netto" — externe kosten als
+  Stripe-fees/hosting staan nergens in de database) en een ZIP-bundel van
+  alle barberfacturen uit `barber_invoices` (0038) voor die periode, plus
+  een alles-in-één-ZIP. Nieuwe dependency `jszip`. Zie de CLAUDE.md-
+  changelog-entry voor de volledige toelichting.
+- **Klant-servicekosten zijn een tweede, apart btw-plichtige omzetstroom**
+  (2026-08-19) — naast de al btw-gesplitste barber-commissie (0038) is nu
+  bevestigd (belastingdienst.nl: 21%, geen vrijstelling, geen
+  factuurplicht voor B2C maar wel gewoon btw-plicht bij ontvangst van de
+  betaling) dat ook de servicekosten die de klant betaalt apart
+  uitgesplitst moeten worden. `getRevenueReportRows()` en de
+  omzet-/samenvatting-exports tonen dit nu naast elkaar, met dezelfde
+  21%-terugrekening (`splitBtwInclusive()`, verplaatst naar
+  `src/lib/pricing.ts` en nu gedeeld met de barber-facturatie-cron). Zie
+  de CLAUDE.md-changelog-entry voor de volledige toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 

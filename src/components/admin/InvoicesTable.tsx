@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui";
+import { FilterField } from "@/components/admin/FilterField";
 import { euro } from "@/lib/pricing";
 import type { AdminInvoiceRow } from "@/lib/supabase/queries";
 
@@ -11,27 +12,6 @@ function invoiceLabel(periodEnd: string, invoiceNumber: number): string {
 
 function formatPeriod(periodStart: string): string {
   return new Date(periodStart).toLocaleDateString("nl-NL", { month: "long", year: "numeric" });
-}
-
-// Eigen, lichte filtervakken i.p.v. de gedeelde <Input> uit components/ui
-// — die is ontworpen voor phone-shell-formulieren (bg-surface-vulling,
-// vaste 48px-hoogte, geen zichtbare rand) en valt op AdminShell's eigen
-// bg-surface-paginaondergrond helemaal weg. Hier bewust een zichtbare
-// rand + witte vulling, zelfde look als de rest van het adminpanel
-// (bg-white border border-border, bv. de kaarten hieronder).
-function FilterField({
-  label,
-  ...rest
-}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[12px] font-semibold text-text-secondary">{label}</span>
-      <input
-        {...rest}
-        className="h-9 px-3 rounded-md bg-white border border-border text-[13px] text-text-primary placeholder:text-text-tertiary outline-none focus:shadow-focus-ring transition-shadow duration-fast ease-groomy"
-      />
-    </label>
-  );
 }
 
 // Client-side filteren i.p.v. het bestaande server-side searchParams-

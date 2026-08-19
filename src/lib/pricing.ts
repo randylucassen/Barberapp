@@ -27,3 +27,21 @@ export function computePriceBreakdown(priceCents: number): PriceBreakdown {
 export function euro(cents: number): string {
   return (cents / 100).toFixed(2).replace(".", ",");
 }
+
+// Zelfde 21%-terugrekening als voorheen alleen lokaal in de
+// generate-barber-invoices-cron stond — nu gedeeld, want sinds de
+// klant-kant-servicekosten (het andere deel van de platformmarge, zie
+// admin-reports.ts) er ook mee uitgesplitst worden, mag deze rekenregel
+// nog maar op één plek staan.
+export const BTW_RATE = 0.21;
+
+export interface BtwSplit {
+  exclBtwCents: number;
+  btwCents: number;
+  inclBtwCents: number;
+}
+
+export function splitBtwInclusive(inclBtwCents: number): BtwSplit {
+  const exclBtwCents = Math.round(inclBtwCents / (1 + BTW_RATE));
+  return { exclBtwCents, btwCents: inclBtwCents - exclBtwCents, inclBtwCents };
+}

@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/admin/kortingscodes", label: "Kortingscodes" },
   { href: "/admin/gebruikers", label: "Gebruikers" },
   { href: "/admin/logboek", label: "Logboek" },
+  { href: "/admin/administratief", label: "Administratief" },
 ];
 
 // Gedeelde desktop-navigatie voor alle ingelogde admin-schermen (niet

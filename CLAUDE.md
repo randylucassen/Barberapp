@@ -2242,6 +2242,131 @@ rekening gebrachte annuleringskosten? Antwoord was nee op twee plekken:
     `npm run lint` toch preventief gedraaid, schoon. **Nog te pushen door
     de gebruiker**, samen met 0035 hierboven.
 
+## "Administratief"-kopje in het adminpanel — boekhouder-exports (2026-08-19)
+
+De maandelijkse btw-facturen aan barbers (0038) dekken maar één deel van
+wat de gebruiker voor zijn eigen boekhouding nodig heeft — die facturen
+laten zien wat er bij barbers is *ingehouden*, niet wat Groomy als geheel
+heeft *verdiend* of *uitgegeven*. Nieuw `/admin/administratief`: een
+periodekiezer (van/tot + presets "Deze maand"/"Vorige maand"/"Dit jaar")
+met vijf downloads:
+
+- **Commissiefacturen** — alle `barber_invoices` waarvan `period_start`
+  binnen de gekozen periode valt, gebundeld als PDF's in een ZIP
+  (hergebruikt `renderInvoicePdfBuffer()` ongewijzigd).
+- **Omzet-overzicht (CSV)** — regel per boeking, zelfde
+  `amount_cents - barber_payout_cents`-logica als het bestaande
+  `getAdminStats()`-dashboardcijfer, hier per rij i.p.v. alleen gesommeerd.
+- **Kosten-overzicht (CSV)** — regel per `wallet_ledger_entries`-rij met
+  `entry_type in ('topup_bonus', 'referral_bonus_referrer',
+  'referral_bonus_referee')` — de enige "kosten" die het platform zelf
+  in de eigen data heeft (wallet-/referral-bonussen). Externe kosten
+  (Stripe-transactiekosten, hosting, abonnementen) staan nergens in de
+  database en ontbreken dus bewust.
+- **Samenvatting (CSV)** — aantal boekingen, bruto omzet, totale kosten,
+  **bruto**resultaat, aantal facturen aan barbers, en de btw-som op die
+  facturen (direct bruikbaar als "verschuldigde btw over servicekosten"
+  voor de btw-aangifte). Expliciet **geen** "netto"-resultaat — dat zou
+  een vals compleet beeld geven zolang externe kosten ontbreken.
+- **Alles-in-één (ZIP)** — combineert alle vier in één download
+  (`omzet.csv`, `kosten.csv`, `samenvatting.csv`, `facturen/`-submap).
+
+**Nieuwe bestanden**: `src/lib/csv.ts` (gedeelde `toCsv()`-helper met
+BOM/escaping, `/api/barber/earnings/export` hierop omgezet zodat de logica
+niet dubbel bestaat), `src/lib/report-period.ts` (`from`/`to`-parsing,
+zet de door de gebruiker als inclusief bedoelde "tot"-datum om naar een
+halfopen bovengrens), `src/lib/admin-reports.ts` (CSV-opbouw + ZIP-opbouw,
+gedeeld door alle vijf routes), vijf routes onder
+`/api/admin/reports/{omzet,kosten,samenvatting,facturen,alles}` (allemaal
+`requireAdmin()`-gated), `src/components/admin/AdministratiefPanel.tsx` +
+nieuw gedeeld `src/components/admin/FilterField.tsx` (uit `InvoicesTable`
+getild, geen gedrags-wijziging). Nieuwe dependency `jszip` (puur JS,
+zonder eigen dependencies — bevestigd los van de bestaande, hier
+ongerelateerde `npm audit`-waarschuwingen die al van vóór deze toevoeging
+dateren).
+
+Nieuwe query-helpers in `queries.ts`: `getRevenueReportRows()`,
+`getCostReportRows()`, `getInvoicesForPeriod()` (volle facturen-rijen
+incl. `line_items`/barberadres, voor zowel de facturen-ZIP als het
+aantal/btw-totaal in de samenvatting — één query voor twee doelen i.p.v.
+een bijna-identieke tweede). `AdminInvoiceRow` kreeg er een `btwCents`-veld
+bij (niet-breaking, alleen gebruikt in de samenvatting).
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  schoon (bevestigt dat `jszip` — net als eerder `@react-pdf/renderer` —
+  goed bundelt in een Route Handler). Testdata: 30 boekingen/betalingen
+  tussen twee nieuwe testaccounts (juni/juli volledig afgerekend, 1-18
+  augustus nog lopend), cron voor juni+juli gedraaid → twee nieuwe
+  facturen. Alle vijf rapportages via een tijdelijke
+  CRON_SECRET-gated debug-route gecontroleerd: omzet/kosten/btw-totalen
+  met de hand teruggerekend tegen de ruwe `payments`-rijen (juni
+  `platform_fee_cents`-som 4200 == factuur-`feeInclBtwCents` 4200, idem
+  juli 3300 == 3300; btw-terugrekening 4200/1,21≈3471 excl. + 729 btw
+  klopt), ZIP geopend en PDF-inhoud gecontroleerd. Pagina zelf bekeken
+  via een tijdelijk aangemaakt (en na gebruik weer verwijderd)
+  admin-account: periodekiezer-presets en alle vijf downloadlinks
+  reageren correct op periodewijzigingen. Debug-route na gebruik
+  verwijderd.
+
+## Klant-kant servicekosten misten een eigen btw-splitsing (2026-08-19)
+
+Vervolg op de "Administratief"-sectie hierboven: de gebruiker vroeg om
+uit te zoeken of de servicekosten die de klant betaalt (de andere helft
+van de platformmarge, naast de al btw-gesplitste barber-commissie) ook
+apart btw-plichtig is, en zo ja dit net zo te documenteren/uit te
+splitsen.
+
+**Onderzoek** (belastingdienst.nl): het algemene btw-tarief van 21% geldt
+voor bemiddelingsdiensten — er is geen vrijstelling van toepassing op een
+bemiddelingsdienst rond een knipbeurt. Voor B2C (platform → klant, een
+consument) geldt géén factuurplicht, maar de btw is wél gewoon
+verschuldigd, en wel op het moment van de dienst/ontvangst van de
+betaling (niet pas bij een — hier toch niet verplichte — factuur). Omdat
+Groomy via Stripe (separate-charges-and-transfers) het volledige bedrag
+al bij het aangaan van de boeking int, valt dat moment samen met de
+boekingsdatum. Conclusie: de klant-servicekosten zijn een tweede,
+losstaande btw-plichtige omzetstroom naast de al gedekte
+barber-commissie, en hoorden dus ook uitgesplitst te worden — dit was tot
+nu toe nergens in de app berekend.
+
+**Fix**:
+- **`splitBtwInclusive()` + `BTW_RATE`** verhuisd naar `src/lib/pricing.ts`
+  (was een lokale constante/inline berekening in
+  `/api/cron/generate-barber-invoices`, nu gedeeld — die cron gebruikt
+  hem nu ook, geen gedragswijziging daar).
+- **`getRevenueReportRows()`** (`queries.ts`) selecteert nu ook
+  `payments.platform_fee_cents` en berekent per boeking
+  `customerFeeExclBtwCents`/`customerBtwCents`/`customerFeeInclBtwCents`
+  — dezelfde 21%-terugrekening als de barber-kant, toegepast op hetzelfde
+  bedrag (`platform_fee_cents` is voor beide kanten identiek, want beide
+  zijn dezelfde 15%-berekening uit `computePriceBreakdown()`). Nul bij
+  een refunded boeking, net als `revenueCents`.
+- **`omzet.csv`** (`admin-reports.ts`) kreeg drie extra kolommen (klant-
+  servicekosten excl./btw/incl.) per boeking.
+- **`samenvatting.csv`** kreeg "Klant-servicekosten excl. btw",
+  "Btw op klant-servicekosten" en "Totaal verschuldigde btw" (= klant-btw
+  + barber-factuur-btw) naast de bestaande barber-regel.
+- **Belangrijke afronding-consistentie-fix**: de total-regels in beide
+  CSV's sommeren niet de per-boeking-afgeronde excl./btw-kolommen, maar
+  sommeren eerst alle `customerFeeInclBtwCents` en splitsen dat totaal
+  in één keer — exact dezelfde methode als de barber-facturen (0038: eerst
+  optellen, dan één keer 21% terugrekenen). Eerst per rij afronden en dan
+  optellen gaf een 1-cent-afwijking t.o.v. de barber-kant voor exact
+  hetzelfde onderliggende bedrag — bewust vermeden, want dat zou er voor
+  een boekhouder uitzien als een fout terwijl het alleen een
+  afrondingsartefact was.
+- Uitleg op het scherm zelf (`page.tsx`/`AdministratiefPanel.tsx`)
+  bijgewerkt: twee btw-plichtige stromen, bewust apart gehouden (andere
+  grondslag/periode-scope: klant-kant = alle boekingen in de periode,
+  barber-kant = de daadwerkelijk gegenereerde facturen in die periode).
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  schoon. Tegen de juni-testdata (10 boekingen, testbarber): klant-kant
+  en barber-kant totalen nu byte-voor-byte gelijk zoals verwacht (beide
+  €34,71 excl. + €7,29 btw = €42,00 incl.), bruto omzet €84,00 = 2×
+  €42,00, totaal verschuldigde btw €14,58 = 2×€7,29 — allemaal met de
+  hand nagerekend via een tijdelijke debug-route (na gebruik verwijderd).
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

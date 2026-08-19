@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getPaymentsForBarber } from "@/lib/supabase/queries";
 import { euro } from "@/lib/pricing";
+import { toCsv } from "@/lib/csv";
 
 // CSV i.p.v. PDF, bewust — dit is geen formeel document (dat is de
 // btw-factuur, al gebouwd), maar de eigen ruwe inkomsten-data van de
@@ -15,13 +16,6 @@ const ESCROW_LABEL: Record<string, string> = {
   paid: "Uitbetaald",
   refunded: "Terugbetaald",
 };
-
-function csvEscape(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
 
 export async function GET() {
   const supabase = await createClient();
@@ -43,11 +37,9 @@ export async function GET() {
     p.releasedAt ? new Date(p.releasedAt).toLocaleDateString("nl-NL") : "",
   ]);
 
-  const csv = [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
-  // BOM zodat Excel de UTF-8-tekens (bv. "€", "ë") correct herkent.
-  const csvWithBom = "﻿" + csv;
+  const csv = toCsv(header, rows);
 
-  return new NextResponse(csvWithBom, {
+  return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="groomy-inkomsten-${new Date().toISOString().slice(0, 10)}.csv"`,

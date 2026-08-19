@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isRideDue } from "@/lib/booking-timing";
+import { splitBtwInclusive } from "@/lib/pricing";
 import type {
   AppNotification,
   BarberInvoice,
@@ -20,6 +21,7 @@ import type {
   ReviewRecord,
   UserRole,
   WalletLedgerEntry,
+  WalletLedgerEntryType,
   WalletRecord,
   WalletTopup,
 } from "@/lib/types";
@@ -1773,6 +1775,7 @@ export interface AdminInvoiceRow {
   barberName: string;
   periodStart: string;
   periodEnd: string;
+  btwCents: number;
   feeInclBtwCents: number;
   createdAt: string;
 }
@@ -1782,7 +1785,7 @@ export interface AdminInvoiceRow {
 export async function getAllInvoicesForAdmin(supabase: SupabaseClient): Promise<AdminInvoiceRow[]> {
   const { data: invoices } = await supabase
     .from("barber_invoices")
-    .select("id, invoice_number, barber_id, period_start, period_end, fee_incl_btw_cents, created_at")
+    .select("id, invoice_number, barber_id, period_start, period_end, btw_cents, fee_incl_btw_cents, created_at")
     .order("created_at", { ascending: false });
   if (!invoices || invoices.length === 0) return [];
 
@@ -1797,7 +1800,203 @@ export async function getAllInvoicesForAdmin(supabase: SupabaseClient): Promise<
     barberName: nameById.get(i.barber_id) ?? "Onbekend",
     periodStart: i.period_start,
     periodEnd: i.period_end,
+    btwCents: i.btw_cents,
     feeInclBtwCents: i.fee_incl_btw_cents,
     createdAt: i.created_at,
+  }));
+}
+
+// ============================================================
+// Administratief-rapportages (bookkeeper-export). Alle helpers nemen
+// een halfopen periode [from, to) — vergelijkbaar met de periodEnd-
+// exclusive-conventie in de cron van 0038 (generate-barber-invoices).
+// ============================================================
+
+export interface AdminInvoiceFullRow {
+  id: string;
+  invoiceNumber: number;
+  barberId: string;
+  barberName: string;
+  barberAddress: string | null;
+  barberCity: string | null;
+  barberKvkNumber: string | null;
+  periodStart: string;
+  periodEnd: string;
+  feeExclBtwCents: number;
+  btwCents: number;
+  feeInclBtwCents: number;
+  lineItems: BarberInvoice["lineItems"];
+  createdAt: string;
+}
+
+// Volle rijen (incl. line_items en barberadres) voor de facturen-ZIP en
+// de "alles"-ZIP in /admin/administratief — AdminInvoiceRow/
+// getAllInvoicesForAdmin blijft bewust smal voor de simpele lijstweergave
+// in InvoicesTable. Ook hergebruikt door de samenvatting-route (aantal +
+// btw-totaal), zodat er geen tweede, bijna-identieke query nodig is.
+export async function getInvoicesForPeriod(
+  supabase: SupabaseClient,
+  from: string,
+  to: string
+): Promise<AdminInvoiceFullRow[]> {
+  const { data: invoices } = await supabase
+    .from("barber_invoices")
+    .select(
+      "id, invoice_number, barber_id, period_start, period_end, fee_excl_btw_cents, btw_cents, fee_incl_btw_cents, line_items, created_at"
+    )
+    .gte("period_start", from)
+    .lt("period_start", to)
+    .order("period_start", { ascending: true });
+  if (!invoices || invoices.length === 0) return [];
+
+  const barberIds = Array.from(new Set(invoices.map((i) => i.barber_id)));
+  const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", barberIds);
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+  const { data: barberProfiles } = await supabase
+    .from("barber_profiles")
+    .select("id, address, city, kvk_number")
+    .in("id", barberIds);
+  const barberProfileById = new Map((barberProfiles ?? []).map((bp) => [bp.id, bp]));
+
+  return invoices.map((i) => ({
+    id: i.id,
+    invoiceNumber: i.invoice_number,
+    barberId: i.barber_id,
+    barberName: nameById.get(i.barber_id) ?? "Onbekend",
+    barberAddress: barberProfileById.get(i.barber_id)?.address ?? null,
+    barberCity: barberProfileById.get(i.barber_id)?.city ?? null,
+    barberKvkNumber: barberProfileById.get(i.barber_id)?.kvk_number ?? null,
+    periodStart: i.period_start,
+    periodEnd: i.period_end,
+    feeExclBtwCents: i.fee_excl_btw_cents,
+    btwCents: i.btw_cents,
+    feeInclBtwCents: i.fee_incl_btw_cents,
+    lineItems: i.line_items,
+    createdAt: i.created_at,
+  }));
+}
+
+export interface AdminRevenueReportRow {
+  bookingId: string;
+  createdAt: string;
+  serviceName: string;
+  barberName: string;
+  amountCents: number;
+  barberPayoutCents: number;
+  revenueCents: number;
+  escrowState: EscrowState;
+  // Klant-kant servicekosten (bemiddelingskosten aan de klant, 21% btw —
+  // zelfde behandeling als de barber-kant, zie splitBtwInclusive() in
+  // pricing.ts). Numeriek gelijk aan de barber-kant fee (payments.
+  // platform_fee_cents wordt voor beide kanten gebruikt, want beide zijn
+  // dezelfde 15%-berekening — zie computePriceBreakdown()), maar
+  // conceptueel een aparte, apart aan te geven btw-stroom: dit is de
+  // vergoeding die de klant betaalt, niet wat er bij de barber wordt
+  // ingehouden (dat laatste wordt al via barber_invoices/0038 gefactureerd
+  // en uitgesplitst). Nul bij een refunded boeking, net als revenueCents.
+  customerFeeExclBtwCents: number;
+  customerBtwCents: number;
+  customerFeeInclBtwCents: number;
+}
+
+// Zelfde bruto-omzetlogica als getAdminStats() (amount_cents -
+// barber_payout_cents, refunded telt niet mee), hier per boeking i.p.v.
+// alleen gesommeerd — voor het omzet-overzicht dat naar de boekhouder
+// gaat.
+export async function getRevenueReportRows(
+  supabase: SupabaseClient,
+  from: string,
+  to: string
+): Promise<AdminRevenueReportRow[]> {
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(
+      "id, created_at, service_name_snapshot, barber_id, payments(amount_cents, barber_payout_cents, platform_fee_cents, escrow_state)"
+    )
+    .gte("created_at", from)
+    .lt("created_at", to)
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+
+  const withPayment = (data as unknown as Array<{
+    id: string;
+    created_at: string;
+    service_name_snapshot: string;
+    barber_id: string | null;
+    payments:
+      | { amount_cents: number; barber_payout_cents: number; platform_fee_cents: number; escrow_state: EscrowState }
+      | { amount_cents: number; barber_payout_cents: number; platform_fee_cents: number; escrow_state: EscrowState }[]
+      | null;
+  }>)
+    .map((row) => ({ row, payment: Array.isArray(row.payments) ? row.payments[0] : row.payments }))
+    .filter(
+      (
+        r
+      ): r is {
+        row: (typeof data)[number];
+        payment: { amount_cents: number; barber_payout_cents: number; platform_fee_cents: number; escrow_state: EscrowState };
+      } => !!r.payment
+    );
+
+  const barberIds = Array.from(new Set(withPayment.map((r) => r.row.barber_id).filter((id): id is string => !!id)));
+  const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", barberIds);
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  return withPayment.map(({ row, payment }) => {
+    const refunded = payment.escrow_state === "refunded";
+    const customerFeeInclBtwCents = refunded ? 0 : payment.platform_fee_cents;
+    const { exclBtwCents, btwCents } = splitBtwInclusive(customerFeeInclBtwCents);
+    return {
+      bookingId: row.id,
+      createdAt: row.created_at,
+      serviceName: row.service_name_snapshot,
+      barberName: (row.barber_id && nameById.get(row.barber_id)) || "Onbekend",
+      amountCents: payment.amount_cents,
+      barberPayoutCents: payment.barber_payout_cents,
+      revenueCents: refunded ? 0 : payment.amount_cents - payment.barber_payout_cents,
+      escrowState: payment.escrow_state,
+      customerFeeExclBtwCents: exclBtwCents,
+      customerBtwCents: btwCents,
+      customerFeeInclBtwCents,
+    };
+  });
+}
+
+const COST_ENTRY_TYPES: WalletLedgerEntryType[] = ["topup_bonus", "referral_bonus_referrer", "referral_bonus_referee"];
+
+export interface AdminCostReportRow {
+  createdAt: string;
+  userName: string;
+  entryType: WalletLedgerEntryType;
+  amountCents: number;
+}
+
+// Alleen de drie ledger-types die het platform zelf weggeeft (bonussen) —
+// dit zijn de enige "kosten" die uit de eigen data herleidbaar zijn, zie
+// de toelichting in het Administratief-scherm zelf over wat hier bewust
+// ontbreekt (Stripe-kosten, hosting, abonnementen).
+export async function getCostReportRows(
+  supabase: SupabaseClient,
+  from: string,
+  to: string
+): Promise<AdminCostReportRow[]> {
+  const { data, error } = await supabase
+    .from("wallet_ledger_entries")
+    .select("created_at, user_id, entry_type, amount_cents")
+    .in("entry_type", COST_ENTRY_TYPES)
+    .gte("created_at", from)
+    .lt("created_at", to)
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+
+  const userIds = Array.from(new Set(data.map((d) => d.user_id)));
+  const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", userIds);
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  return data.map((d) => ({
+    createdAt: d.created_at,
+    userName: nameById.get(d.user_id) ?? "Onbekend",
+    entryType: d.entry_type,
+    amountCents: d.amount_cents,
   }));
 }
