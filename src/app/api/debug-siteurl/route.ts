@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSiteUrl } from "@/lib/site-url";
 
 // Tijdelijke debug-probe, zelfde techniek als eerder bij de Mapbox-token-
-// bug — direct weer verwijderen na gebruik. (check 2)
+// bug — direct weer verwijderen na gebruik. (check 3)
 export async function GET() {
   return NextResponse.json({
     getSiteUrl: getSiteUrl(),
