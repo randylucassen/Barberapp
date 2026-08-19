@@ -68,6 +68,18 @@ inmiddels van af):
   'suspended'`). Nieuwe cron `/api/cron/expire-noshow-bookings` (elke 5
   min) en admin-overzicht `/admin/no-shows`. Zie de CLAUDE.md-changelog-
   entry voor de volledige toelichting.
+- **Maandelijkse btw-factuur voor barber-servicekosten** (migratie
+  `0038`): nieuwe tabel `barber_invoices` + maandelijkse cron
+  (`/api/cron/generate-barber-invoices`, 1e van de maand) die per barber
+  de ingehouden 15%-servicekosten van de afgelopen kalendermaand
+  (op basis van `payments.released_at`) aggregeert, de 21% btw
+  terugrekent uit dat (btw-inclusieve) bedrag, en een PDF-factuur
+  klaarzet (`/barber/facturen`, on-demand gegenereerd met
+  `@react-pdf/renderer` uit een bevroren snapshot — nooit uit live data).
+  Nieuw `barber_profiles.address`-veld, nieuw `/admin/facturen`. Groomy's
+  eigen btw-nummer staat nog als placeholder tot de gebruiker het
+  aanlevert. Zie de CLAUDE.md-changelog-entry voor de volledige
+  toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 

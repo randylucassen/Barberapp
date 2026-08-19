@@ -46,6 +46,10 @@ function getHref(n: AppNotification, role: "klant" | "barber"): string | null {
     case "cancelled":
     case "booking_reminder":
       return "/barber/dashboard";
+    case "invoice_available":
+      return "/barber/facturen";
+    case "invoice_address_missing":
+      return "/barber/aanmelden";
     default:
       return null;
   }

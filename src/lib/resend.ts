@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { getSiteUrl } from "@/lib/site-url";
+import { COMPANY_INFO } from "@/lib/company-info";
 
 // Server-only Resend-client. Nooit importeren in client-code — de API-key
 // mag nooit naar de browser lekken. Lazy geïnstantieerd, zelfde reden als
@@ -41,7 +42,7 @@ export function notificationEmailHtml(title: string, body: string): string {
           Je ontvangt dit omdat e-mailmeldingen aanstaan voor je account — pas dit aan in de app onder Instellingen.
         </div>
         <div style="font-size:12px;line-height:18px;color:#6B7280;margin-top:12px;">
-          Groomy · Barbershop Noviomagus · Plein 1944-17, 6511 JC Nijmegen
+          ${COMPANY_INFO.name} · ${COMPANY_INFO.legalName} · ${COMPANY_INFO.address}, ${COMPANY_INFO.postalCode} ${COMPANY_INFO.city}
         </div>
       </div>
     </div>

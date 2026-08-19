@@ -35,6 +35,7 @@ export default function BarberSignupPage() {
   const [phone, setPhone] = useState("");
   const [kvkNumber, setKvkNumber] = useState("");
   const [city, setCity] = useState("");
+  const [address, setAddress] = useState("");
 
   const [idDocUrl, setIdDocUrl] = useState<string | null>(null);
   const [insuranceDocUrl, setInsuranceDocUrl] = useState<string | null>(null);
@@ -64,6 +65,7 @@ export default function BarberSignupPage() {
       if (barberProfile) {
         setKvkNumber(barberProfile.kvkNumber ?? "");
         setCity(barberProfile.city ?? "");
+        setAddress(barberProfile.address ?? "");
         setIdDocUrl(barberProfile.idDocUrl);
         setInsuranceDocUrl(barberProfile.insuranceDocUrl);
         setDiplomaUrl(barberProfile.diplomaUrl);
@@ -141,6 +143,7 @@ export default function BarberSignupPage() {
       .update({
         kvk_number: kvkNumber,
         city,
+        address,
         id_doc_url: idDocUrl,
         insurance_doc_url: insuranceDocUrl,
         diploma_url: diplomaUrl,
@@ -202,6 +205,15 @@ export default function BarberSignupPage() {
               <Input label="KvK-nummer" placeholder="12345678" value={kvkNumber} onChange={(e) => setKvkNumber(e.target.value)} />
               <Input label="Telefoon" placeholder="06 12345678" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
               <Input label="Stad" placeholder="Amsterdam" value={city} onChange={(e) => setCity(e.target.value)} />
+              <Input
+                label="Adres"
+                placeholder="Straatnaam 1, 1234 AB"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+              <div className="text-[12px] text-text-tertiary leading-4 -mt-1.5">
+                Nodig voor je maandelijkse btw-factuur — zie Facturen op je profiel.
+              </div>
             </div>
           </>
         )}

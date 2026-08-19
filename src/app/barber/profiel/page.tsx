@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Calendar, CreditCard, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
+import { Bell, Calendar, CreditCard, FileText, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
@@ -145,6 +145,12 @@ export default function BarberProfilePage() {
             title="Uitbetaling"
             sub={payoutsEnabled ? "Wekelijks · Stripe gekoppeld" : "Nog niet gekoppeld"}
             onClick={() => router.push("/barber/uitbetalingen")}
+          />
+          <Row
+            left={<span className="text-primary"><FileText size={20} /></span>}
+            title="Facturen"
+            sub="Maandelijkse btw-factuur servicekosten"
+            onClick={() => router.push("/barber/facturen")}
           />
           <Row
             left={<span className="text-primary"><WalletIcon size={20} /></span>}

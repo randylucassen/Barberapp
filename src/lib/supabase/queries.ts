@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isRideDue } from "@/lib/booking-timing";
 import type {
   AppNotification,
+  BarberInvoice,
   BarberListItem,
   BarberProfile,
   BarberStatus,
@@ -76,6 +77,7 @@ interface BarberProfileRow {
   bio: string | null;
   kvk_number: string | null;
   city: string | null;
+  address: string | null;
   work_area_km: number;
   portfolio_urls: string[];
   insurance_doc_url: string | null;
@@ -99,6 +101,7 @@ function mapBarberProfile(row: BarberProfileRow): BarberProfile {
     bio: row.bio,
     kvkNumber: row.kvk_number,
     city: row.city,
+    address: row.address,
     workAreaKm: row.work_area_km,
     portfolioUrls: row.portfolio_urls,
     insuranceDocUrl: row.insurance_doc_url,
@@ -1709,4 +1712,92 @@ export async function getNoShowWarningsForAdmin(supabase: SupabaseClient): Promi
       warningNumber: numberByWarningId.get(w.id) ?? 1,
     };
   });
+}
+
+// ============================================================
+// Maandelijkse btw-facturen (servicekosten) — zie CLAUDE.md-changelog-
+// entry en migratie 0038.
+// ============================================================
+
+interface BarberInvoiceRow {
+  id: string;
+  invoice_number: number;
+  barber_id: string;
+  period_start: string;
+  period_end: string;
+  fee_excl_btw_cents: number;
+  btw_cents: number;
+  fee_incl_btw_cents: number;
+  line_items: BarberInvoice["lineItems"];
+  created_at: string;
+}
+
+function mapBarberInvoice(row: BarberInvoiceRow): BarberInvoice {
+  return {
+    id: row.id,
+    invoiceNumber: row.invoice_number,
+    barberId: row.barber_id,
+    periodStart: row.period_start,
+    periodEnd: row.period_end,
+    feeExclBtwCents: row.fee_excl_btw_cents,
+    btwCents: row.btw_cents,
+    feeInclBtwCents: row.fee_incl_btw_cents,
+    lineItems: row.line_items,
+    createdAt: row.created_at,
+  };
+}
+
+// Gebruikt get_own_barber_invoices() (0038, security definer) — geen
+// directe tabel-grant, filtert intern al op auth.uid().
+export async function getInvoicesForBarber(supabase: SupabaseClient): Promise<BarberInvoice[]> {
+  const { data, error } = await supabase.rpc("get_own_barber_invoices");
+  if (error || !data) return [];
+  return (data as BarberInvoiceRow[]).map(mapBarberInvoice);
+}
+
+// Voor de PDF-downloadroute: zelfde RPC (geeft alleen eigen facturen
+// terug), hier gefilterd op één id — geen aparte RPC nodig voor een
+// barber met naar verwachting nooit meer dan een paar tientallen rijen.
+export async function getInvoiceForBarber(
+  supabase: SupabaseClient,
+  invoiceId: string
+): Promise<BarberInvoice | null> {
+  const invoices = await getInvoicesForBarber(supabase);
+  return invoices.find((i) => i.id === invoiceId) ?? null;
+}
+
+export interface AdminInvoiceRow {
+  id: string;
+  invoiceNumber: number;
+  barberId: string;
+  barberName: string;
+  periodStart: string;
+  periodEnd: string;
+  feeInclBtwCents: number;
+  createdAt: string;
+}
+
+// Admin-overzicht — via de service role (bypasst RLS, zelfde patroon als
+// de rest van /admin/*), dus hier geen RPC nodig.
+export async function getAllInvoicesForAdmin(supabase: SupabaseClient): Promise<AdminInvoiceRow[]> {
+  const { data: invoices } = await supabase
+    .from("barber_invoices")
+    .select("id, invoice_number, barber_id, period_start, period_end, fee_incl_btw_cents, created_at")
+    .order("created_at", { ascending: false });
+  if (!invoices || invoices.length === 0) return [];
+
+  const barberIds = Array.from(new Set(invoices.map((i) => i.barber_id)));
+  const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", barberIds);
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  return invoices.map((i) => ({
+    id: i.id,
+    invoiceNumber: i.invoice_number,
+    barberId: i.barber_id,
+    barberName: nameById.get(i.barber_id) ?? "Onbekend",
+    periodStart: i.period_start,
+    periodEnd: i.period_end,
+    feeInclBtwCents: i.fee_incl_btw_cents,
+    createdAt: i.created_at,
+  }));
 }

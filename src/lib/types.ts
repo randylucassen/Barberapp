@@ -31,6 +31,7 @@ export interface BarberProfile {
   bio: string | null;
   kvkNumber: string | null;
   city: string | null;
+  address: string | null;
   workAreaKm: number;
   portfolioUrls: string[];
   insuranceDocUrl: string | null;
@@ -46,6 +47,26 @@ export interface BarberProfile {
   lng: number | null;
   stripeAccountId: string | null;
   stripePayoutsEnabled: boolean;
+}
+
+export interface InvoiceLineItem {
+  bookingId: string;
+  date: string;
+  serviceName: string;
+  feeInclBtwCents: number;
+}
+
+export interface BarberInvoice {
+  id: string;
+  invoiceNumber: number;
+  barberId: string;
+  periodStart: string;
+  periodEnd: string;
+  feeExclBtwCents: number;
+  btwCents: number;
+  feeInclBtwCents: number;
+  lineItems: InvoiceLineItem[];
+  createdAt: string;
 }
 
 export type BookingStatus =
@@ -161,7 +182,9 @@ export type NotificationType =
   | "booking_reminder"
   | "dispute"
   | "wallet_topup"
-  | "referral_bonus";
+  | "referral_bonus"
+  | "invoice_available"
+  | "invoice_address_missing";
 
 export interface AppNotification {
   id: string;

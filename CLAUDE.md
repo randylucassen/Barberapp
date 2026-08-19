@@ -1872,6 +1872,73 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     `barber/dashboard`), dus het risico wordt laag ingeschat — maar puur
     de RPC/database-laag is hier hard bevestigd, niet de daadwerkelijke
     klik-doorloop. Beide testaccounts opgeruimd.
+- **Maandelijkse btw-factuur voor barber-servicekosten (2026-08-19).**
+  Groomy rekent barbers al sinds Fase 6 15% servicekosten (verrekend bij
+  de uitbetaling, `payments.platform_fee_cents`) — een B2B-dienst waar in
+  Nederland een wettelijke factuurplicht voor geldt (art. 34c Wet OB), die
+  tot nu toe nergens werd nagekomen. Uitgebreid afgestemd met de gebruiker
+  (zie vraag/antwoord eerder deze sessie): de 15% fee is **inclusief 21%
+  btw** (teruggerekend, niet erbovenop), Groomy's eigen btw-nummer is nog
+  niet bekend (expliciete placeholder-tekst i.p.v. een verzonnen nummer),
+  factuurnummering begint bij 1, en een barber zonder ingevuld adres wordt
+  die maand overgeslagen i.p.v. een ongeldige factuur te krijgen.
+  - **Nieuwe migratie `0038_barber_invoices.sql`**: `barber_profiles.
+    address`-kolom (+ cumulatieve kolom-grant, zelfde patroon als
+    `kvk_number`/`city` sinds 0003 en `last_active_at` sinds 0037) — nieuw
+    invoerveld op `/barber/aanmelden`. Nieuwe tabel `barber_invoices`
+    (één rij per barber per kalendermaand, `line_items jsonb` is een
+    bevroren snapshot op generatiemoment — een factuur mag nooit met
+    terugwerkende kracht veranderen ook al wijzigt de onderliggende
+    `payments`-data later, `unique(barber_id, period_start, period_end)`
+    voorkomt dubbele facturen bij een overlappende cron-run). Geen
+    client-grant (zelfde patroon als `payments`/`barber_no_show_warnings`)
+    — nieuwe `get_own_barber_invoices()` security-definer-functie (zelfde
+    truc als `get_own_barber_profile()`, 0020) voor de barber-kant, admin
+    leest via de service role. Twee nieuwe `notification_type`-waarden:
+    `invoice_available`, `invoice_address_missing`.
+  - **Nieuwe maandelijkse cron** (`cron.schedule('generate-barber-
+    invoices-job', '0 3 1 * *', ...)`, zelfde `app_config`/`CRON_SECRET`-
+    opzet als de andere crons) → nieuwe route `/api/cron/generate-barber-
+    invoices`. De aggregatie/btw-rondrekening zit bewust in TypeScript,
+    niet in een SQL-functie (zelfde afweging als waarom Stripe-refunds
+    ook altijd in een Route Handler zitten). Periode = kalendermaand op
+    basis van `payments.released_at` (aansluiten op de daadwerkelijke
+    uitbetaling, niet op `completed_at`), `escrow_state = 'refunded'`
+    telt niet mee (daar is nooit iets ingehouden). Btw-rondrekening:
+    `fee_excl_btw = round(fee_incl_btw / 1.21)`, `btw = fee_incl_btw -
+    fee_excl_btw`. Handmatig testbaar met een expliciete
+    `{"periodStart":"...","periodEnd":"..."}`-body (de echte cron stuurt
+    altijd een lege body, dan geldt automatisch de vorige kalendermaand).
+  - **PDF on-demand, niet vooraf gegenereerd/opgeslagen**: nieuwe
+    dependency `@react-pdf/renderer` (pure-JS, geen headless-browser-
+    overhead — past bij Vercel serverless, React-19-compatibel). Nieuw
+    `src/lib/invoice-pdf.tsx` (documentdefinitie) + nieuwe route `GET
+    /api/barber/invoices/[id]/pdf` (barber-sessie via
+    `get_own_barber_invoices()`, of admin via `requireAdmin()` — genereert
+    altijd uit de bevroren `line_items`/totalen op de rij, nooit uit live
+    `payments`, dus een eenmaal gedownloade factuur blijft voor altijd
+    identiek). Nieuw, gedeeld `src/lib/company-info.ts` (Barbershop
+    Noviomagus-gegevens, nu voor het eerst op een derde plek nodig naast
+    privacybeleid/voorwaarden — ook de Resend-notificatiemail-footer
+    hergebruikt 'm nu i.p.v. de tekst te dupliceren).
+  - **Nieuwe schermen**: `/barber/facturen` (lijst + downloadlink, nieuwe
+    "Facturen"-rij op `/barber/profiel`) en `/admin/facturen` (alle
+    facturen, zichtbaar welke barbers wegens ontbrekend adres zijn
+    overgeslagen — nieuw item in `AdminShell`'s navigatie).
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+    allemaal schoon (de build was met name relevant om te bevestigen dat
+    `@react-pdf/renderer` — een nieuwe, ongebruikte dependency-categorie
+    in dit project — goed bundelt in een Route Handler, geen Node-only-
+    API's mist in de serverless-omgeving). **Nog te doen**: migratie
+    `0038` pushen (zie commando hieronder), daarna end-to-end verifiëren
+    met een testbarber (adres wél/niet ingevuld, cron handmatig
+    aanroepen, PDF-route rechtstreeks bevestigen).
+
+**Migratie 0038 nog te pushen:**
+```bash
+cd /Users/randy/Desktop/Projecten/groomy-mvp/groomy
+npx supabase db push
+```
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 
