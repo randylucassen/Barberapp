@@ -1799,6 +1799,26 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     echte e-mail verzonden (Resend-sandboxbeperking, zie de eerdere
     "Fase 8 — Resend-domein"-aantekening) — puur de HTML-rendering visueel
     bevestigd, niet de daadwerkelijke aflevering.
+- **Notificatiemail nogmaals aangepast: groter/vol i.p.v. klein kadertje
+  (zelfde dag)**: op verzoek — de vorige versie (bovenstaande entry) was
+  nog een klein wit kaartje met afgeronde hoeken op een grijze
+  achtergrond. `notificationEmailHtml()` is herzien naar een edge-to-edge
+  3-bands-layout op 600px breedte (was 480px): volle-breedte teal
+  kopband met het wordmark, witte inhoudssectie met grotere
+  titel/body/knop, volle-breedte donkere (`#111111`) voetband — vult
+  zo het hele e-mailkanvas i.p.v. een smal kadertje in het midden. Titel/
+  body/knop blijven wel `notification.title`/`.body` (geen extra
+  boekingsgegevens erbij gehaald) — dat kan een vervolgstap zijn als
+  gewenst, nu bewust niet meegebouwd. Ook uitgelegd (gevraagd door de
+  gebruiker): de hele e-mail-pijplijn (Resend-notificaties én Supabase's
+  auth-mail) is 100% server-side, getriggerd door database-events — de
+  overstap naar de React Native-app verandert daar dus niets aan, welke
+  client de onderliggende gebeurtenis veroorzaakte maakt voor dit pad
+  geen verschil.
+  **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon, visueel
+  bevestigd via dezelfde tijdelijke-`public/`-bestand-truc (breed
+  browserviewport, 700px) — teal kopband, witte sectie, donkere
+  voetband renderen allemaal edge-to-edge zoals bedoeld.
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 
