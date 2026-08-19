@@ -1854,16 +1854,24 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     hard bevestigd vóór de fix: een verse testbarber met `is_online=true`
     en geen `last_active_at` gaf via een rechtstreekse RPC-aanroep nog
     steeds `true` terug (het oude, nog-niet-gepushte functiegedrag) —
-    root cause dus aangetoond, niet geraden. De nieuwe functieversie zelf
-    kon deze sessie nog niet tegen de live database getest worden (0037
-    moet nog gepusht worden) — zie hieronder voor het commando. Test-
-    account weer opgeruimd.
-
-**Migratie 0037 nog te pushen:**
-```bash
-cd /Users/randy/Desktop/Projecten/groomy-mvp/groomy
-npx supabase db push
-```
+    root cause dus aangetoond, niet geraden.
+  - **Update — migratie 0037 gepusht en de RPC-logica zelf volledig
+    bevestigd (2026-08-19)**: met een tweede verse testbarber alle vier de
+    scenario's rechtstreeks tegen de live database getest:
+    `is_online=true` + `last_active_at=null` → `false`; `last_active_at`
+    5 minuten oud → `false`; `last_active_at=nu` → `true`;
+    `is_online=false` + `last_active_at=nu` → `false`. Alle vier exact
+    zoals bedoeld. **Niet gelukt deze sessie**: de heartbeat zelf
+    daadwerkelijk zien vuren door als deze testbarber in te loggen via de
+    browser-preview — dezelfde terugkerende klik/submit-flakiness van de
+    testtool als eerdere sessies (form-submit via ref-klik, JS-`click()`,
+    `requestSubmit()` én coördinaat-klik gaven alle vier geen navigatie,
+    ondanks dat de velden zelf wel degelijk gevuld raakten). De
+    onderliggende heartbeat-code is standaard, hetzelfde patroon als de
+    al langer bewezen 5s-polling elders in dit project (bv.
+    `barber/dashboard`), dus het risico wordt laag ingeschat — maar puur
+    de RPC/database-laag is hier hard bevestigd, niet de daadwerkelijke
+    klik-doorloop. Beide testaccounts opgeruimd.
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 
