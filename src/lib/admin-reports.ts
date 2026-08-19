@@ -107,7 +107,9 @@ export interface SamenvattingInput {
 // juridische grondslag/periode-scope (klant-kant: alle boekingen in de
 // gekozen periode; barber-kant: de daadwerkelijk in die periode
 // gegenereerde facturen).
-export function buildSamenvattingCsv(input: SamenvattingInput): string {
+// Gedeeld door buildSamenvattingCsv en de JSON-voorvertoning in de
+// samenvatting-route, zodat de berekening zelf maar op één plek staat.
+export function buildSamenvattingRows(input: SamenvattingInput): string[][] {
   const grossRevenueCents = input.revenueRows.reduce((sum, r) => sum + r.revenueCents, 0);
   const totalCostsCents = input.costRows.reduce((sum, r) => sum + r.amountCents, 0);
   const grossResultCents = grossRevenueCents - totalCostsCents;
@@ -118,8 +120,7 @@ export function buildSamenvattingCsv(input: SamenvattingInput): string {
   const { exclBtwCents: customerFeeExclBtwCents, btwCents: customerBtwCents } = splitBtwInclusive(customerFeeInclBtwCents);
   const totalBtwCents = customerBtwCents + input.invoiceBtwCents;
 
-  const header = ["Kengetal", "Waarde"];
-  const rows = [
+  return [
     ["Periode", `${input.from} t/m ${input.to}`],
     ["Aantal boekingen", String(input.revenueRows.length)],
     ["Bruto omzet (EUR)", euro(grossRevenueCents)],
@@ -131,7 +132,10 @@ export function buildSamenvattingCsv(input: SamenvattingInput): string {
     ["Btw op barberfacturen (EUR)", euro(input.invoiceBtwCents)],
     ["Totaal verschuldigde btw (EUR)", euro(totalBtwCents)],
   ];
-  return toCsv(header, rows);
+}
+
+export function buildSamenvattingCsv(input: SamenvattingInput): string {
+  return toCsv(["Kengetal", "Waarde"], buildSamenvattingRows(input));
 }
 
 function invoiceFilename(periodEnd: string, invoiceNumber: number): string {

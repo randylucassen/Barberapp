@@ -104,6 +104,13 @@ inmiddels van af):
   (nieuwste eerst) met een losse downloadknop per factuur, en filters die
   pas toepassen na een klik op "Zoeken" i.p.v. bij elke toetsaanslag. Zie
   de CLAUDE.md-changelog-entry voor de volledige toelichting.
+- **`/admin/administratief` herbouwd als maandlijst-accordion**
+  (2026-08-20) — de 4 rapportagetypes (omzet/kosten/samenvatting/
+  commissiefacturen) zijn nu elk apart klikbaar, gevolgd door een lijst
+  beschikbare maanden met per maand een "Bekijken" (inline voorvertoning)
+  én een downloadknop. Nieuwe `getAvailableReportMonths()`-helper en
+  `format=json`-ondersteuning op de bestaande CSV-routes. Zie de
+  CLAUDE.md-changelog-entry voor de volledige toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 

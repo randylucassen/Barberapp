@@ -2406,6 +2406,59 @@ hergebruiken in plaats van opnieuw te schrijven.
   terug. Download-knoppen wijzen naar de al eerder geverifieerde
   PDF-route, niet opnieuw doorgeklikt.
 
+## Administratief herbouwd: 4 rubrieken × maandlijst met inzien+download (2026-08-20)
+
+Verduidelijking van het eerdere "lijstweergave"-verzoek: niet de
+facturen-pagina (die stond hierboven al), maar `/admin/administratief`
+zelf moest van "kies een periode, download 5 losse bestanden" naar een
+lijstweergave: de 4 rapportagetypes (Omzet-overzicht, Kosten-overzicht,
+Samenvatting, Commissiefacturen) elk apart klikbaar, gevolgd door een
+maandenlijst per type met zowel "Bekijken" (inline inzien) als een
+downloadknop per maand.
+
+**Nieuwe query-helper**: `getAvailableReportMonths()` (`queries.ts`) —
+twee lichte queries (vroegste/laatste boekingsdatum, niet alle rijen
+ophalen) om de lijst maanden te bepalen, nieuwste eerst.
+
+**`format=json` op de omzet/kosten/samenvatting-routes**: dezelfde drie
+routes die al CSV teruggeven, geven nu ook de ruwe rijen als JSON terug
+met `?format=json` — voor de inline "Bekijken"-voorvertoning zonder
+nieuwe routes te hoeven bouwen. `buildSamenvattingCsv()` in
+`admin-reports.ts` opgesplitst in een herbruikbare `buildSamenvattingRows()`
+(de berekening) + een dunne CSV-wrapper, zodat de JSON-preview en de CSV
+dezelfde berekening delen i.p.v. hem te dupliceren.
+
+**`AdministratiefPanel.tsx` volledig herbouwd** als accordion: klik een
+rubriek open → maandenlijst (uit `getAvailableReportMonths()`) → per
+maand een "Bekijken"-toggle (haalt de JSON lazy op, cachet in state zodat
+opnieuw uitklappen niet opnieuw fetcht) die een inline tabel toont
+(scrollbare `max-h-80`-container, want omzet kan per maand 400+ rijen
+hebben), plus een directe downloadlink per maand. Commissiefacturen
+wijkt bewust af: "Bekijken" navigeert naar `/admin/facturen` i.p.v. een
+eigen tabel te bouwen — die pagina toont exact dit al (per-factuur-
+download, zoekfunctie), dus geen dubbele component. Onderaan blijft één
+"Download alles"-knop die de volledige beschikbare periode (vroegste t/m
+laatste maand) als ZIP aanbiedt.
+
+**`/admin/facturen` ondersteunt nu `?from=`/`?to=`-query-params**
+(nieuwe optionele `initialFrom`/`initialTo`-props op `InvoicesTable`) —
+zo opent de "Bekijken"-link vanuit Administratief de facturenlijst al
+vooraf gefilterd op die maand, i.p.v. de gebruiker het handmatig te laten
+intypen.
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  schoon. Live doorgeklikt via een tijdelijk aangemaakt (en na gebruik
+  weer verwijderd) admin-account: alle 4 rubrieken openen/sluiten, alle 7
+  beschikbare maanden tonen (februari t/m augustus 2026 — augustus komt
+  van de twee losstaande naamsgebonden testaccounts, niet de bulk-data),
+  omzet/kosten/samenvatting-inline-tabellen laden echte data (juli:
+  bruto omzet €3159,00, kosten €125,00, brutoresultaat €3034,00, 413
+  boekingen — consistent met eerdere handmatige narekening), Bekijken bij
+  Commissiefacturen navigeert naar `/admin/facturen?from=2026-07-01&
+  to=2026-07-31` en die pagina toont dan inderdaad precies en alleen de
+  22 juli-facturen. Download-alles-href beslaat correct de volledige
+  beschikbare periode (2026-02-01 t/m 2026-08-31).
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

@@ -20,6 +20,13 @@ export async function GET(request: NextRequest) {
 
   const service = createServiceClient();
   const rows = await getRevenueReportRows(service, period.from, period.toExclusive);
+
+  // JSON i.p.v. CSV voor de inline "Bekijken"-voorvertoning per maand in
+  // /admin/administratief — zelfde onderliggende data, geen download.
+  if (request.nextUrl.searchParams.get("format") === "json") {
+    return NextResponse.json(rows);
+  }
+
   const csv = buildOmzetCsv(rows);
 
   return new NextResponse(csv, {

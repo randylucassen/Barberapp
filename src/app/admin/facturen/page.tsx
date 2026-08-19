@@ -3,7 +3,12 @@ import { InvoicesTable } from "@/components/admin/InvoicesTable";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getAllInvoicesForAdmin } from "@/lib/supabase/queries";
 
-export default async function AdminInvoicesPage() {
+export default async function AdminInvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
   const supabase = createServiceClient();
   const invoices = await getAllInvoicesForAdmin(supabase);
 
@@ -14,7 +19,7 @@ export default async function AdminInvoicesPage() {
         Maandelijkse btw-facturen voor de servicekosten die bij barbers zijn ingehouden, gegroepeerd per maand. Een
         barber zonder ingevuld adres wordt automatisch overgeslagen (krijgt zelf een melding om dit aan te vullen).
       </div>
-      <InvoicesTable invoices={invoices} />
+      <InvoicesTable invoices={invoices} initialFrom={from} initialTo={to} />
     </AdminShell>
   );
 }

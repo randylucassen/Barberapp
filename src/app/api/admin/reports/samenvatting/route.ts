@@ -4,7 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { requireAdmin } from "@/lib/supabase/admin";
 import { parseReportPeriod } from "@/lib/report-period";
 import { getRevenueReportRows, getCostReportRows, getInvoicesForPeriod } from "@/lib/supabase/queries";
-import { buildSamenvattingCsv } from "@/lib/admin-reports";
+import { buildSamenvattingCsv, buildSamenvattingRows } from "@/lib/admin-reports";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -25,14 +25,20 @@ export async function GET(request: NextRequest) {
     getInvoicesForPeriod(service, period.from, period.toExclusive),
   ]);
 
-  const csv = buildSamenvattingCsv({
+  const summaryInput = {
     from: period.from,
     to: period.to,
     revenueRows,
     costRows,
     invoiceCount: invoices.length,
     invoiceBtwCents: invoices.reduce((sum, i) => sum + i.btwCents, 0),
-  });
+  };
+
+  if (request.nextUrl.searchParams.get("format") === "json") {
+    return NextResponse.json(buildSamenvattingRows(summaryInput));
+  }
+
+  const csv = buildSamenvattingCsv(summaryInput);
 
   return new NextResponse(csv, {
     headers: {

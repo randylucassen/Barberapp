@@ -20,6 +20,11 @@ export async function GET(request: NextRequest) {
 
   const service = createServiceClient();
   const rows = await getCostReportRows(service, period.from, period.toExclusive);
+
+  if (request.nextUrl.searchParams.get("format") === "json") {
+    return NextResponse.json(rows);
+  }
+
   const csv = buildKostenCsv(rows);
 
   return new NextResponse(csv, {

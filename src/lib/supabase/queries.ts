@@ -1812,6 +1812,30 @@ export async function getAllInvoicesForAdmin(supabase: SupabaseClient): Promise<
 // exclusive-conventie in de cron van 0038 (generate-barber-invoices).
 // ============================================================
 
+// Voor de maand-lijstweergave in /admin/administratief — welke maanden
+// zijn er om te tonen. Twee lichte queries (vroegste/laatste boeking-
+// datum) i.p.v. alle boekingen op te halen om daar zelf op te groeperen;
+// schaalt onafhankelijk van het aantal boekingen.
+export async function getAvailableReportMonths(supabase: SupabaseClient): Promise<string[]> {
+  const [{ data: earliest }, { data: latest }] = await Promise.all([
+    supabase.from("bookings").select("created_at").order("created_at", { ascending: true }).limit(1).maybeSingle(),
+    supabase.from("bookings").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (!earliest || !latest) return [];
+
+  const start = new Date(earliest.created_at);
+  const end = new Date(latest.created_at);
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const endMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+
+  const months: string[] = [];
+  while (cursor <= endMonth) {
+    months.push(cursor.toISOString().slice(0, 7));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return months.reverse();
+}
+
 export interface AdminInvoiceFullRow {
   id: string;
   invoiceNumber: number;

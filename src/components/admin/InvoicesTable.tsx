@@ -34,9 +34,22 @@ const EMPTY_FILTERS: Filters = { name: "", number: "", from: "", to: "" };
 // state-lagen: `draft` (wat je typt) en `applied` (wat daadwerkelijk
 // filtert) — "Herstel filters" reset allebei meteen, "Zoeken" kopieert
 // draft naar applied.
-export function InvoicesTable({ invoices }: { invoices: AdminInvoiceRow[] }) {
-  const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
-  const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
+//
+// `initialFrom`/`initialTo` — optioneel vooraf ingevuld en al toegepast,
+// voor de diepe link vanuit /admin/administratief ("Bekijken" bij een
+// specifieke maand bij Commissiefacturen).
+export function InvoicesTable({
+  invoices,
+  initialFrom,
+  initialTo,
+}: {
+  invoices: AdminInvoiceRow[];
+  initialFrom?: string;
+  initialTo?: string;
+}) {
+  const initialFilters: Filters = { ...EMPTY_FILTERS, from: initialFrom ?? "", to: initialTo ?? "" };
+  const [draft, setDraft] = useState<Filters>(initialFilters);
+  const [applied, setApplied] = useState<Filters>(initialFilters);
 
   const hasAnyFilters =
     draft.name !== "" || draft.number !== "" || draft.from !== "" || draft.to !== "" || applied.name !== "" || applied.number !== "" || applied.from !== "" || applied.to !== "";
