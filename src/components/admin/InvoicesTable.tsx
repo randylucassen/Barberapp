@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Input } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { euro } from "@/lib/pricing";
 import type { AdminInvoiceRow } from "@/lib/supabase/queries";
 
@@ -11,6 +11,27 @@ function invoiceLabel(periodEnd: string, invoiceNumber: number): string {
 
 function formatPeriod(periodStart: string): string {
   return new Date(periodStart).toLocaleDateString("nl-NL", { month: "long", year: "numeric" });
+}
+
+// Eigen, lichte filtervakken i.p.v. de gedeelde <Input> uit components/ui
+// — die is ontworpen voor phone-shell-formulieren (bg-surface-vulling,
+// vaste 48px-hoogte, geen zichtbare rand) en valt op AdminShell's eigen
+// bg-surface-paginaondergrond helemaal weg. Hier bewust een zichtbare
+// rand + witte vulling, zelfde look als de rest van het adminpanel
+// (bg-white border border-border, bv. de kaarten hieronder).
+function FilterField({
+  label,
+  ...rest
+}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[12px] font-semibold text-text-secondary">{label}</span>
+      <input
+        {...rest}
+        className="h-9 px-3 rounded-md bg-white border border-border text-[13px] text-text-primary placeholder:text-text-tertiary outline-none focus:shadow-focus-ring transition-shadow duration-fast ease-groomy"
+      />
+    </label>
+  );
 }
 
 // Client-side filteren i.p.v. het bestaande server-side searchParams-
@@ -24,6 +45,15 @@ export function InvoicesTable({ invoices }: { invoices: AdminInvoiceRow[] }) {
   const [number, setNumber] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+
+  const hasFilters = name !== "" || number !== "" || from !== "" || to !== "";
+
+  function resetFilters() {
+    setName("");
+    setNumber("");
+    setFrom("");
+    setTo("");
+  }
 
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
@@ -42,23 +72,26 @@ export function InvoicesTable({ invoices }: { invoices: AdminInvoiceRow[] }) {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-3 mb-4">
-        <Input
+      <div className="flex flex-wrap items-end gap-3 mb-4">
+        <FilterField
           label="Naam"
           placeholder="Zoek op barbernaam…"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-56"
         />
-        <Input
+        <FilterField
           label="Factuurnummer"
           placeholder="Bijv. 2026-0001"
           value={number}
           onChange={(e) => setNumber(e.target.value)}
           className="w-48"
         />
-        <Input label="Van" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-44" />
-        <Input label="Tot" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-44" />
+        <FilterField label="Van" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-44" />
+        <FilterField label="Tot" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-44" />
+        <Button size="sm" variant="secondary" disabled={!hasFilters} onClick={resetFilters}>
+          Herstel filters
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
