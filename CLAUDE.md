@@ -1986,6 +1986,17 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     bestond al"` voor de intussen-opgeruimde demo-barber, `"factuur
     aangemaakt"` voor Randy van Londen) — bevestigt ook meteen dat de
     unique-constraint-gebaseerde idempotentie werkt.
+  - **Update — downloadbare inkomsten-CSV voor barbers (zelfde dag)**: op
+    verzoek, los van de formele btw-factuur (die dekt alleen wat Groomy
+    van de barber inhoudt, niet wat de barber zelf heeft ontvangen).
+    Nieuwe route `GET /api/barber/earnings/export` — hergebruikt de
+    bestaande `getPaymentsForBarber()` (geen nieuwe query nodig), altijd
+    de eigen sessie (`auth.uid()`), CSV met UTF-8-BOM (voor correcte
+    weergave van "€"/accenten in Excel). Nieuwe knop op
+    `/barber/verdiensten` naast de bestaande "Bekijk uitbetalingen".
+    Bewust CSV i.p.v. PDF — dit is ruwe data bedoeld voor een spreadsheet/
+    boekhoudpakket, geen formeel document zoals de factuur.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon.
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 

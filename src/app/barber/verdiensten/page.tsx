@@ -95,10 +95,16 @@ function EarningsContent() {
             />
           ))}
         </div>
-        <div className="my-5">
+        <div className="my-5 flex flex-col gap-2.5">
           <button onClick={() => router.push("/barber/uitbetalingen")} className="w-full h-ctrl-lg rounded-md bg-surface font-semibold text-[17px]">
             Bekijk uitbetalingen
           </button>
+          <a
+            href="/api/barber/earnings/export"
+            className="w-full h-ctrl-lg rounded-md border border-border flex items-center justify-center font-semibold text-[17px] text-text-primary"
+          >
+            Download inkomsten (CSV)
+          </a>
         </div>
       </div>
     </div>
