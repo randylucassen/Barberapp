@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSiteUrl } from "@/lib/site-url";
 
 // Tijdelijke debug-probe, zelfde techniek als eerder bij de Mapbox-token-
-// bug — direct weer verwijderen na gebruik. (check 4)
+// bug — direct weer verwijderen na gebruik. (check 5)
 export async function GET() {
   const allNextPublicKeys = Object.keys(process.env).filter((k) => k.startsWith("NEXT_PUBLIC"));
   return NextResponse.json({
