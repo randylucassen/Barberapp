@@ -1954,6 +1954,38 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     twee auth-users. `/admin/facturen` en `/barber/facturen` zelf
     (rendering) niet pixel-voor-pixel bevestigd — wel bevestigd dat
     `/admin/facturen` zonder sessie correct naar login redirect (geen 500).
+  - **Update — testfactuur op de gebruiker's eigen testaccount + betere
+    adminlijst (zelfde dag)**: op verzoek een tweede testfactuur (8
+    boekingen, juli 2026) aangemaakt onder het al bestaande echte
+    testaccount "Randy van Londen" (`barber_profiles.id
+    54b38022-bc80-4047-9a2b-0fc6ffd9ec0f`) i.p.v. een wegwerpaccount, zodat
+    de gebruiker 'm met zijn eigen inloggegevens direct in `/barber/
+    facturen` kan bekijken — het adres stond nog leeg, ingevuld met een
+    duidelijk als testdata gemarkeerde waarde. De klant-kant blijft wél
+    een wegwerptestaccount (`bookings.customer_id` cascadet, dus
+    opruimen later = alleen die klant weggooien, zonder Randy's eigen
+    account te hoeven aanraken). De eerdere, losstaande "Demo Factuur
+    Barber"-testaccount (incl. diens boekingen/betalingen/factuur) is in
+    dezelfde beurt weer volledig opgeruimd.
+  - **`/admin/facturen` herbouwd naar een filterbare lijst** (gevraagd):
+    nieuwe client component `src/components/admin/InvoicesTable.tsx` —
+    bewust client-side filteren (niet het bestaande server-side
+    `searchParams`-patroon van `StatusFilter`/`UserSearch`) omdat hier
+    drie filters (naam, factuurnummer, datumbereik) tegelijk en direct
+    moeten reageren, en het aantal facturen naar verwachting bescheiden
+    blijft. Elke rij is nu een `<a>` naar de PDF-route (heel de rij
+    klikbaar/downloadbaar, niet meer alleen een los "Download"-linkje).
+  - **Zijdelings gevonden tijdens het opruimen, niet aangepakt (buiten
+    scope)**: 3 losse `bookings`-rijen met `barber_id = null` bleken al
+    van vóór deze sessie te dateren (`service_name_snapshot`: "Knipbeurt
+    vandaag/gisteren/eergisteren" — herkenbaar als testdata van de
+    eerdere `dayLabel()`-fix, 2026-08-15). Niet van mij, niet aangeraakt.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon voor de
+    nieuwe `InvoicesTable`. Cron opnieuw gedraaid voor juli 2026 — verwerkte
+    beide barbers in één run (`"overgeslagen: factuur voor deze periode
+    bestond al"` voor de intussen-opgeruimde demo-barber, `"factuur
+    aangemaakt"` voor Randy van Londen) — bevestigt ook meteen dat de
+    unique-constraint-gebaseerde idempotentie werkt.
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 
