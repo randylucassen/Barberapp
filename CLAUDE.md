@@ -1929,16 +1929,31 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
     allemaal schoon (de build was met name relevant om te bevestigen dat
     `@react-pdf/renderer` — een nieuwe, ongebruikte dependency-categorie
     in dit project — goed bundelt in een Route Handler, geen Node-only-
-    API's mist in de serverless-omgeving). **Nog te doen**: migratie
-    `0038` pushen (zie commando hieronder), daarna end-to-end verifiëren
-    met een testbarber (adres wél/niet ingevuld, cron handmatig
-    aanroepen, PDF-route rechtstreeks bevestigen).
-
-**Migratie 0038 nog te pushen:**
-```bash
-cd /Users/randy/Desktop/Projecten/groomy-mvp/groomy
-npx supabase db push
-```
+    API's mist in de serverless-omgeving).
+  - **Update — migratie 0038 gepusht en end-to-end bevestigd (2026-08-19)**:
+    testbarber met 100 wegwerpboekingen (cyclisch over de 4 standaard-
+    diensten, `payments.released_at` verspreid over juli 2026, rechtstreeks
+    via de service role ingevoegd — zelfde `insert-forceert-status-
+    requested-dus-eerst-invoegen-dan-updaten`-aanpak als bij eerdere
+    testdata dit soort sessies). Cron handmatig aangeroepen met een
+    expliciete periode-body: `INV-2026-0001` correct aangemaakt met alle
+    100 regels, en de bedragen exact narekenbaar (€468,75 incl. btw =
+    €387,40 excl. + €81,35 btw — 15%-fee per boeking vooraf berekend en
+    vergeleken, klopte tot op de cent). PDF-route zelf kon niet via een
+    ingelogde barbersessie in de browser-preview getest worden (dezelfde
+    terugkerende klik-flakiness) — in plaats daarvan `renderInvoicePdfBuffer()`
+    rechtstreeks getest via een tijdelijke CRON_SECRET-beveiligde debug-
+    route (zelfde diagnostische techniek als bij de site-URL-bug, meteen
+    weer verwijderd na gebruik): een geldige 4-pagina-PDF (100 regels
+    paginabreken correct over meerdere pagina's). Bijvangst tijdens het
+    testen: poort 3000 bleek een oude, kapotte dev-server-instance (proces
+    3974, corrupte `.next`-map) te serveren i.p.v. de eigen sessie — poort
+    3002 (de bash-achtergrondtaak van deze sessie) gebruikt voor de
+    daadwerkelijke test. Alle testdata (100 bookings/payments, de factuur,
+    beide testaccounts) nadien volledig opgeruimd via cascade-delete op de
+    twee auth-users. `/admin/facturen` en `/barber/facturen` zelf
+    (rendering) niet pixel-voor-pixel bevestigd — wel bevestigd dat
+    `/admin/facturen` zonder sessie correct naar login redirect (geen 500).
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 
