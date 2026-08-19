@@ -1766,6 +1766,39 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   van het oorspronkelijke gegenereerde testaccount). **Nog op te ruimen**
   zodra het testen klaar is: barber-profiel, testklant, 2 testboekingen,
   2 `barber_no_show_warnings`-rijen — vraag het me, dan ruim ik ze op.
+- **"Bevestigingslink werkt niet" + "e-mails zijn saai" (2026-08-19).**
+  Twee losse meldingen, apart onderzocht.
+  - **Bevestigingslink**: geen codebug — via de Supabase Admin API
+    (`/auth/v1/admin/generate_link`, `type: signup`) het daadwerkelijke
+    linkformaat opgevraagd dat naar nieuwe gebruikers gaat:
+    `.../auth/v1/verify?token=...&type=signup&redirect_to=http://localhost:3001`.
+    De **Site URL** in Supabase's eigen Auth-instellingen (Authentication
+    → URL Configuration) staat dus nog op een lokaal ontwikkeladres —
+    Supabase verifieert de token prima, maar stuurt de browser daarna naar
+    een adres dat voor een echte gebruiker nergens bestaat. Kan ik niet
+    zelf fixen (dashboard-instelling, geen API-toegang daarvoor) — actie
+    voor de gebruiker: Site URL + Redirect URLs bijwerken naar
+    `https://barberapp-vz1z.vercel.app`. Twee wegwerp-testaccounts die
+    nodig waren om dit te diagnosticeren zijn meteen weer opgeruimd.
+  - **"Saaie" e-mails**: bleek twee gescheiden systemen te zijn. (1) De
+    bevestigings-/reset-mail komt rechtstreeks van Supabase's eigen,
+    generieke mailservice (nooit Resend) — aan te passen via Authentication
+    → Email Templates in het dashboard, buiten mijn bereik. (2) De
+    notificatiemails (nieuwe aanvraag, betaling ontvangen, etc.) lopen wél
+    via Resend met een eigen template in code — die **is** aangepakt:
+    `notificationEmailHtml()` in `src/lib/resend.ts` kreeg een teal
+    accentbalk (`#0EA5A4`, 1:1 uit `tailwind.config.ts`), een ronde
+    "Bekijk in Groomy"-CTA-knop (nieuwe `getSiteUrl()`-import) en een
+    voettekst met de afmeld-uitleg + bedrijfsgegevens (Barbershop
+    Noviomagus-adres, consistent met de nieuwe privacyverklaring/
+    voorwaarden). Visueel geverifieerd door de gerenderde HTML tijdelijk
+    in `public/` te zetten en via de browser-preview te bekijken (daarna
+    weer verwijderd) — ronde accentkleur, knop en voettekst renderen
+    correct.
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Geen
+    echte e-mail verzonden (Resend-sandboxbeperking, zie de eerdere
+    "Fase 8 — Resend-domein"-aantekening) — puur de HTML-rendering visueel
+    bevestigd, niet de daadwerkelijke aflevering.
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 
