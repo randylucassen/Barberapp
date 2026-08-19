@@ -731,6 +731,12 @@ export async function setBarberOnline(
   return !error;
 }
 
+// Heartbeat, zie 0037 — puur "de barber-app was hier onlangs open",
+// losstaand van de handmatige is_online-schakelaar hierboven.
+export async function updateBarberLastActive(supabase: SupabaseClient, barberId: string): Promise<void> {
+  await supabase.from("barber_profiles").update({ last_active_at: new Date().toISOString() }).eq("id", barberId);
+}
+
 interface NearestBarberRow {
   barber_id: string;
   distance_km: number;

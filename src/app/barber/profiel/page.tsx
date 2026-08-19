@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
 import { Avatar, Row, SectionLabel } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
-import { getBarberProfile, getWallet } from "@/lib/supabase/queries";
+import { getBarberProfile, getWallet, setBarberOnline } from "@/lib/supabase/queries";
 import { subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { euro } from "@/lib/pricing";
 import type { BarberProfile } from "@/lib/types";
@@ -106,6 +106,10 @@ export default function BarberProfilePage() {
   async function handleLogout() {
     setDlg(false);
     const supabase = createClient();
+    // Meteen offline zetten i.p.v. te wachten tot de 90s-heartbeat-
+    // staleness (barber/layout.tsx) dit vanzelf oplost — voorkomt dat de
+    // klant een net-uitgelogde barber nog even als online ziet.
+    if (userId) await setBarberOnline(supabase, userId, false);
     await supabase.auth.signOut();
     router.push("/barber/login");
     router.refresh();

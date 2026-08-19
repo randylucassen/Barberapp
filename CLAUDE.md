@@ -1819,6 +1819,51 @@ nodig zodra de UI stabiel is, maar nog aanwezig als referentie). Zie
   bevestigd via dezelfde tijdelijke-`public/`-bestand-truc (breed
   browserviewport, 700px) — teal kopband, witte sectie, donkere
   voetband renderen allemaal edge-to-edge zoals bedoeld.
+- **Offline-barber-waarschuwing gold niet bij uitloggen (2026-08-19).**
+  Gemeld: als een barber niet ingelogd is, moet de klant de al bestaande
+  offline-waarschuwing op `klant/boeking` zien — niet pas als de barber
+  zelf de "Online"-schakelaar had omgezet. Root cause: `is_online`
+  (`barber_profiles`) is en was een pure handmatige schakelaar — uitloggen
+  (`barber/profiel`) riep alleen `supabase.auth.signOut()` aan en raakte
+  die kolom nooit aan, dus een uitgelogde (of gewoon de app afgesloten)
+  barber bleef voor `barber_is_online_and_available()` gewoon "online".
+  - **Nieuwe migratie `0037_barber_last_active.sql`**: nieuwe kolom
+    `barber_profiles.last_active_at`. `barber_is_online_and_available()`
+    (volledige body herhaald, regel 22) eist nu óók dat die kolom binnen
+    de laatste 90 seconden is bijgewerkt, naast de bestaande
+    `is_online`/weekschema/geen-actieve-boeking-voorwaarden — dekt zo elk
+    scenario waarbij de app niet meer actief open is (uitgelogd, tab
+    dicht, sessie verlopen), niet alleen de expliciete logout-knop.
+  - **Heartbeat in `barber/layout.tsx`** (wrapt alle `barber/*`-routes,
+    dus onafhankelijk van welk specifiek scherm open staat): bij mount
+    éénmalig en daarna elke 20s (ruim onder de 90s-drempel)
+    `updateBarberLastActive()` (nieuw in `queries.ts`) aanroepen zolang er
+    een geldige sessie is — no-op op de nog-niet-ingelogde `barber/login`/
+    `register`-schermen. Nieuwe kolom-grant `grant update
+    (last_active_at) on barber_profiles to authenticated`.
+  - **Extra, voor directe correctheid**: `barber/profiel`'s
+    `handleLogout()` zet `is_online` nu ook meteen expliciet op `false`
+    vóór `signOut()` — zonder dit zou een net-uitgelogde barber nog tot
+    90 seconden lang online lijken (het venster waarin de heartbeat-
+    staleness het nog niet zelf gecorrigeerd heeft).
+  - **Bewust buiten scope**: de losse "Nu beschikbaar"/"Nu niet
+    online"-labels op `klant/barbers` lezen `is_online` nog rechtstreeks
+    (niet via deze functie) — puur een lijst-label, geen boekingsblokkade.
+    Kan hetzelfde fixen als gewenst, nu niet meegenomen (niet gevraagd).
+  - **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. De bug zelf
+    hard bevestigd vóór de fix: een verse testbarber met `is_online=true`
+    en geen `last_active_at` gaf via een rechtstreekse RPC-aanroep nog
+    steeds `true` terug (het oude, nog-niet-gepushte functiegedrag) —
+    root cause dus aangetoond, niet geraden. De nieuwe functieversie zelf
+    kon deze sessie nog niet tegen de live database getest worden (0037
+    moet nog gepusht worden) — zie hieronder voor het commando. Test-
+    account weer opgeruimd.
+
+**Migratie 0037 nog te pushen:**
+```bash
+cd /Users/randy/Desktop/Projecten/groomy-mvp/groomy
+npx supabase db push
+```
 
 ## Lokale dev-server startte niet in de preview-tool (EPERM)
 
