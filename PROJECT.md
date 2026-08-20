@@ -111,6 +111,14 @@ inmiddels van af):
   én een downloadknop. Nieuwe `getAvailableReportMonths()`-helper en
   `format=json`-ondersteuning op de bestaande CSV-routes. Zie de
   CLAUDE.md-changelog-entry voor de volledige toelichting.
+- **Barber-goedkeuring vereist nu complete factuurgegevens** (2026-08-20)
+  — adres, stad en KvK-nummer moeten ingevuld zijn vóórdat een admin een
+  barber kan goedkeuren, zowel server-side afgedwongen
+  (`/api/admin/barbers/status`) als al geblokkeerd bij het invullen van
+  `/barber/aanmelden` zelf. Voorkomt dat een barber zonder deze gegevens
+  geld kan verdienen terwijl zijn maandelijkse btw-factuur (0038)
+  vervolgens structureel wordt overgeslagen. Zie de CLAUDE.md-
+  changelog-entry voor de volledige toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 

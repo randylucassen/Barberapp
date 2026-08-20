@@ -1265,6 +1265,7 @@ export interface AdminBarberRow {
   createdAt: string;
   kvkNumber: string | null;
   city: string | null;
+  address: string | null;
   portfolioUrls: string[];
   insuranceDocUrl: string | null;
   idDocUrl: string | null;
@@ -1280,7 +1281,7 @@ export async function getBarbersForAdmin(
   let query = supabase
     .from("profiles")
     .select(
-      "id, full_name, email, barber_status, created_at, barber_profiles(kvk_number, city, portfolio_urls, insurance_doc_url, id_doc_url, diploma_url, rating_avg, rating_count)"
+      "id, full_name, email, barber_status, created_at, barber_profiles(kvk_number, city, address, portfolio_urls, insurance_doc_url, id_doc_url, diploma_url, rating_avg, rating_count)"
     )
     .eq("role", "barber")
     .order("created_at", { ascending: false });
@@ -1298,6 +1299,7 @@ export async function getBarbersForAdmin(
     barber_profiles: {
       kvk_number: string | null;
       city: string | null;
+      address: string | null;
       portfolio_urls: string[] | null;
       insurance_doc_url: string | null;
       id_doc_url: string | null;
@@ -1313,6 +1315,7 @@ export async function getBarbersForAdmin(
     createdAt: row.created_at,
     kvkNumber: row.barber_profiles?.kvk_number ?? null,
     city: row.barber_profiles?.city ?? null,
+    address: row.barber_profiles?.address ?? null,
     portfolioUrls: row.barber_profiles?.portfolio_urls ?? [],
     insuranceDocUrl: row.barber_profiles?.insurance_doc_url ?? null,
     idDocUrl: row.barber_profiles?.id_doc_url ?? null,

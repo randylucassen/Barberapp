@@ -22,6 +22,33 @@ export async function POST(request: NextRequest) {
   }
 
   const service = createServiceClient();
+
+  // Een barber mag pas geld kunnen verdienen als de factuurgegevens
+  // compleet zijn — anders kan de maandelijkse btw-factuur (0038) nooit
+  // gegenereerd worden en mist de administratie een verplicht document.
+  // Bewust hier afgedwongen (niet alleen client-side op /barber/
+  // aanmelden), want dit is de enige plek die daadwerkelijk bepaalt of
+  // een barber zichtbaar/boekbaar wordt.
+  if (status === "approved") {
+    const { data: barberProfile } = await service
+      .from("barber_profiles")
+      .select("address, city, kvk_number")
+      .eq("id", barberId)
+      .maybeSingle();
+
+    const missing: string[] = [];
+    if (!barberProfile?.address?.trim()) missing.push("adres");
+    if (!barberProfile?.city?.trim()) missing.push("stad");
+    if (!barberProfile?.kvk_number?.trim()) missing.push("KvK-nummer");
+
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { error: `Kan niet goedkeuren: barber mist nog ${missing.join(", ")} (nodig voor de maandelijkse btw-factuur).` },
+        { status: 400 }
+      );
+    }
+  }
+
   const { data, error } = await service
     .from("profiles")
     .update({ barber_status: status })

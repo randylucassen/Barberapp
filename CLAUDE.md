@@ -2459,6 +2459,47 @@ intypen.
   22 juli-facturen. Download-alles-href beslaat correct de volledige
   beschikbare periode (2026-02-01 t/m 2026-08-31).
 
+## Barber kon goedgekeurd worden zonder factuurgegevens (2026-08-20)
+
+Vervolg op de facturatie-vragen: een barber kon tot nu toe gewoon
+goedgekeurd worden (en dus geld verdienen) zonder adres, stad of
+KvK-nummer — die velden stonden al op `/barber/aanmelden`, maar waren
+nergens verplicht. Gevolg: de maandelijkse factuur-cron (0038) sloeg zo'n
+barber structureel over (geen adres = geen factuur), zonder dat dat ooit
+opviel totdat iemand de facturenlijst doorzocht.
+
+**Server-side gate (de eigenlijke afdwinging)**: `/api/admin/barbers/
+status/route.ts` weigert nu `status: "approved"` met een 400 en een
+duidelijke Nederlandse foutmelding als `barber_profiles.address`,
+`.city` of `.kvk_number` leeg is. Dit is dezelfde route die ook
+`/admin/no-shows`'s "Herstel"-knop gebruikt om een geschorste barber
+terug te zetten naar approved — geen aparte route nodig, en een eerder
+al goedgekeurde (dus al complete) barber loopt hier nooit tegenaan.
+
+**Twee lagen eromheen, geen van beide de bron van waarheid**:
+- `BarbersTable.tsx` toont nu ook het adres per rij, en een rode
+  "Mist nog: …"-regel + een disabled Goedkeuren-knop (met `title`-
+  tooltip) zodra een van de drie velden ontbreekt — zodat de admin dit
+  al ziet vóórdat hij klikt, niet pas na een mislukte poging.
+- `/barber/aanmelden` blokkeert nu zelf al "Volgende" op de eerste stap
+  totdat naam/KvK/stad/adres allemaal ingevuld zijn (`step0Valid`) — een
+  barber komt dus nooit meer bij verificatie/diensten aan zonder deze
+  gegevens al gezet te hebben. De helper-tekst onder het adresveld is
+  aangescherpt ("Verplicht... zonder deze gegevens kun je niet
+  goedgekeurd worden").
+
+`AdminBarberRow`/`getBarbersForAdmin()` kregen er een `address`-veld bij
+(niet-breaking toevoeging).
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  schoon. End-to-end getest met een verse testbarber zonder adres/stad/
+  KvK: UI toont "Mist nog: adres, stad, KvK-nummer" en de Goedkeuren-knop
+  is disabled; een rechtstreekse `fetch()` naar de route (UI omzeild)
+  geeft 400 met de verwachte foutmelding — bevestigt dat de server-kant
+  de echte muur is, niet alleen de knop. Na het aanvullen van de drie
+  velden: knop wordt automatisch weer klikbaar, de POST geeft 200, en de
+  barber verdwijnt correct uit de pending-wachtrij naar approved.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

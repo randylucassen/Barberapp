@@ -180,6 +180,10 @@ export default function BarberSignupPage() {
   }
 
   const busy = uploading !== null;
+  // Zonder deze velden kan de admin de barber straks niet goedkeuren
+  // (server-side afgedwongen in /api/admin/barbers/status) — hier al
+  // geblokkeerd zodat dat nooit als verrassing bij de goedkeuring komt.
+  const step0Valid = fullName.trim() !== "" && kvkNumber.trim() !== "" && city.trim() !== "" && address.trim() !== "";
 
   return (
     <div className="flex flex-col h-full">
@@ -212,7 +216,8 @@ export default function BarberSignupPage() {
                 onChange={(e) => setAddress(e.target.value)}
               />
               <div className="text-[12px] text-text-tertiary leading-4 -mt-1.5">
-                Nodig voor je maandelijkse btw-factuur — zie Facturen op je profiel.
+                Verplicht, ook voor je maandelijkse btw-factuur — zonder deze gegevens kun je niet goedgekeurd
+                worden.
               </div>
             </div>
           </>
@@ -308,7 +313,12 @@ export default function BarberSignupPage() {
             {submitError}
           </div>
         )}
-        <Button full variant="accent" disabled={submitting || busy} onClick={() => (step < 2 ? setStep(step + 1) : handleFinish())}>
+        <Button
+          full
+          variant="accent"
+          disabled={submitting || busy || (step === 0 && !step0Valid)}
+          onClick={() => (step < 2 ? setStep(step + 1) : handleFinish())}
+        >
           {busy ? "Bezig met uploaden…" : step < 2 ? "Volgende" : submitting ? "Bezig…" : "Verstuur aanmelding"}
         </Button>
       </div>
