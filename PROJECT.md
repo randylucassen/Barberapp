@@ -119,6 +119,13 @@ inmiddels van af):
   geld kan verdienen terwijl zijn maandelijkse btw-factuur (0038)
   vervolgens structureel wordt overgeslagen. Zie de CLAUDE.md-
   changelog-entry voor de volledige toelichting.
+- **Marketingpagina leeft in een los project** (2026-08-20) —
+  `/Users/randy/Desktop/Projecten/groomy-landing`, bewust géén route in
+  déze app. Bedoeld voor zodra de app een echte native app wordt en het
+  huidige webdomein niet meer de werkende webapp hoeft te tonen.
+  Statistieken en store-badges zijn bewust illustratief/niet-functioneel
+  totdat er echte cijfers en store-listings zijn. Zie de CLAUDE.md-
+  changelog-entry voor de volledige toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 

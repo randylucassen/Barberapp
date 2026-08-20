@@ -2500,6 +2500,36 @@ al goedgekeurde (dus al complete) barber loopt hier nooit tegenaan.
   velden: knop wordt automatisch weer klikbaar, de POST geeft 200, en de
   barber verdwijnt correct uit de pending-wachtrij naar approved.
 
+## Marketingpagina verhuisd naar een los project (2026-08-20)
+
+Eerst gebouwd als `/landing`-route in deze app (zie het commit-log voor
+de originele versie), maar de gebruiker wilde 'm expliciet los van de
+huidige webapp — "deze 2 dingen staan los van elkaar". Een route binnen
+dezelfde Next.js-app deelt namelijk nog steeds build/deployment/domein
+met de live webapp, ook al raakt de pagina zelf functioneel niets aan
+(geen Supabase/auth-afhankelijkheid).
+
+**Nu een volledig apart project**: `/Users/randy/Desktop/Projecten/
+groomy-landing`, eigen `package.json`/Next.js-installatie, eigen git-repo,
+bedoeld voor een eigen Vercel-project/domein. Geen gedeelde code met
+deze app behalve bewust gedupliceerde stukjes (dezelfde Tailwind-
+kleurtokens voor visuele consistentie, dezelfde `COMPANY_INFO`-gegevens)
+— zo kan een probleem aan de ene kant de andere nooit raken.
+
+Structuur/dichtheid ontleend aan trimmr-app.com (vergelijkbare barber-
+marketplace-app, ter referentie meegegeven), met Groomy's eigen features
+en zonder de reels/portfolio-video-functie die Groomy niet heeft. Zie
+`groomy-landing/README.md` voor de volledige toelichting, inclusief wat
+er bewust nog placeholder/niet-functioneel is (illustratieve statistieken,
+niet-klikbare store-badges, en de links naar voorwaarden/privacybeleid
+die voorlopig nog naar déze app verwijzen omdat die pagina's alleen hier
+bestaan).
+
+- **Geverifieerd**: los `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  in `groomy-landing` schoon (bouwt statisch, 123 B). Visueel gecontroleerd
+  op desktop en mobiel, draaiend op een eigen poort naast deze app —
+  bevestigt dat het twee volledig losse processen/deployments zijn.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van
