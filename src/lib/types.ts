@@ -110,6 +110,8 @@ export interface BarberListItem {
   fullName: string;
   city: string | null;
   avatarUrl: string | null;
+  bio: string | null;
+  portfolioUrls: string[];
   ratingAvg: number | null;
   ratingCount: number;
   isOnline: boolean;

@@ -302,7 +302,7 @@ export default function BarberSignupPage() {
               ))}
             </div>
             <div className="mt-4 bg-surface rounded-md px-4 py-3 text-[13px] text-text-secondary leading-[19px]">
-              Groomy rekent <b className="text-text-primary">15% servicekosten</b> per boeking. Uitbetaling wekelijks, na afronding vrijgegeven uit escrow.
+              Groomy rekent <b className="text-text-primary">15% servicekosten</b> per boeking. Uitbetaling binnen 24 uur, na afronding vrijgegeven uit escrow.
             </div>
           </>
         )}

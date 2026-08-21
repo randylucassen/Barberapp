@@ -2530,6 +2530,62 @@ bestaan).
   op desktop en mobiel, draaiend op een eigen poort naast deze app —
   bevestigt dat het twee volledig losse processen/deployments zijn.
 
+## Barber-portfolio: verzameld maar nergens getoond (2026-08-21)
+
+Tijdens een gesprek over "hoe kan ik een portfolio voor barbers op een
+logische manier aanmaken" bleek het portfolio-systeem al te bestaan,
+maar functioneel dood te zijn: `/barber/aanmelden` liet een barber
+minimaal 3 foto's uploaden (`barber_profiles.portfolio_urls`), maar die
+data werd **nergens** aan een klant getoond (geen barber-detailscherm,
+de klantenlijst toonde alleen naam/rating/prijs) én een barber kon zijn
+portfolio na het aanmelden nooit meer bijwerken.
+
+**Ontwerpkeuze, met de gebruiker afgestemd**: geen aparte "goedkeurings"-
+stap na het kiezen (zou de "Nu"-flow onnodig vertragen zonder de klant
+meer controle te geven) — portfolio bekijken hoort bij het kiesmoment
+zelf. Geldt niet voor "Snelste beschikbare barber": daar staat de barber
+nog niet vast op het moment van kiezen, dus is er inherent niets te
+tonen (vergelijkbaar met Uber, waar je je chauffeur ook pas na het
+matchen ziet).
+
+**Migratie `0039_barber_portfolio_visible.sql`**: voegt `bp.
+portfolio_urls` toe aan de `approved_barbers`-view (0005) — had `bio` al,
+`portfolio_urls` nog niet. **Val getrapt tijdens het pushen**: een eerste
+versie zette de nieuwe kolom tussen `avatar_url`/`bio` en `rating_avg`/
+`rating_count` in, wat `create or replace view` afwijst (`cannot change
+name of view column "rating_avg" to "portfolio_urls"` — Postgres matcht
+bestaande viewkolommen op positie, niet op naam; een nieuwe kolom mag
+alleen aan het eind). Fix: `portfolio_urls` helemaal achteraan de
+select-lijst, verder ongewijzigd.
+
+**Klant-kant** (`/klant/barbers`): tikken op een barber (of de
+onderaan-gepinde snelkeuzeknop) opent nu een `BarberDetail`-tussenscherm
+i.p.v. direct de boekingsflow — bio, portfolio-grid, volledige
+reviewlijst (hergebruikt de bestaande `getReviewsForBarber()`-RPC), en
+pas daar een "Boek"-knop. `BarberListItem`/`getApprovedBarbersWithServices()`
+kregen er `bio`/`portfolioUrls` bij.
+
+**Barber-kant**: nieuw scherm `/barber/portfolio` (link vanaf
+`/barber/profiel`) om foto's toe te voegen/verwijderen ná de aanmelding —
+zelfde bewerken-dan-expliciet-opslaan-patroon als `/barber/werkgebied`.
+Geen nieuwe grant nodig: `portfolio_urls` stond al in de
+update-kolomlijst van barber_profiles sinds 0003.
+
+**Tijdens het uitzoeken ook gevonden en gefixt**: drie plekken zeiden nog
+"wekelijkse uitbetaling" (`/barber/uitbetalingen`, `/barber/profiel`,
+`/barber/aanmelden`) — zelfde "binnen 24u i.p.v. wekelijks"-fout als net
+op de landingspagina gecorrigeerd, nu ook in de echte app zelf recht­gezet.
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  schoon. Live getest: barber-portfolio-scherm (upload → 200 OK, render
+  bevestigd via een echte `next/image`-request, opslaan/verwijderen
+  beide bevestigd rechtstreeks in de database) met een test-PNG, daarna
+  opgeruimd. Klant-detailscherm getest met de gebruiker's eigen
+  "Randy van Londen"-account: bio/lege-portfolio-state/3 echte reviews
+  (relatieve tijd, sterren, tekst) renderen correct, "Terug" behoudt de
+  lijst-state, "Boek"-knop navigeert met de juiste `barberId`/`lines`/
+  `asap`-parameters naar `/klant/boeking`.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

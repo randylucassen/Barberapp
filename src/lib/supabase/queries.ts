@@ -182,6 +182,8 @@ interface ApprovedBarberRow {
   full_name: string;
   city: string | null;
   avatar_url: string | null;
+  bio: string | null;
+  portfolio_urls: string[] | null;
   rating_avg: number | null;
   rating_count: number;
 }
@@ -199,7 +201,7 @@ export async function getApprovedBarbersWithServices(
 ): Promise<BarberListItem[]> {
   const { data: barbers, error } = await supabase
     .from("approved_barbers")
-    .select("id, full_name, city, avatar_url, rating_avg, rating_count");
+    .select("id, full_name, city, avatar_url, bio, portfolio_urls, rating_avg, rating_count");
   if (error || !barbers) return [];
 
   const { data: services } = await supabase
@@ -223,6 +225,8 @@ export async function getApprovedBarbersWithServices(
     fullName: b.full_name,
     city: b.city,
     avatarUrl: b.avatar_url,
+    bio: b.bio,
+    portfolioUrls: b.portfolio_urls ?? [],
     ratingAvg: b.rating_avg,
     ratingCount: b.rating_count,
     isOnline: onlineById.get(b.id) ?? false,

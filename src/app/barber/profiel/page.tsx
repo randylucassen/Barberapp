@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Calendar, CreditCard, FileText, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
+import { Bell, Calendar, Camera, CreditCard, FileText, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
@@ -135,6 +135,12 @@ export default function BarberProfilePage() {
         <div className="mt-6">
           <Row left={<span className="text-primary"><Scissors size={20} /></span>} title="Diensten en prijzen" sub={servicesLabel ?? "…"} />
           <Row
+            left={<span className="text-primary"><Camera size={20} /></span>}
+            title="Portfolio"
+            sub="Foto's die klanten zien vóór het boeken"
+            onClick={() => router.push("/barber/portfolio")}
+          />
+          <Row
             left={<span className="text-primary"><MapPin size={20} /></span>}
             title="Werkgebied"
             sub={profile ? `${profile.city ?? "Onbekend"} · straal ${profile.workAreaKm} km` : "…"}
@@ -143,7 +149,7 @@ export default function BarberProfilePage() {
           <Row
             left={<span className="text-primary"><CreditCard size={20} /></span>}
             title="Uitbetaling"
-            sub={payoutsEnabled ? "Wekelijks · Stripe gekoppeld" : "Nog niet gekoppeld"}
+            sub={payoutsEnabled ? "Binnen 24u · Stripe gekoppeld" : "Nog niet gekoppeld"}
             onClick={() => router.push("/barber/uitbetalingen")}
           />
           <Row

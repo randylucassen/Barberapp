@@ -87,7 +87,7 @@ export default function PayoutsPage() {
           <Card variant="inverse" padding={20}>
             <div className="text-[13px] text-white/60">Vrijgegeven, wacht op Stripe-uitbetaling</div>
             <div className="text-[30px] font-bold tracking-[-0.02em] mt-1">€{euro(releasedTotal)}</div>
-            <div className="text-[13px] text-accent mt-1">Stripe gekoppeld · wekelijkse uitbetaling</div>
+            <div className="text-[13px] text-accent mt-1">Stripe gekoppeld · uitbetaling binnen 24u</div>
           </Card>
         )}
         <div className="mt-5 text-[17px] font-semibold tracking-[-0.01em]">In escrow · €{euro(heldTotal)}</div>

@@ -126,6 +126,14 @@ inmiddels van af):
   Statistieken en store-badges zijn bewust illustratief/niet-functioneel
   totdat er echte cijfers en store-listings zijn. Zie de CLAUDE.md-
   changelog-entry voor de volledige toelichting.
+- **Barber-portfolio nu echt zichtbaar/beheerbaar** (2026-08-21,
+  migratie `0039`) — foto's die een barber bij aanmelden uploadt werden
+  nergens getoond en konden nooit meer bijgewerkt worden. Nu: klanten
+  zien portfolio/bio/reviews op een tussenscherm vóórdat ze boeken
+  (`/klant/barbers`), barbers beheren hun portfolio los via nieuw
+  `/barber/portfolio`. Drie plekken met een verkeerde "wekelijkse
+  uitbetaling"-tekst in de echte app tegelijk gecorrigeerd naar "binnen
+  24u". Zie de CLAUDE.md-changelog-entry voor de volledige toelichting.
 
 ## Status: Pre-launch audit (Critical/High afgehandeld)
 
