@@ -2644,15 +2644,12 @@ te lopen. Niet blokkerend voor volgende fases.
   Mapbox-aanroep blokkeerde ondanks een geldige token. Volledig verhaal
   + de gevonden les over Vercel's "Redeploy"-knop (hergebruikt soms een
   oude commit i.p.v. de nieuwste `main`) in CLAUDE.md's changelog.
-- **Portfolio vooraf zichtbaar voor klanten? — open productvraag**
-  (2026-08-14, nog niet besloten). Barbers uploaden al portfoliofoto's
-  bij aanmelden (Fase 3, `barber-media`-bucket), maar er bestaat geen
-  klant-facing barber-detailscherm om ze te bekijken vóór het boeken —
-  `klant/barbers` toont alleen naam/rating/prijs in een lijstrij. Eigen
-  advies gegeven: wél tonen (sterkste vertrouwenssignaal in een
-  barbermarktplaats, naast rating), maar dit is een nieuw scherm bouwen,
-  geen toggle. Wacht op akkoord van de gebruiker voordat dit gebouwd
-  wordt.
+- ~~Portfolio vooraf zichtbaar voor klanten? — open productvraag~~ —
+  **gebouwd en live (2026-08-21)**: `/klant/barbers` opent nu een
+  barber-detailscherm (bio, portfolio-grid met uitvergroten, volledige
+  reviewlijst) vóór het boeken; barbers beheren hun portfolio los via
+  nieuw `/barber/portfolio`. Zie de CLAUDE.md-changelog voor de
+  volledige toelichting.
 - **Saved payment methods ("Betaalmethoden") — bewust uitgesteld**
   (2026-08-14, `klant/instellingen`/`klant/profiel`). Elke betaling loopt
   nu via een verse Stripe PaymentIntent per boeking — geen Stripe
