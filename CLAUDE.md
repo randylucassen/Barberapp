@@ -2586,6 +2586,32 @@ op de landingspagina gecorrigeerd, nu ook in de echte app zelf recht­gezet.
   lijst-state, "Boek"-knop navigeert met de juiste `barberId`/`lines`/
   `asap`-parameters naar `/klant/boeking`.
 
+## Portfolio-foto's uitvergroten + UX-verfijning barberslijst (2026-08-21)
+
+Vervolg op de portfolio-feature hierboven: foto's aanklikbaar/uitvergrotbaar
+maken, een tip-tekstje tussen de "Snelste beschikbare barber"-kaart en de
+lijst (alleen bij "Nu"), en de taballabel "Nu" → "Nu online".
+
+**Val getrapt bij het uitvergroten**: de eerste versie gebruikte
+`position: fixed inset-0` voor de lightbox-overlay — die bleek te worden
+afgekapt door `PhoneShell`'s eigen box (`overflow-hidden` +
+`rounded-[36px]` + box-shadow, zie `src/components/shared/PhoneShell.tsx`),
+een bekende Chromium-eigenaardigheid waarbij zo'n afgeronde/overflow-
+hidden container met een schaduw effectief een eigen clipping-context
+voor `fixed`-kinderen kan vormen, ook zonder `transform`. Omdat de hele
+app toch altijd binnen die phone-frame rendert, is `position: fixed`
+hier sowieso de verkeerde keuze — fix: `position: absolute inset-0` op
+de overlay, met `relative` op `BarberDetail`'s root-`div` (was al
+`h-full`, dus dekt exact het hele scherm inclusief header/footer).
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  schoon. Live getest: foto aanklikken opent de overlay,
+  `getBoundingClientRect()` bevestigd dat die exact de volledige
+  phone-frame dekt (0,0 tot volledige breedte/hoogte, niet afgekapt),
+  sluiten via zowel de X-knop als een klik op de achtergrond beide
+  bevestigd. Tip-tekst en het hernoemde tablabel ("Nu online") visueel
+  gecontroleerd.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

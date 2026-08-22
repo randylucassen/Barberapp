@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { Heart, Star, Zap } from "lucide-react";
+import { Heart, Star, X, Zap } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Badge, Button, Card, NavBar, Tabs } from "@/components/ui";
@@ -84,6 +84,7 @@ function BarberDetail({
 }) {
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
+  const [zoomedPhoto, setZoomedPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -95,7 +96,7 @@ function BarberDetail({
   }, [barber.id]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative flex flex-col h-full">
       <NavBar title="Profiel" onBack={onBack} />
       <div className="px-5 pt-4 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3.5">
@@ -126,7 +127,11 @@ function BarberDetail({
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {barber.portfolioUrls.map((url) => (
-                <div key={url} className="relative aspect-square rounded-md overflow-hidden bg-surface">
+                <div
+                  key={url}
+                  onClick={() => setZoomedPhoto(url)}
+                  className="relative aspect-square rounded-md overflow-hidden bg-surface cursor-pointer"
+                >
                   <Image src={url} alt="" fill className="object-cover" />
                 </div>
               ))}
@@ -163,6 +168,24 @@ function BarberDetail({
           Boek · {matched.summary} · €{(matched.totalPriceCents / 100).toFixed(2).replace(".", ",")}
         </Button>
       </div>
+      {zoomedPhoto && (
+        <div
+          onClick={() => setZoomedPhoto(null)}
+          className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+        >
+          <button
+            type="button"
+            aria-label="Sluiten"
+            onClick={() => setZoomedPhoto(null)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 text-white flex items-center justify-center"
+          >
+            <X size={20} />
+          </button>
+          <div className="relative w-full h-full">
+            <Image src={zoomedPhoto} alt="" fill className="object-contain" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -289,7 +312,7 @@ function BarbersContent() {
       <div className="px-5 pt-4">
         <Tabs
           items={[
-            { key: "nu", label: "Nu" },
+            { key: "nu", label: "Nu online" },
             { key: "plan", label: "Boek vooruit" },
             { key: "favorieten", label: "Favorieten" },
           ]}
@@ -309,6 +332,11 @@ function BarbersContent() {
               <Button variant="accent" onClick={chooseAuto}>Kies</Button>
             </div>
           </Card>
+        </div>
+      )}
+      {when === "nu" && (
+        <div className="px-5 pt-2 text-[12px] text-text-tertiary/70">
+          Tip: klik op de barber om zijn portfolio in te zien!
         </div>
       )}
       <div className="px-5 pt-2 flex-1 overflow-y-auto no-scrollbar">
