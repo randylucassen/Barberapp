@@ -2637,6 +2637,36 @@ hetzelfde component — geen aparte fix per scherm nodig.
   verschijnen dan gewoon (echte PDOK-resultaten opgehaald), dus de
   eigenlijke autocomplete-functie is niet kapotgemaakt.
 
+## Barber-profielfoto (2026-08-21)
+
+Bleek grotendeels al klaar te liggen zonder dat er ooit UI voor gebouwd
+was: `barber_profiles.avatar_url` bestond al sinds 0004 (incl.
+update-grant voor de barber zelf), zat al in `approved_barbers` (0005)
+en in `BarberListItem`/`BarberProfile` — alleen `Avatar` (`components/
+shared/Avatar.tsx`) rendert altijd initialen, nooit een echte foto, dus
+niets gebruikte die kolom.
+
+**`Avatar` kreeg een optionele `imageUrl`-prop** — indien gezet toont
+'m een `next/image` in een afgeronde cirkel i.p.v. de initialen-cirkel;
+zonder prop ongewijzigd gedrag (alle ~13 bestaande aanroepen in de app
+blijven werken zoals ze deden).
+
+**`/barber/profiel`**: de eigen avatar bovenaan is nu tikbaar (camera-
+badge eronder rechts), opent de file-picker, uploadt naar de bestaande
+`barber-media`-bucket via `uploadBarberFile()` (zelfde functie als het
+portfolio-scherm), schrijft direct naar `barber_profiles.avatar_url`.
+
+**Klant-kant**: `/klant/barbers` geeft `imageUrl={b.avatarUrl}`/
+`{barber.avatarUrl}` door aan zowel de lijstrijen als `BarberDetail` —
+de data stroomde daar al doorheen (`getApprovedBarbersWithServices`
+selecteerde `avatar_url` al), er hoefde alleen een prop bij.
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  schoon. Live getest met een test-PNG: upload op `/barber/profiel` →
+  bevestigd in de database, daarna als klant ingelogd en bevestigd dat
+  dezelfde foto in de barberslijst verschijnt i.p.v. initialen. Test-
+  bestand en `avatar_url` na afloop weer opgeruimd.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

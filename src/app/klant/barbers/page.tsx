@@ -100,7 +100,7 @@ function BarberDetail({
       <NavBar title="Profiel" onBack={onBack} />
       <div className="px-5 pt-4 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3.5">
-          <Avatar name={barber.fullName} size={64} />
+          <Avatar name={barber.fullName} size={64} imageUrl={barber.avatarUrl} />
           <div>
             <div className="text-[19px] font-semibold tracking-[-0.01em]">{barber.fullName}</div>
             <div className="flex items-center gap-1 text-[13px] text-text-secondary mt-0.5">
@@ -363,7 +363,7 @@ function BarbersContent() {
               onClick={() => setDetailBarber({ barber: b, matched })}
               className="flex gap-3.5 items-center py-4 border-b border-border-soft cursor-pointer"
             >
-              <Avatar name={b.fullName} size={56} />
+              <Avatar name={b.fullName} size={56} imageUrl={b.avatarUrl} />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[16px] font-semibold tracking-[-0.01em]">{b.fullName}</span>

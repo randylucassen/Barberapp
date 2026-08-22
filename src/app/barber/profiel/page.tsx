@@ -1,11 +1,12 @@
 "use client";
 import { Bell, Calendar, Camera, CreditCard, FileText, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
 import { Avatar, Row, SectionLabel } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import { getBarberProfile, getWallet, setBarberOnline } from "@/lib/supabase/queries";
+import { uploadBarberFile } from "@/lib/supabase/storage";
 import { subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { euro } from "@/lib/pricing";
 import type { BarberProfile } from "@/lib/types";
@@ -31,6 +32,9 @@ export default function BarberProfilePage() {
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
   const [ridesCount, setRidesCount] = useState<number | null>(null);
   const [servicesLabel, setServicesLabel] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -84,6 +88,25 @@ export default function BarberProfilePage() {
     });
   }, []);
 
+  async function handleAvatarSelected(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    setAvatarUploading(true);
+    setAvatarError(null);
+    const supabase = createClient();
+    try {
+      const url = await uploadBarberFile(supabase, "barber-media", userId, `avatar-${Date.now()}-${file.name}`, file);
+      const { error } = await supabase.from("barber_profiles").update({ avatar_url: url }).eq("id", userId);
+      if (error) throw error;
+      setProfile((prev) => (prev ? { ...prev, avatarUrl: url } : prev));
+    } catch {
+      setAvatarError("Profielfoto bijwerken is niet gelukt. Probeer het opnieuw.");
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = "";
+    }
+  }
+
   async function handleTogglePush(next: boolean) {
     if (!userId) return;
     setPush(next);
@@ -120,7 +143,18 @@ export default function BarberProfilePage() {
       <NavBar title="Profiel" />
       <div className="px-5 pt-5 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex gap-3.5 items-center">
-          <Avatar name={name} size={64} dark />
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarSelected} />
+          <button
+            type="button"
+            aria-label="Profielfoto wijzigen"
+            onClick={() => !avatarUploading && avatarInputRef.current?.click()}
+            className="relative flex-shrink-0"
+          >
+            <Avatar name={name} size={64} dark imageUrl={profile?.avatarUrl} />
+            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-accent text-white flex items-center justify-center border-2 border-white">
+              <Camera size={12} />
+            </span>
+          </button>
           <div>
             <div className="text-[20px] font-bold tracking-[-0.01em]">{name}</div>
             <div className="flex items-center gap-1 text-[13px] text-text-secondary mt-0.5">
@@ -132,6 +166,10 @@ export default function BarberProfilePage() {
             </div>
           </div>
         </div>
+        {avatarUploading && <div className="text-[12px] text-text-tertiary mt-2">Foto uploaden…</div>}
+        {avatarError && (
+          <div className="mt-2 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">{avatarError}</div>
+        )}
         <div className="mt-6">
           <Row left={<span className="text-primary"><Scissors size={20} /></span>} title="Diensten en prijzen" sub={servicesLabel ?? "…"} />
           <Row
