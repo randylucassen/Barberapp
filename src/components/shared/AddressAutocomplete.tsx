@@ -39,6 +39,12 @@ export function AddressAutocomplete({
   // alsof de eerste klik niks deed en je nog een keer moest klikken).
   // Ook gebruikt na "huidige locatie" hieronder, om dezelfde reden.
   const skipNextFetchRef = useRef(false);
+  // Zonder dit vinkje opende de suggestielijst zichzelf al bij het
+  // openen van het scherm, zodra klant/home het veld met het opgeslagen
+  // adres uit customer_profiles vooraf invulde — die waarde zelf mag
+  // gewoon meteen zichtbaar staan, alleen de suggestielijst hoort pas te
+  // verschijnen als de klant daadwerkelijk zelf typt.
+  const userEditedRef = useRef(false);
 
   useEffect(() => {
     if (skipNextFetchRef.current) {
@@ -46,7 +52,7 @@ export function AddressAutocomplete({
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (value.trim().length < 4) {
+    if (!userEditedRef.current || value.trim().length < 4) {
       setSuggestions([]);
       return;
     }
@@ -125,7 +131,10 @@ export function AddressAutocomplete({
       {leading}
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          userEditedRef.current = true;
+          onChange(e.target.value);
+        }}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder={placeholder}
         autoComplete="off"

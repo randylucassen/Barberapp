@@ -2612,6 +2612,31 @@ de overlay, met `relative` op `BarberDetail`'s root-`div` (was al
   bevestigd. Tip-tekst en het hernoemde tablabel ("Nu online") visueel
   gecontroleerd.
 
+## Adressuggesties openden zichzelf al bij het openen van de klant-app (2026-08-21)
+
+`AddressAutocomplete` (gedeeld door `klant/home`, `klant/boeking`,
+`klant/adres`) haalde suggesties op zodra zijn `value`-prop veranderde —
+inclusief het moment waarop een van die drie schermen het veld vooraf
+invulde met `customer_profiles.default_address`, meteen bij het laden
+van het scherm. Gevolg: de suggestielijst klapte zichzelf al open vóór
+de klant ook maar iets had getypt, en stond in de weg op het scherm. Het
+vooraf ingevulde adres zelf was altijd al gewenst — alleen de
+suggestielijst hoorde er niet vanzelf bij te horen.
+
+**Fix**: nieuwe `userEditedRef` in `AddressAutocomplete.tsx`, alleen op
+`true` gezet in de `onChange` van de daadwerkelijke `<input>` (dus
+echte toetsaanslagen) — de suggestie-`useEffect` haalt nu niks op zolang
+die nog `false` staat, ongeacht hoe vaak de `value`-prop van buitenaf
+verandert. Raakt automatisch alle drie schermen tegelijk, want ze delen
+hetzelfde component — geen aparte fix per scherm nodig.
+
+- **Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+  schoon. Live getest op `/klant/home` met een ingelogde klant met een
+  opgeslagen adres: veld toont het adres direct, geen suggestielijst in
+  de DOM. Daarna handmatig een ander adres getypt — suggesties
+  verschijnen dan gewoon (echte PDOK-resultaten opgehaald), dus de
+  eigenlijke autocomplete-functie is niet kapotgemaakt.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van
