@@ -42,7 +42,12 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // Camera/geolocatie moeten voor de pagina zelf toegestaan blijven (self) —
+  // een lege allowlist blokkeert de API ook voor het document zelf, niet
+  // alleen voor iframes, en brak daarmee sluipenderwijs "gebruik huidige
+  // locatie" (AddressAutocomplete) en de live GPS-tracking tijdens een rit
+  // (barber/rit). Microfoon wordt nergens gebruikt en blijft dus dicht.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self)" },
   ...(process.env.NODE_ENV === "production"
     ? [{ key: "Content-Security-Policy", value: csp }]
     : []),
