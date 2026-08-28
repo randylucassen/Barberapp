@@ -2667,6 +2667,51 @@ selecteerde `avatar_url` al), er hoefde alleen een prop bij.
   dezelfde foto in de barberslijst verschijnt i.p.v. initialen. Test-
   bestand en `avatar_url` na afloop weer opgeruimd.
 
+## API-routes ondersteunen nu ook Bearer-auth, voor de native app (2026-08-28)
+
+De gebruiker is begonnen met `groomy-app` — een losse React Native/Expo-
+rewrite van deze webapp, zie het plan in `groomy-app`'s eigen repo
+(`/Users/randy/Desktop/Projecten/groomy-app`, met een eigen `CLAUDE.md`).
+Die app deelt dezelfde Supabase-database als deze webapp, maar heeft geen
+cookies (AsyncStorage-sessie i.p.v. `@supabase/ssr`'s cookie-gebaseerde
+aanpak) — de bestaande, cookie-only server-routes accepteerden dus geen
+enkele aanroep vanuit de native app, ook niet met een geldig, ingelogd
+account.
+
+**Nieuwe `getRequestUser(request, supabase)`** in `src/lib/supabase/
+server.ts`: valt terug op een `Authorization: Bearer <token>`-header
+zodra er geen cookiesessie is. Belangrijke valkuil die dit opleverde:
+`auth.getUser(jwt)` alleen identificeert wíe de aanroeper is, maar maakt
+de meegegeven (cookie-based) client daarna nog niet vanzelf bearer-
+geauthenticeerd voor `.from()`/`.rpc()`-calls — RLS zou dan alsnog als
+`anon` evalueren. Fix: het bearer-pad geeft een aparte, kortstondige
+client terug die de token als globale Authorization-header meestuurt op
+élke request, zodat RLS `auth.uid()` correct evalueert. Cookie-pad
+(de webapp zelf) is volledig ongewijzigd — dit is een aanvullend pad,
+geen vervanging (zie regel 6 hierboven — dit voegt geen tweede
+route-protectiemechanisme toe, `getRequestUser()` is puur *wie ben je*,
+niet *mag je hier komen*, dat blijft per-route-logica zoals altijd).
+
+**Toegepast op**: `/api/stripe/create-payment-intent`,
+`/api/stripe/confirm-payment` — de twee routes die `groomy-app`'s eerste
+werkende scherm (klant login → browse → boeken → betalen) nodig had. De
+overige ~28 `/api/*`-routes zijn **niet** aangepast — dat gebeurt pas
+zodra een volgende native-app-fase ze daadwerkelijk nodig heeft, niet nu
+alvast preventief (zelfde "dunne verticale slice eerst"-aanpak als de
+rest van het native-conversieplan).
+
+**Geverifieerd tegen productie** (niet alleen `npx tsc --noEmit`/`npm run
+lint`, die waren ook schoon): cookie-pad zonder `Authorization`-header
+gaf nog steeds `401 "Niet ingelogd"` (ongewijzigd gedrag); bearer-pad met
+een verzonnen boeking-ID gaf `404` (niet 401 — bevestigt dat de gebruiker
+wél herkend werd); bearer-pad met een boeking die de testklant
+(`test1234@test.nl`) zelf net had aangemaakt via diezelfde bearer-sessie
+gaf een echte Stripe-`clientSecret` terug — dit laatste bewijst dat RLS
+daadwerkelijk als de juiste gebruiker leest, niet stilzwijgend als anon
+(dat zou de eerdere, onvolledige versie van deze fix niet gevangen
+hebben). Testboeking nadien geannuleerd via dezelfde bearer-sessie, geen
+testdata achtergelaten. Gepusht naar `main` (commit `b013050`).
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

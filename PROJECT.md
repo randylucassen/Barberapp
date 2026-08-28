@@ -2698,6 +2698,25 @@ dit door een jurist te laten tegenlezen vóór het écht als bindend beleid
 gepresenteerd wordt, met name hoofdstuk 2 van de voorwaarden
 (bemiddelingsmodel/aansprakelijkheid).
 
+## Native app (groomy-app) — begonnen (2026-08-28)
+
+De gebruiker is gestart met een volledige React Native/Expo-rewrite van
+deze webapp, als losse repo/project: `/Users/randy/Desktop/Projecten/
+groomy-app` (zelfde "los van elkaar"-precedent als `groomy-landing`).
+Zie het plan-bestand en `groomy-app`'s eigen `CLAUDE.md` voor de volledige
+architectuur en voortgang — hier alleen wat **deze** webapp-repo raakt.
+
+Deze webapp blijft de enige backend (Supabase-database + alle
+`/api/*`-routes, `middleware.ts`, cron-jobs) — de native app bouwt geen
+tweede backend, hij roept dezelfde routes aan. Eén concrete wijziging
+hier als gevolg: `/api/stripe/create-payment-intent` en
+`/api/stripe/confirm-payment` accepteren nu ook een
+`Authorization: Bearer`-header naast de bestaande cookiesessie (de
+native app heeft geen cookies). Zie "API-routes ondersteunen nu ook
+Bearer-auth, voor de native app" in CLAUDE.md voor de volledige
+toelichting/valkuil/verificatie. Overige routes volgen pas zodra een
+latere native-app-fase ze nodig heeft.
+
 ## Roadmap
 
 Vervangen op 2026-07-17 door een gedetailleerdere versie van de gebruiker
