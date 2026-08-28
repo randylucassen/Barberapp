@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getRequestUser } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 import { computePriceBreakdown } from "@/lib/pricing";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -13,9 +13,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "bookingId is verplicht" }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) {
+  // getRequestUser() i.p.v. supabase.auth.getUser() direct: valt terug op
+  // een Authorization: Bearer-header zodra er geen cookiesessie is — de
+  // native app (groomy-app) heeft geen cookies. Geeft ook de client terug
+  // die voor dát pad gebruikt moet worden (zie server.ts) — bij bearer-
+  // auth is dat een andere instantie dan de cookie-client hierboven, dus
+  // vanaf hier altijd de teruggegeven `supabase` gebruiken, niet de
+  // cookie-client direct.
+  const { user, supabase } = await getRequestUser(request, await createClient());
+  if (!user) {
     return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
   }
 
@@ -25,7 +31,7 @@ export async function POST(request: NextRequest) {
     .eq("id", bookingId)
     .single();
 
-  if (!booking || booking.customer_id !== userData.user.id) {
+  if (!booking || booking.customer_id !== user.id) {
     return NextResponse.json({ error: "Boeking niet gevonden" }, { status: 404 });
   }
   if (booking.status !== "requested") {
@@ -67,7 +73,7 @@ export async function POST(request: NextRequest) {
       amount: totalCents,
       currency: "eur",
       automatic_payment_methods: { enabled: true },
-      metadata: { bookingId, customerId: userData.user.id },
+      metadata: { bookingId, customerId: user.id },
     },
     { idempotencyKey: `payment-intent-${bookingId}` }
   );

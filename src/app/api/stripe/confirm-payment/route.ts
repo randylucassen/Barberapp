@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getRequestUser } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
 import { recordSucceededPaymentIntent } from "@/lib/payment-reconcile";
@@ -24,9 +24,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "bookingId en paymentIntentId zijn verplicht" }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) {
+  const { user, supabase } = await getRequestUser(request, await createClient());
+  if (!user) {
     return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
   }
 
@@ -35,7 +34,7 @@ export async function POST(request: NextRequest) {
     .select("id, customer_id")
     .eq("id", bookingId)
     .single();
-  if (!booking || booking.customer_id !== userData.user.id) {
+  if (!booking || booking.customer_id !== user.id) {
     return NextResponse.json({ error: "Boeking niet gevonden" }, { status: 404 });
   }
 
