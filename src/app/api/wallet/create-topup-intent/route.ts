@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
   // getRequestUser() i.p.v. supabase.auth.getUser() direct — zelfde
   // Bearer-fallback als /api/stripe/create-payment-intent, nodig zodat
-  // groomy-app (geen cookies) deze route ook kan aanroepen.
+  // KPPRTJE-app (geen cookies) deze route ook kan aanroepen.
   const { user, supabase } = await getRequestUser(request, await createClient());
   if (!user) {
     return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });

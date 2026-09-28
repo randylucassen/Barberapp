@@ -120,7 +120,7 @@ inmiddels van af):
   vervolgens structureel wordt overgeslagen. Zie de CLAUDE.md-
   changelog-entry voor de volledige toelichting.
 - **Marketingpagina leeft in een los project** (2026-08-20) —
-  `/Users/randy/Desktop/Projecten/groomy-landing`, bewust géén route in
+  `/Users/randy/Desktop/Projecten/KPPRTJE-landing`, bewust géén route in
   déze app. Bedoeld voor zodra de app een echte native app wordt en het
   huidige webdomein niet meer de werkende webapp hoeft te tonen.
   Statistieken en store-badges zijn bewust illustratief/niet-functioneel

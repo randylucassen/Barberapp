@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   // getRequestUser() i.p.v. supabase.auth.getUser() direct: valt terug op
   // een Authorization: Bearer-header zodra er geen cookiesessie is — de
-  // native app (groomy-app) heeft geen cookies. Geeft ook de client terug
+  // native app (KPPRTJE-app) heeft geen cookies. Geeft ook de client terug
   // die voor dát pad gebruikt moet worden (zie server.ts) — bij bearer-
   // auth is dat een andere instantie dan de cookie-client hierboven, dus
   // vanaf hier altijd de teruggegeven `supabase` gebruiken, niet de

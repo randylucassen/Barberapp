@@ -2008,16 +2008,16 @@ operation not permitted, uv_cwd` — een fout diep in npm's eigen
 project/npm zelf niet stuk was).
 
 **Root cause**: er bestaan *twee* `.claude/launch.json`-bestanden — een in
-de projectmap zelf (`groomy-mvp/groomy/.claude/launch.json`, degene die
+de projectmap zelf (`KPPRTJE-mvp/KPPRTJE/.claude/launch.json`, degene die
 in deze repo staat) én een tweede op het hoofdmapniveau
 (`/Users/randy/Desktop/Projecten/.claude/launch.json`, buiten deze repo).
 De preview-tool bleek de tweede te lezen (haar eigen sessie-cwd is de
 hoofdmap, niet de projectmap), en die had een *relatief* `"cwd":
-"groomy-mvp/groomy"`-veld. Dat relatieve pad liet npm's eigen
+"KPPRTJE-mvp/KPPRTJE"`-veld. Dat relatieve pad liet npm's eigen
 cwd-afhandeling (`process.wrappedCwd`) stuklopen op OS-niveau.
 
 **Fix**: dat relatieve pad in de hoofdmap-`launch.json` vervangen door
-een absoluut pad (`/Users/randy/Desktop/Projecten/groomy-mvp/groomy`).
+een absoluut pad (`/Users/randy/Desktop/Projecten/KPPRTJE-mvp/KPPRTJE`).
 Werkt sindsdien weer normaal. Dit bestand staat buiten de repo, dus deze
 fix zit niet in git — puur ter documentatie hier voor een volgende sessie
 die tegen dezelfde `EPERM` aanloopt: check eerst of er een tweede
@@ -2671,7 +2671,7 @@ selecteerde `avatar_url` al), er hoefde alleen een prop bij.
 
 De gebruiker is begonnen met `groomy-app` — een losse React Native/Expo-
 rewrite van deze webapp, zie het plan in `groomy-app`'s eigen repo
-(`/Users/randy/Desktop/Projecten/groomy-app`, met een eigen `CLAUDE.md`).
+(`/Users/randy/Desktop/Projecten/KPPRTJE-app`, met een eigen `CLAUDE.md`).
 Die app deelt dezelfde Supabase-database als deze webapp, maar heeft geen
 cookies (AsyncStorage-sessie i.p.v. `@supabase/ssr`'s cookie-gebaseerde
 aanpak) — de bestaande, cookie-only server-routes accepteerden dus geen

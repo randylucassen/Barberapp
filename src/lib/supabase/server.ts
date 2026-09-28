@@ -34,7 +34,7 @@ export async function createClient() {
 
 // Herkent de aanroepende gebruiker via cookies (de webapp) of, als er
 // geen cookiesessie is maar wel een `Authorization: Bearer <token>`-
-// header, via die token (de native app — groomy-app, React Native —
+// header, via die token (de native app — KPPRTJE-app, React Native —
 // heeft geen cookies, zie het native-conversieplan). Toegevoegd zodat
 // routes die een server-secret nodig hebben (bv. Stripe payment-intents)
 // door beide clients aangeroepen kunnen worden zonder een tweede backend.
