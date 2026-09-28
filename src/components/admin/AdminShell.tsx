@@ -35,7 +35,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh flex">
       <aside className="w-56 flex-shrink-0 bg-primary text-white flex flex-col">
-        <div className="px-5 py-5 text-[17px] font-bold tracking-[-0.01em]">Groomy Admin</div>
+        <div className="px-5 py-5 text-[17px] font-bold tracking-[-0.01em]">KPPRTJE! Admin</div>
         <nav className="flex-1 px-2">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href;

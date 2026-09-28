@@ -187,7 +187,7 @@ export default function BarberSignupPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <NavBar title="Word Groomy-barber" onBack={() => (step > 0 ? setStep(step - 1) : router.push("/barber/dashboard"))} />
+      <NavBar title="Word KPPRTJE!-barber" onBack={() => (step > 0 ? setStep(step - 1) : router.push("/barber/dashboard"))} />
       <div className="px-5 pt-3">
         <div className="flex gap-1.5">
           {STEPS.map((s, i) => (
@@ -302,7 +302,7 @@ export default function BarberSignupPage() {
               ))}
             </div>
             <div className="mt-4 bg-surface rounded-md px-4 py-3 text-[13px] text-text-secondary leading-[19px]">
-              Groomy rekent <b className="text-text-primary">15% servicekosten</b> per boeking. Uitbetaling binnen 24 uur, na afronding vrijgegeven uit escrow.
+              KPPRTJE! rekent <b className="text-text-primary">15% servicekosten</b> per boeking. Uitbetaling binnen 24 uur, na afronding vrijgegeven uit escrow.
             </div>
           </>
         )}

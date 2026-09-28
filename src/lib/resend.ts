@@ -30,12 +30,12 @@ export function notificationEmailHtml(title: string, body: string): string {
   <body style="margin:0;padding:0;background:#EDEFF1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
     <div style="max-width:600px;margin:0 auto;">
       <div style="background:#0EA5A4;padding:36px 40px;">
-        <div style="font-size:26px;font-weight:700;color:#FFFFFF;letter-spacing:-0.01em;">Groomy</div>
+        <div style="font-size:26px;font-weight:700;color:#FFFFFF;letter-spacing:-0.01em;">KPPRTJE!</div>
       </div>
       <div style="background:#FFFFFF;padding:44px 40px;">
         <div style="font-size:26px;font-weight:700;color:#111111;letter-spacing:-0.01em;">${title}</div>
         <div style="margin-top:16px;font-size:17px;line-height:27px;color:#374151;">${body}</div>
-        <a href="${siteUrl}" style="display:inline-block;margin-top:36px;background:#0EA5A4;color:#FFFFFF;font-size:16px;font-weight:600;text-decoration:none;padding:16px 32px;border-radius:999px;">Bekijk in Groomy</a>
+        <a href="${siteUrl}" style="display:inline-block;margin-top:36px;background:#0EA5A4;color:#FFFFFF;font-size:16px;font-weight:600;text-decoration:none;padding:16px 32px;border-radius:999px;">Bekijk in KPPRTJE!</a>
       </div>
       <div style="background:#111111;padding:32px 40px;">
         <div style="font-size:13px;line-height:20px;color:#9CA3AF;">

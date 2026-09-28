@@ -111,7 +111,7 @@ function BarberDetail({
                   <span>({barber.ratingCount} reviews)</span>
                 </>
               ) : (
-                <span>Nieuw op Groomy</span>
+                <span>Nieuw op KPPRTJE!</span>
               )}
               {barber.city && <span>· {barber.city}</span>}
             </div>
@@ -388,7 +388,7 @@ function BarbersContent() {
                       <span>({b.ratingCount})</span>
                     </>
                   ) : (
-                    <span>Nieuw op Groomy</span>
+                    <span>Nieuw op KPPRTJE!</span>
                   )}
                 </div>
                 <div className="text-[13px] text-text-secondary mt-0.5">{b.isOnline ? "Nu beschikbaar" : "Nu niet online"}</div>

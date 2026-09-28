@@ -48,7 +48,7 @@ export default function BarberRegisterPage() {
     <div className="flex flex-col h-full">
       <NavBar onBack={() => router.push("/barber/login")} />
       <form onSubmit={handleSubmit} className="px-5 pt-2 flex-1 overflow-y-auto no-scrollbar flex flex-col">
-        <div className="text-[28px] font-bold tracking-[-0.02em]">Word Groomy-barber</div>
+        <div className="text-[28px] font-bold tracking-[-0.02em]">Word KPPRTJE!-barber</div>
         <div className="text-[15px] text-text-secondary mt-1.5">Maak eerst je account aan.</div>
         <div className="flex flex-col gap-3 mt-6">
           <Input

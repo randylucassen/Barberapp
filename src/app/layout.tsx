@@ -9,15 +9,15 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const title = "Groomy";
+const title = "KPPRTJE!";
 const description = "Boek een barber op locatie — betaal veilig via escrow.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   title,
   description,
-  openGraph: { title, description, type: "website", locale: "nl_NL" },
-  twitter: { card: "summary", title, description },
+  openGraph: { title, description, type: "website", locale: "nl_NL", images: ["/og-image.png"] },
+  twitter: { card: "summary_large_image", title, description, images: ["/og-image.png"] },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   const res = await fetch(url, {
     headers: {
-      "User-Agent": "Groomy-MVP/1.0 (barber-marketplace webapp)",
+      "User-Agent": "KPPRTJE!-MVP/1.0 (barber-marketplace webapp)",
     },
   });
 

@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-dvh flex items-center justify-center px-5">
       <form onSubmit={handleSubmit} className="w-full max-w-sm">
-        <div className="text-[24px] font-bold tracking-[-0.02em]">Groomy Admin</div>
+        <div className="text-[24px] font-bold tracking-[-0.02em]">KPPRTJE! Admin</div>
         <div className="text-[14px] text-text-secondary mt-1.5">Inloggen als beheerder.</div>
         <div className="flex flex-col gap-3 mt-6">
           <Input

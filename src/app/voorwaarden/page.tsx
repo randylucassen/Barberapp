@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-// Handelsnaam "Groomy" ligt nog niet definitief vast (zie PROJECT.md,
+// Handelsnaam "KPPRTJE!" ligt nog niet definitief vast (zie PROJECT.md,
 // "Openstaande acties voor jou") — bij een naamswijziging moet die overal
 // hieronder ook aangepast worden, niet alleen in layout.tsx/metadata.
 
 export const metadata: Metadata = {
-  title: "Algemene voorwaarden — Groomy",
+  title: "Algemene voorwaarden — KPPRTJE!",
 };
 
 function H2({ children }: { children: React.ReactNode }) {
@@ -21,25 +21,25 @@ export default function VoorwaardenPage() {
   return (
     <div className="min-h-dvh bg-surface">
       <div className="max-w-2xl mx-auto px-6 py-12">
-        <Link href="/" className="text-[13px] text-text-accent">← Groomy</Link>
+        <Link href="/" className="text-[13px] text-text-accent">← KPPRTJE!</Link>
         <h1 className="text-[26px] font-bold tracking-[-0.01em] mt-4">Algemene voorwaarden</h1>
         <p className="text-[13px] text-text-tertiary mt-1">Laatst bijgewerkt: 18 augustus 2026</p>
 
         <H2>1. Wie we zijn</H2>
         <P>
-          Groomy is een platform van Barbershop Noviomagus (eenmanszaak, KvK
+          KPPRTJE! is een platform van Barbershop Noviomagus (eenmanszaak, KvK
           83716580), Plein 1944-17, 6511 JC Nijmegen, dat klanten en
           zelfstandige barbers met elkaar in contact brengt voor knipbeurten
           aan huis of op locatie.
         </P>
 
-        <H2>2. Wat Groomy wel en niet is</H2>
+        <H2>2. Wat KPPRTJE! wel en niet is</H2>
         <P>
-          Groomy is een bemiddelingsplatform. Barbers die via Groomy diensten
+          KPPRTJE! is een bemiddelingsplatform. Barbers die via KPPRTJE! diensten
           aanbieden zijn zelfstandig ondernemer en niet in dienst van
           Barbershop Noviomagus. De overeenkomst voor de daadwerkelijke
           dienst (de knipbeurt) komt tot stand tussen jou als klant en de
-          barber. Groomy faciliteert het vinden van een barber, het
+          barber. KPPRTJE! faciliteert het vinden van een barber, het
           inplannen van de afspraak en de betaling.
         </P>
 
@@ -88,13 +88,13 @@ export default function VoorwaardenPage() {
           geschorst.
         </P>
 
-        <H2>7. Aansprakelijkheid van Groomy</H2>
+        <H2>7. Aansprakelijkheid van KPPRTJE!</H2>
         <P>
-          Groomy is niet aansprakelijk voor de kwaliteit van de door de
+          KPPRTJE! is niet aansprakelijk voor de kwaliteit van de door de
           barber geleverde dienst — daarvoor is de barber zelf
-          verantwoordelijk. Groomy is wel verantwoordelijk voor de correcte
+          verantwoordelijk. KPPRTJE! is wel verantwoordelijk voor de correcte
           werking van het platform en de betaalverwerking. Bij een geschil
-          kun je dit via de app melden; Groomy bemiddelt en kan in gepaste
+          kun je dit via de app melden; KPPRTJE! bemiddelt en kan in gepaste
           gevallen (bijvoorbeeld een niet-uitgevoerde dienst) een
           terugbetaling doen.
         </P>
@@ -102,7 +102,7 @@ export default function VoorwaardenPage() {
         <H2>8. Tegoed, loyaliteitspunten en kortingscodes</H2>
         <P>
           Wallet-tegoed en loyaliteitspunten zijn niet inwisselbaar voor
-          contant geld en uitsluitend te gebruiken binnen Groomy.
+          contant geld en uitsluitend te gebruiken binnen KPPRTJE!.
           Kortingscodes zijn eenmalig per gebruiker te gebruiken tenzij
           anders vermeld.
         </P>

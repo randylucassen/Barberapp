@@ -40,7 +40,7 @@ export default function LoginPage() {
       <NavBar onBack={() => router.push("/klant/onboarding")} />
       <form onSubmit={handleSubmit} className="px-5 pt-2 flex-1 flex flex-col">
         <div className="text-[28px] font-bold tracking-[-0.02em]">Inloggen</div>
-        <div className="text-[15px] text-text-secondary mt-1.5">Welkom terug bij Groomy.</div>
+        <div className="text-[15px] text-text-secondary mt-1.5">Welkom terug bij KPPRTJE!</div>
         <div className="flex flex-col gap-3 mt-6">
           <Input
             label="E-mail"

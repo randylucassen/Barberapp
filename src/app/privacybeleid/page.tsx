@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-// Handelsnaam "Groomy" ligt nog niet definitief vast (zie PROJECT.md,
+// Handelsnaam "KPPRTJE!" ligt nog niet definitief vast (zie PROJECT.md,
 // "Openstaande acties voor jou") — bij een naamswijziging moet die overal
 // hieronder ook aangepast worden, niet alleen in layout.tsx/metadata.
 
 export const metadata: Metadata = {
-  title: "Privacyverklaring — Groomy",
+  title: "Privacyverklaring — KPPRTJE!",
 };
 
 function H2({ children }: { children: React.ReactNode }) {
@@ -21,16 +21,16 @@ export default function PrivacybeleidPage() {
   return (
     <div className="min-h-dvh bg-surface">
       <div className="max-w-2xl mx-auto px-6 py-12">
-        <Link href="/" className="text-[13px] text-text-accent">← Groomy</Link>
+        <Link href="/" className="text-[13px] text-text-accent">← KPPRTJE!</Link>
         <h1 className="text-[26px] font-bold tracking-[-0.01em] mt-4">Privacyverklaring</h1>
         <p className="text-[13px] text-text-tertiary mt-1">Laatst bijgewerkt: 18 augustus 2026</p>
 
         <H2>1. Wie zijn wij</H2>
         <P>
-          Groomy is een dienst van Barbershop Noviomagus (eenmanszaak), Plein
+          KPPRTJE! is een dienst van Barbershop Noviomagus (eenmanszaak), Plein
           1944-17, 6511 JC Nijmegen, KvK-nummer 83716580. Wij zijn de
           verwerkingsverantwoordelijke voor de persoonsgegevens die via de
-          Groomy-app en -website worden verwerkt. Vragen over privacy? Mail
+          KPPRTJE!-app en -website worden verwerkt. Vragen over privacy? Mail
           naar{" "}
           <a href="mailto:barbershopnoviomagus@gmail.com" className="text-text-accent">
             barbershopnoviomagus@gmail.com
@@ -85,7 +85,7 @@ export default function PrivacybeleidPage() {
 
         <H2>3. Met wie delen we gegevens</H2>
         <P>
-          Om Groomy te laten werken, delen we gegevens met een beperkt aantal
+          Om KPPRTJE! te laten werken, delen we gegevens met een beperkt aantal
           zorgvuldig gekozen verwerkers: <strong>Supabase</strong> (database
           en inlogsysteem), <strong>Stripe</strong> (betalingen en
           uitbetalingen aan barbers), <strong>Resend</strong> (transactionele
@@ -132,7 +132,7 @@ export default function PrivacybeleidPage() {
 
         <H2>7. Cookies</H2>
         <P>
-          Groomy gebruikt alleen functionele cookies die nodig zijn om je
+          KPPRTJE! gebruikt alleen functionele cookies die nodig zijn om je
           ingelogd te houden. Geen tracking- of advertentiecookies.
         </P>
 

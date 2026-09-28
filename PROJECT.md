@@ -2657,17 +2657,18 @@ te lopen. Niet blokkerend voor volgende fases.
   Een opgeslagen-kaart-feature vereist dus echt nieuwe Stripe-
   architectuur, geen quick fix. De UI toont voorlopig eerlijk "Binnenkort
   beschikbaar" i.p.v. de oude nep-kaartgegevens uit het designpakket.
-- **De handelsnaam "Groomy" ligt nog niet definitief vast** (2026-08-18).
-  Bedrijfsgegevens (Barbershop Noviomagus, KvK 83716580, Plein 1944-17
-  Nijmegen) staan inmiddels wel vast en zijn verwerkt in de nieuwe
-  privacy-/voorwaardenpagina's (zie hieronder), maar de **app-naam**
-  "Groomy" zelf is nog een placeholder. Als die wijzigt, moet dat overal
-  worden doorgevoerd, niet alleen in de UI: `src/app/layout.tsx` (title/
-  description/OG-metadata), `src/app/privacybeleid/page.tsx` en
-  `src/app/voorwaarden/page.tsx` (komt tientallen keren voor in de
-  juridische tekst zelf), en later de App Store/Play Store-listing-teksten
-  en het app-icoon. Beide nieuwe pagina's hebben hier een verwijzende
-  code-comment bovenaan staan als geheugensteun.
+- ~~De handelsnaam "Groomy" ligt nog niet definitief vast~~ — **opgelost
+  (2026-09-28): het merk is "KPPRTJE!"**, incl. een echt logo/woordmerk
+  (Claude Design). Overal in de UI/tekst doorgevoerd — zie "Rebrand naar
+  KPPRTJE!" in CLAUDE.md voor de volledige toelichting. Bedrijfsgegevens
+  (Barbershop Noviomagus, KvK 83716580, Plein 1944-17 Nijmegen) blijven
+  ongewijzigd — dat is de aparte, KvK-geregistreerde entiteit achter het
+  consumentenmerk. **Nog niet gedaan**: de daadwerkelijke KvK-
+  handelsnaamregistratie van "KPPRTJE!" zelf (een aparte administratieve
+  stap, los van deze code-wijziging), en de bundle-identifier/scheme/
+  Stripe-merchant-ID in `groomy-app` (`com.groomy.app` etc.) — die zijn
+  bewust ongemoeid gelaten, zie de aparte aantekening in `groomy-app`'s
+  eigen `CLAUDE.md`.
 
 ## Privacybeleid + algemene voorwaarden (2026-08-18)
 

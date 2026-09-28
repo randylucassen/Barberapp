@@ -2809,6 +2809,64 @@ elke boekings-fetch in productie op een ontbrekende kolom. De
 webapp-wijzigingen staan bij het schrijven van deze aantekening dan ook
 nog niet gecommit/gepusht, bewust in die volgorde.
 
+## Rebrand naar KPPRTJE! (2026-09-28)
+
+De handelsnaam-onzekerheid uit "Openstaande beslissingen" is opgelost —
+de gebruiker liet via Claude Design een echt logo/woordmerk maken en gaf
+een kant-en-klare bestandenmap (`~/Desktop/Projecten/KPPRTJE-brand/`,
+inclusief een `README.md` met exacte doelpaden per project) die de
+mapstructuur van alle drie projecten spiegelt. Merk: **naam altijd
+"KPPRTJE!"** (met uitroepteken — dus ook mid-zin, bv. "Welkom terug bij
+KPPRTJE!"). Woordmerk: Archivo 900 cursief, al omgezet naar vectorpaden
+(geen fontdependency nodig). Kleuren ongewijzigd: teal `#0EA5A4`, zwart
+`#111111`.
+
+- **`src/app/icon.tsx` verwijderd** (was de placeholder-"G", zie de
+  eerdere "functionele placeholder tot er een echt logo is"-comment) —
+  vervangen door een los `src/app/icon.png` (512×512) + nieuw
+  `src/app/apple-icon.png` (180×180), beide via Next.js' eigen
+  bestandsconventie (geen route-registratie nodig).
+- **Nieuwe `public/og-image.png`** (1200×630) — `layout.tsx`'s
+  `metadata.openGraph`/`twitter` kregen er `images: ["/og-image.png"]`
+  bij (bestond nog niet); `twitter.card` van `"summary"` naar
+  `"summary_large_image"` (nu er een echte brede preview-afbeelding is).
+- **`const title = "Groomy"` → `"KPPRTJE!"`** in `layout.tsx` — enige
+  bron voor de paginatitel/OG-titel, dus overal in één keer bijgewerkt.
+- **Alle overige tekstverwijzingen** naar "Groomy" (39 stuks over ~20
+  bestanden — screentitels, `merchantDisplayName`, voorwaarden/
+  privacybeleid-lopende-tekst, admin-schermen, de Resend-e-mailtemplate,
+  `company-info.ts`'s `name`-veld) vervangen door "KPPRTJE!". **Bewust
+  ongewijzigd**: `company-info.ts`'s `legalName: "Barbershop Noviomagus"`
+  (de KvK-geregistreerde entiteit, los van het consumentenmerk) en de
+  "handelsnaam ligt nog niet definitief vast"-comments boven voorwaarden/
+  privacybeleid (nog steeds waar: het merk is gekozen, de KvK-
+  handelsnaamregistratie zelf is een aparte, nog te zetten stap).
+- **`src/app/api/geocode/route.ts`'s User-Agent-string** (`Groomy-MVP/1.0`,
+  gestuurd naar Nominatim, niet klant-zichtbaar) ook meegenomen voor
+  consistentie.
+- Eén tekstuele correctie tijdens het vervangen: "Welkom terug bij
+  Groomy." (met punt) werd bewust "Welkom terug bij KPPRTJE!" zonder punt
+  — een uitroepteken-merknaam gevolgd door nog een punt las dubbelop.
+
+**Geverifieerd**: `npx tsc --noEmit`/`npm run lint`/`npm run build`
+schoon (de build bevestigt met name dat de nieuwe icon/apple-icon/
+og-image-routes goed oppikken — geen missende/verkeerd-geformatteerde
+afbeeldingen). Browser-bevestigd: paginatitel + favicon-tab tonen
+"KPPRTJE!", `/klant/login` toont "Welkom terug bij KPPRTJE!" correct
+zonder dubbele punctuatie, geen nieuwe console-fouten.
+
+**Bewust niet meegenomen** (stond ook expliciet zo in de README van de
+merkbestanden-map, dezelfde voorzichtigheid hier aangehouden): niets aan
+Apple/Stripe-gekoppelde identifiers gewijzigd. Zie de aparte aantekening
+in `groomy-app`'s eigen `CLAUDE.md` voor de volledige toelichting waarom.
+
+**Nog niet gepusht naar `main`/Vercel** bij het schrijven van deze
+aantekening — een merk-rebrand op een live, geïndexeerde productiesite
+is in mijn ogen een expliciete-bevestiging-eerst-actie (zichtbaar voor
+echte bezoekers, niet zomaar terug te draaien qua eerste indruk/SEO-
+snapshot), dus wacht ik op een go van de gebruiker vóór de push, ook al
+is de commit zelf al klaar.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

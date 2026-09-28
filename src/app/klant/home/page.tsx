@@ -143,7 +143,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-full">
       <div className="px-5 pt-4 flex items-center justify-between">
-        <span className="font-bold text-[22px] tracking-[-0.03em]">Groomy</span>
+        <span className="font-bold text-[22px] tracking-[-0.03em]">KPPRTJE!</span>
         <NotificationBell hasUnread={hasUnread} onClick={() => router.push("/klant/notificaties")} />
       </div>
       {activeBooking && (

@@ -90,7 +90,7 @@ export const NOTIFICATIONS_CUSTOMER = [
   { title: "Yusuf is onderweg", sub: "Aankomst rond 14:25 · 2 min geleden", accent: true },
   { title: "Betaling vastgezet", sub: "€37,50 wordt na afloop uitbetaald · 5 min geleden", accent: true },
   { title: "Boeking afgerond", sub: "Bedankt! Laat een review achter · 2 weken geleden", accent: false },
-  { title: "Welkom bij Groomy", sub: "Boek je eerste barber op locatie · 3 weken geleden", accent: false },
+  { title: "Welkom bij KPPRTJE!", sub: "Boek je eerste barber op locatie · 3 weken geleden", accent: false },
 ];
 
 export const CANCEL_REASONS = ["De wachttijd is te lang", "Onjuist adres opgegeven", "Planning gewijzigd", "Overig"];

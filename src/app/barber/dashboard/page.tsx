@@ -190,7 +190,7 @@ export default function BarberDashboardPage() {
     <div className="flex flex-col h-full">
       <div className="px-5 pt-4 flex items-center justify-between">
         <span className="font-bold text-[22px] tracking-[-0.03em]">
-          Groomy <span className="text-accent">Barber</span>
+          KPPRTJE! <span className="text-accent">Barber</span>
         </span>
         <NotificationBell hasUnread={hasUnread} onClick={() => router.push("/barber/notificaties")} />
       </div>

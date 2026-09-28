@@ -3,7 +3,7 @@
 // voorwaarden/page.tsx; met de factuur-PDF als derde plek de moeite waard
 // om niet nogmaals te dupliceren.
 export const COMPANY_INFO = {
-  name: "Groomy",
+  name: "KPPRTJE!",
   legalName: "Barbershop Noviomagus",
   legalForm: "eenmanszaak",
   kvkNumber: "83716580",

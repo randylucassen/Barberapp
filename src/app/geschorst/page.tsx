@@ -21,7 +21,7 @@ export default function SuspendedPage() {
         <EmptyState
           icon={<ShieldOff size={28} />}
           title="Je account is geschorst"
-          sub="Neem contact op met Groomy als je denkt dat dit niet klopt."
+          sub="Neem contact op met KPPRTJE! als je denkt dat dit niet klopt."
           action={
             <Button size="md" onClick={handleLogout}>
               Uitloggen

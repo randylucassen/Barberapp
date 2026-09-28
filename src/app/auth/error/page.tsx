@@ -16,7 +16,7 @@ export default function AuthErrorPage() {
           sub="Deze link werkt niet meer. Vraag een nieuwe aan en probeer het opnieuw."
           action={
             <Button size="md" onClick={() => router.push("/")}>
-              Terug naar Groomy
+              Terug naar KPPRTJE!
             </Button>
           }
         />

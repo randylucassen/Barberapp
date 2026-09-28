@@ -314,7 +314,7 @@ function BookingContent() {
                       <span>({barber.ratingCount} boekingen)</span>
                     </>
                   ) : (
-                    <span>Nieuw op Groomy</span>
+                    <span>Nieuw op KPPRTJE!</span>
                   )}
                 </div>
               </div>
