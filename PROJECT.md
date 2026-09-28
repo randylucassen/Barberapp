@@ -2717,6 +2717,27 @@ Bearer-auth, voor de native app" in CLAUDE.md voor de volledige
 toelichting/valkuil/verificatie. Overige routes volgen pas zodra een
 latere native-app-fase ze nodig heeft.
 
+**Update (native app, 2026-09-28)** — een echte architectuurwijziging
+aan deze webapp, niet alleen een native-app-aanpassing, ontstaan tijdens
+het testen van de native boekingsflow: **geplande (niet-asap) boekingen
+betalen voortaan pas ná acceptatie door de barber**, niet meer meteen bij
+het aanvragen. Zie "Vooruit geplande boekingen betalen nu pas ná
+acceptatie" in CLAUDE.md voor de volledige toelichting (migratie 0040,
+RLS-relaxatie, het 24-uurs-betaalvenster, de nieuwe cron). Beide clients
+(deze webapp: `klant/boeking`/`klant/status`; de native app: `boek-auto.
+tsx`/`barber/[id].tsx`/`booking/[id].tsx`) zijn tegelijk bijgewerkt om
+consistent te blijven — asap-boekingen zijn in geen van beide gewijzigd.
+**Migratie 0040 moet gepusht zijn vóórdat deze code naar `main`/Vercel
+gaat én vóórdat de native app opnieuw gebouwd wordt** — `BOOKING_COLUMNS`
+in `queries.ts` selecteert nu overal `payment_due_at` (raakt dus zo goed
+als élk boekingsscherm in deze webapp, niet alleen de nieuwe stukken),
+en de native app se `booking/[id].tsx` doet dat ook. Zonder de migratie
+geeft dat een kolom-bestaat-niet-fout op elke boekings-fetch in beide
+apps — exact dezelfde afhankelijkheid als destijds bij de
+live-locatiekaart (zie de 0033-aantekening in CLAUDE.md, "volgorde
+bewust omgedraaid"). Deze code stond bij het schrijven van deze notitie
+nog niet gepusht naar `main`.
+
 ## Roadmap
 
 Vervangen op 2026-07-17 door een gedetailleerdere versie van de gebruiker

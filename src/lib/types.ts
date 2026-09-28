@@ -151,6 +151,9 @@ export interface BookingRecord {
   barberLiveLat: number | null;
   barberLiveLng: number | null;
   barberLocationUpdatedAt: string | null;
+  // Alleen gezet voor een geaccepteerde, geplande boeking zonder
+  // betaling (0040) — de klant heeft tot dit tijdstip om te betalen.
+  paymentDueAt: string | null;
 }
 
 // Fase 6 — alleen select-baar door de klant/barber van de eigen boeking

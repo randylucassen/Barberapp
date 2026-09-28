@@ -2712,6 +2712,103 @@ daadwerkelijk als de juiste gebruiker leest, niet stilzwijgend als anon
 hebben). Testboeking nadien geannuleerd via dezelfde bearer-sessie, geen
 testdata achtergelaten. Gepusht naar `main` (commit `b013050`).
 
+## Vooruit geplande boekingen betalen nu pas ná acceptatie (2026-09-28)
+
+Ontstaan tijdens het testen van de nieuwe native (`groomy-app`)
+boekingsflow — de gebruiker vond het raar dat een klant meteen moet
+betalen voor een vooruit geplande afspraak, terwijl nog niet vaststaat of
+de (bij broadcast: een matchende) barber die afspraak wel kan/wil
+accepteren. Met de gebruiker afgestemd: **alleen voor geplande
+(`requested_asap = false`) boekingen** verschuift het betaalmoment naar
+ná acceptatie, met een **24-uurs betaalvenster** (anders vervalt de
+afspraak automatisch, kosteloos) — en een **nieuwe minimum-lead-time van
+24 uur** voor het aanvragen zelf (moet toch al passen vóór het
+betaalvenster). Asap-boekingen blijven volledig ongewijzigd: daar betaalt
+de klant nog steeds meteen, vóórdat de barber de aanvraag ziet — bij "nu"
+staat de barber op het punt te vertrekken, dus moet het geld al vaststaan
+vóór hij dat doet, precies de omgekeerde tijdsdruk.
+
+**Migratie `0040_deferred_payment_for_scheduled_bookings.sql`**:
+- Nieuwe kolom `bookings.payment_due_at` (alleen server-side gezet, geen
+  kolom-grant nodig — zelfde patroon als `completed_at` in dezelfde
+  trigger, zie CLAUDE.md-regel 20).
+- `create_booking_with_services()` (volledige body opnieuw, regel 22):
+  nieuwe check die een geplande boeking weigert als `p_scheduled_at` niet
+  minstens 24 uur in de toekomst ligt, vóór de al bestaande "bekende
+  barber"-check (0029).
+- `check_booking_status_transition()` (volledige body opnieuw): zet bij
+  een requested->accepted-overgang van een geplande boeking zonder
+  bestaande betaling (`not booking_has_payment()`) `payment_due_at = now()
+  + 24u`. Dit is een `before update`-trigger, dus dezelfde truc als
+  `completed_at` — de client hoeft deze kolom nooit zelf te kunnen zetten.
+- `notify_customer_on_status_change()` (volledige body opnieuw): "Aanvraag
+  bevestigd" krijgt bij een net-gezette `payment_due_at` een aangepaste
+  tekst die naar het betaalvenster verwijst; nieuwe klant-tak voor een
+  verlopen betaalvenster, gedisambigueerd van de bestaande no-show-tak
+  (beide zijn `cancelled_by is null and old.status = 'accepted'`) via
+  `old.payment_due_at is not null` — chronologisch overlappen deze twee
+  sowieso nooit (een betaalvenster loopt af ruim vóór de no-show-check
+  60 minuten ná de afspraaktijd zou kunnen vuren).
+- **RLS-relaxatie, de kern van deze migratie**: de vier barber-
+  zichtbaarheidspolicies op `bookings` (`booking_has_payment()`-gated
+  sinds 0010/0021/0027) krijgen er een `or not bookings.requested_asap`
+  bij — een barber (toegewezen óf matchend binnen straal/broadcast) mag
+  een geplande boeking nu ook zónder betaling zien/claimen/accepteren.
+  Voor asap-boekingen verandert er niets: `booking_has_payment()` blijft
+  daar de enige poort.
+- **Nieuwe cron** (`expire-unpaid-scheduled-bookings-job`, elke 5 min,
+  zelfde `app_config`/`CRON_SECRET`-opzet als de andere tijd-gebaseerde
+  crons) → nieuwe route `/api/cron/expire-unpaid-scheduled-bookings`:
+  claimt (atomisch, zelfde patroon als expire-noshow-bookings) elke
+  `accepted`-boeking met een verstreken `payment_due_at` en nog geen
+  `payments`-rij, annuleert 'm (`cancelled_by = null`), stuurt de barber
+  een directe notificatie (niet via de trigger — zelfde reden als de
+  no-show-route: deze route weet zelf de context). **Geen refund-stap**
+  nodig, er is nooit iets afgeschreven.
+
+**Webapp-kant**:
+- `klant/boeking`: `handleConfirm()` navigeert bij een asap-boeking nog
+  steeds naar `/klant/betaling`, bij een geplande boeking nu naar
+  `/klant/status` (geen betaalstap meer meteen). Nieuwe `minPlannedDate`
+  (24u vooruit) als `min`-attribuut op het datumveld — puur een
+  vriendelijke UI-guard (geen tijd-component), de echte grens wordt
+  server-side afgedwongen met een duidelijke foutmelding via
+  `bookingError` als iemand 'm toch omzeilt.
+- `klant/status`: nieuwe `paymentPending`-afleiding (`status === 'accepted'
+  && paymentDueAt`) met voorrang op de bestaande "afspraak bevestigd,
+  nog niet due"-weergave — eigen titel/subtekst (incl. resterende uren,
+  `Date.now()` hier zonder bezwaar want deze webapp heeft geen React
+  Compiler, i.t.t. de native app), een prominente "Betaal nu"-knop naar
+  `/klant/betaling`, en de live kaart blijft verborgen zolang er nog niet
+  betaald is (zou anders een voortgang suggereren die er nog niet is).
+- `barber/dashboard`'s "Geplande afspraken"-kaarten en `barber/afspraak`
+  tonen nu een duidelijke "Wacht op betaling"-badge/melding zodra
+  `payment_due_at` gezet is — zonder dit leek elke geplande afspraak daar
+  even definitief, terwijl een onbetaalde er zo weer af kan vallen.
+- `BOOKING_COLUMNS`/`mapBooking()`/`BookingRecord` (queries.ts/types.ts)
+  selecteren/mappen nu overal `payment_due_at` — raakt dus **elk**
+  boekingsscherm in deze webapp, niet alleen de nieuwe stukken (zelfde
+  breed-rakende-kernquery-afhankelijkheid als destijds bij de
+  live-locatiekaart, zie de 0033-aantekening hierboven).
+
+**Native-app-kant** (`groomy-app`, aparte repo) tegelijk bijgewerkt om
+consistent te blijven — zie dat project se eigen `CLAUDE.md` voor de
+volledige toelichting: `boek-auto.tsx`/`barber/[id].tsx` navigeren bij een
+geplande boeking nu naar het boekingsstatus-scherm i.p.v. rechtstreeks
+naar betalen; `booking/[id].tsx` kreeg dezelfde "Betaal nu"-knop +
+resterende-uren-weergave; `ScheduleField.tsx`'s datumkiezer staat nu op
+een minimum van 24u vooruit (was: nu).
+
+**Nog niet end-to-end geverifieerd** — deze migratie stond bij het
+schrijven van deze aantekening nog niet gepusht (zie CLAUDE.md-regel 11:
+`db push` is aan de gebruiker). `npx tsc --noEmit`/`npm run lint` in
+zowel deze webapp als `groomy-app` zijn wel schoon. **Belangrijk, zelfde
+volgorde-waarschuwing als bij 0033**: deze migratie moet gepusht zijn
+vóórdat de webapp-code hierboven naar `main`/Vercel gaat — anders faalt
+elke boekings-fetch in productie op een ontbrekende kolom. De
+webapp-wijzigingen staan bij het schrijven van deze aantekening dan ook
+nog niet gecommit/gepusht, bewust in die volgorde.
+
 ## Bestandsuploads testen zonder een echte file-picker
 
 De browser-testtool heeft geen "upload file"-actie. Voor het testen van

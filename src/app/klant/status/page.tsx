@@ -103,16 +103,33 @@ function StatusContent() {
   // afspraak die pas volgende week is.
   const rideDue = booking ? isRideDue(booking) : true;
   const scheduledLabel = booking?.scheduledAt ? `Gepland voor ${formatScheduledAt(booking.scheduledAt)}` : null;
+  // Geaccepteerde, geplande boeking zonder betaling (0040) — de klant
+  // moet hier eerst betalen vóór de gewone "afspraak bevestigd"/live-
+  // kaart-weergave zin heeft.
+  const paymentPending = booking?.status === "accepted" && !!booking.paymentDueAt;
+  const hoursLeftToPay =
+    paymentPending && booking?.paymentDueAt
+      ? Math.max(0, Math.ceil((new Date(booking.paymentDueAt).getTime() - Date.now()) / (60 * 60 * 1000)))
+      : null;
   const copy = !booking
     ? null
-    : booking.status === "accepted" && !rideDue
-      ? { ...STATUS_COPY.accepted, title: "Afspraak bevestigd", sub: scheduledLabel ?? STATUS_COPY.accepted.sub, badge: "Gepland" }
-      : // Nog niet bevestigd door de barber, maar wel al een gekozen datum/
-        // tijd — anders zag de klant hier alleen "Wachten op bevestiging"
-        // zonder terug te zien wát 'ie eigenlijk had ingepland.
-        booking.status === "requested" && !booking.requestedAsap && scheduledLabel
-        ? { ...STATUS_COPY.requested, sub: scheduledLabel }
-        : STATUS_COPY[booking.status];
+    : paymentPending
+      ? {
+          title: "Betaal je afspraak",
+          sub:
+            (scheduledLabel ? `${scheduledLabel} — ` : "") +
+            (hoursLeftToPay !== null ? `nog ${hoursLeftToPay} uur om te betalen` : "rond de betaling af"),
+          badge: "Betalen",
+          progress: 20,
+        }
+      : booking.status === "accepted" && !rideDue
+        ? { ...STATUS_COPY.accepted, title: "Afspraak bevestigd", sub: scheduledLabel ?? STATUS_COPY.accepted.sub, badge: "Gepland" }
+        : // Nog niet bevestigd door de barber, maar wel al een gekozen datum/
+          // tijd — anders zag de klant hier alleen "Wachten op bevestiging"
+          // zonder terug te zien wát 'ie eigenlijk had ingepland.
+          booking.status === "requested" && !booking.requestedAsap && scheduledLabel
+          ? { ...STATUS_COPY.requested, sub: scheduledLabel }
+          : STATUS_COPY[booking.status];
   const canCancel = booking && ["requested", "accepted", "en_route"].includes(booking.status);
   const isCompleted = booking?.status === "completed";
   const canDispute =
@@ -122,7 +139,7 @@ function StatusContent() {
   // Live kaart heeft alleen zin zolang de barber onderweg is — daarvoor
   // (nog geen bevestiging, of een geplande afspraak die nog niet due is)
   // of daarna (al ter plaatse) voegt 'm niets toe.
-  const showLiveMap = (booking?.status === "accepted" || booking?.status === "en_route") && rideDue;
+  const showLiveMap = (booking?.status === "accepted" || booking?.status === "en_route") && rideDue && !paymentPending;
 
   return (
     <div className="flex flex-col h-full">
@@ -183,6 +200,11 @@ function StatusContent() {
           </div>
         </div>
         <div className="mt-4 mb-2 flex flex-col gap-2">
+          {paymentPending && (
+            <Button full size="md" variant="accent" onClick={() => router.push(`/klant/betaling?bookingId=${bookingId}`)}>
+              Betaal nu
+            </Button>
+          )}
           {isCompleted && !alreadyReviewed && (
             <Button full size="md" variant="accent" onClick={() => router.push(`/klant/review?bookingId=${bookingId}`)}>
               Laat een review achter

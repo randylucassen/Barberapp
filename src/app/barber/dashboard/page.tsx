@@ -249,6 +249,12 @@ export default function BarberDashboardPage() {
                 <div className="text-[14px] font-semibold truncate">{formatScheduledLabel(b.scheduledAt!)}</div>
                 <div className="text-[13px] text-text-secondary truncate">{b.serviceName}</div>
               </div>
+              {/* paymentDueAt (0040) staat alleen op een geaccepteerde
+                  geplande boeking die de klant nog niet betaald heeft —
+                  zonder dit badge lijkt elke geplande afspraak hier even
+                  "definitief", terwijl deze nog binnen 24u kan vervallen
+                  als de klant niet op tijd betaalt. */}
+              {b.paymentDueAt && <Badge variant="error">Wacht op betaling</Badge>}
               <ChevronRight size={18} className="text-text-tertiary shrink-0" />
             </Card>
           ))}

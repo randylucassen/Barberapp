@@ -79,6 +79,12 @@ function BookingContent() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [note, setNote] = useState("");
+  // yyyy-mm-dd, 24 uur vooruit — puur een vriendelijke UI-guard voor het
+  // datumveld (geen tijd-component, dus niet exact op de minuut); de
+  // echte grens wordt server-side afgedwongen in create_booking_with_
+  // services() (0040), met een duidelijke foutmelding als iemand toch
+  // een te vroeg tijdstip op dezelfde datum kiest.
+  const minPlannedDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const [dlg, setDlg] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [matching, setMatching] = useState(false);
@@ -259,7 +265,15 @@ function BookingContent() {
     setSubmitting(false);
     if (booking) {
       setDlg(false);
-      router.push(`/klant/betaling?bookingId=${booking.id}`);
+      // Geplande (niet-asap) boekingen betalen pas ná acceptatie door de
+      // barber (0040, met de gebruiker afgestemd — bij een geplande
+      // afspraak staat nog niet vast of de barber wel kan). Alleen
+      // asap-boekingen gaan nog rechtstreeks door naar betalen.
+      if (asap) {
+        router.push(`/klant/betaling?bookingId=${booking.id}`);
+      } else {
+        router.push(`/klant/status?bookingId=${booking.id}`);
+      }
     } else {
       setBookingError(errorMessage || "Aanvraag versturen is niet gelukt. Probeer het nog eens.");
     }
@@ -374,10 +388,23 @@ function BookingContent() {
             </Button>
           </div>
           {!asap && (
-            <div className="py-3 border-b border-border-soft flex gap-2.5">
-              <Input type="date" label="Datum" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1" />
-              <Input type="time" label="Tijd" value={time} onChange={(e) => setTime(e.target.value)} className="flex-1" />
-            </div>
+            <>
+              <div className="py-3 border-b border-border-soft flex gap-2.5">
+                <Input
+                  type="date"
+                  label="Datum"
+                  value={date}
+                  min={minPlannedDate}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="flex-1"
+                />
+                <Input type="time" label="Tijd" value={time} onChange={(e) => setTime(e.target.value)} className="flex-1" />
+              </div>
+              <div className="py-2 text-[12px] text-text-tertiary">
+                Een geplande afspraak moet minimaal 24 uur van tevoren worden aangevraagd — je betaalt pas zodra de
+                barber accepteert, met 24 uur de tijd om af te ronden.
+              </div>
+            </>
           )}
           <Row left={<span className="text-primary"><CreditCard size={20} /></span>} title="iDEAL" sub="Betaal na afloop" right={<ChevronRight size={18} />} />
           <div className="pt-3">

@@ -300,10 +300,11 @@ interface BookingRow {
   barber_live_lat: number | null;
   barber_live_lng: number | null;
   barber_location_updated_at: string | null;
+  payment_due_at: string | null;
 }
 
 const BOOKING_COLUMNS =
-  "id, customer_id, barber_id, service_name_snapshot, price_cents_snapshot, duration_minutes_snapshot, address, note, requested_asap, scheduled_at, status, cancelled_reason, cancelled_by, created_at, completed_at, lat, lng, barber_live_lat, barber_live_lng, barber_location_updated_at";
+  "id, customer_id, barber_id, service_name_snapshot, price_cents_snapshot, duration_minutes_snapshot, address, note, requested_asap, scheduled_at, status, cancelled_reason, cancelled_by, created_at, completed_at, lat, lng, barber_live_lat, barber_live_lng, barber_location_updated_at, payment_due_at";
 
 function mapBooking(row: BookingRow): BookingRecord {
   return {
@@ -327,6 +328,7 @@ function mapBooking(row: BookingRow): BookingRecord {
     barberLiveLat: row.barber_live_lat,
     barberLiveLng: row.barber_live_lng,
     barberLocationUpdatedAt: row.barber_location_updated_at,
+    paymentDueAt: row.payment_due_at,
   };
 }
 

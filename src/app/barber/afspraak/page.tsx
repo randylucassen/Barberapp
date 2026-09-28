@@ -119,6 +119,12 @@ function AppointmentContent() {
             </div>
           )}
         </div>
+        {booking.paymentDueAt && (
+          <div className="mt-3 bg-error-soft rounded-md px-4 py-3 text-[13px] text-error">
+            De klant heeft deze afspraak nog niet betaald. Betaalt hij niet binnen 24 uur na jouw acceptatie, dan
+            vervalt de afspraak automatisch — je krijgt daar dan bericht van.
+          </div>
+        )}
         <div className="mt-4 bg-accent-soft rounded-md px-4 py-3 text-[14px] text-accent-dark">
           Jouw verdienste: <b>€{euro(earningCents)}</b> (na 15% servicekosten)
         </div>
