@@ -2900,6 +2900,30 @@ lezen (RLS blokkeert anon overal):
   bucket zelf bestaat niet. Werkt alleen voor publieke buckets; voor een
   privé-bucket is dit niet te verifiëren zonder een ingelogde sessie.
 
+## `/api/stripe/cancel-and-refund` ondersteunt nu ook Bearer-auth (2026-10-01)
+
+Zelfde patroon als `create-payment-intent`/`confirm-payment` (zie
+"API-routes ondersteunen nu ook Bearer-auth" hierboven) — de native app
+(`KPPRTJE-app`) kreeg een eigen boekingsstatus-scherm met een werkende
+"Annuleer aanvraag"-flow, die deze route nodig had. `getRequestUser()`
+i.p.v. `supabase.auth.getUser()` direct; de rest van de route
+ongewijzigd (zowel de statusovergang als de refund-logica lopen nog
+steeds via de gebruikerssessie, niet de service role — regel 15 blijft
+van toepassing). Cookie-pad (de webapp zelf) ongewijzigd.
+
+**Geverifieerd**: `npx tsc --noEmit` schoon. End-to-end getest vanuit de
+native app se webpreview tegen een echte `en_route`-testboeking (zonder
+`payments`-rij) — de annuleer-aanvraag-call zelf werd geblokkeerd door
+een bekende CORS-beperking van die specifieke testomgeving (browser-
+preview praat cross-origin met de productie-API, zie de bestaande
+CORS-aantekening bij Fase 5/geocode hierboven) — niet een probleem met
+de route zelf, native `fetch` op een echt toestel kent deze restrictie
+niet. Wel bevestigd: de kostenberekening klopt exact (€35 dienst → €40,25
+betaald, €17,50 refund, €22,75 compensatie, allemaal narekenbaar), en de
+UI handelt een mislukte fetch nu netjes af i.p.v. voor altijd op "Bezig…"
+te blijven hangen (zie de aparte aantekening in `KPPRTJE-app`'s eigen
+CLAUDE.md).
+
 ## Openstaande beslissingen voor een volgende fase
 
 - **Custom SMTP instellen in Supabase** (Authentication → Settings → SMTP

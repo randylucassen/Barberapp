@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getRequestUser } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
 import { cancellationFeeApplies, CANCELLATION_FEE_PERCENTAGE } from "@/lib/booking-timing";
@@ -23,9 +23,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "bookingId en cancelledReason zijn verplicht" }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) {
+  // getRequestUser() i.p.v. supabase.auth.getUser() direct: valt terug op
+  // een Authorization: Bearer-header zodra er geen cookiesessie is — de
+  // native app (KPPRTJE-app) heeft geen cookies. Vanaf hier altijd de
+  // teruggegeven `supabase` gebruiken, niet de cookie-client direct (zie
+  // server.ts voor waarom — bearer-auth is een andere clientinstantie).
+  const { user, supabase } = await getRequestUser(request, await createClient());
+  if (!user) {
     return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
   }
 
@@ -39,9 +43,9 @@ export async function POST(request: NextRequest) {
   }
 
   const cancelledBy =
-    booking.customer_id === userData.user.id
+    booking.customer_id === user.id
       ? "customer"
-      : booking.barber_id === userData.user.id
+      : booking.barber_id === user.id
         ? "barber"
         : null;
   if (!cancelledBy) {
