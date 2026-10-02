@@ -5,6 +5,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { getProfile } from "@/lib/supabase/queries";
+import { COMPANY_INFO } from "@/lib/company-info";
 
 type DisplayStatus = "pending" | "rejected" | "suspended";
 
@@ -21,7 +22,7 @@ const STATUS_COPY: Record<DisplayStatus, { icon: ReactNode; title: string; sub: 
     icon: <XCircle size={38} />,
     title: "Aanmelding afgewezen",
     sub: (
-      <>We konden je aanmelding niet goedkeuren. Neem contact op met <b className="text-text-primary">support@groomy.nl</b> voor meer uitleg.</>
+      <>We konden je aanmelding niet goedkeuren. Neem contact op met <b className="text-text-primary">{COMPANY_INFO.email}</b> voor meer uitleg.</>
     ),
     tone: "error",
   },
@@ -29,7 +30,7 @@ const STATUS_COPY: Record<DisplayStatus, { icon: ReactNode; title: string; sub: 
     icon: <AlertTriangle size={38} />,
     title: "Account geschorst",
     sub: (
-      <>Je account is tijdelijk geblokkeerd. Neem contact op met <b className="text-text-primary">support@groomy.nl</b> voor meer informatie.</>
+      <>Je account is tijdelijk geblokkeerd. Neem contact op met <b className="text-text-primary">{COMPANY_INFO.email}</b> voor meer informatie.</>
     ),
     tone: "error",
   },
