@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getRequestUser } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireAdmin } from "@/lib/supabase/admin";
 import { getInvoiceForBarber } from "@/lib/supabase/queries";
@@ -12,14 +12,16 @@ import type { BarberInvoice } from "@/lib/types";
 // line_items/totalen op de rij, nooit uit live payments-data.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) {
+  // getRequestUser(): zelfde Bearer-fallback als earnings/export hierboven
+  // en de andere native-app-routes — groomy-app's facturen-scherm (Fase
+  // B3) downloadt deze PDF zelf via een Bearer-fetch.
+  const { user, supabase } = await getRequestUser(request, await createClient());
+  if (!user) {
     return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
   }
 
   let invoice: BarberInvoice | null = await getInvoiceForBarber(supabase, id);
-  let barberId = userData.user.id;
+  let barberId = user.id;
 
   if (!invoice) {
     // Niet de eigen factuur — alleen admin mag dan nog verder.

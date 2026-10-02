@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient, getRequestUser } from "@/lib/supabase/server";
 import { getPaymentsForBarber } from "@/lib/supabase/queries";
 import { euro } from "@/lib/pricing";
 import { toCsv } from "@/lib/csv";
@@ -17,14 +17,17 @@ const ESCROW_LABEL: Record<string, string> = {
   refunded: "Terugbetaald",
 };
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) {
+export async function GET(request: NextRequest) {
+  // getRequestUser(): zelfde Bearer-fallback als de andere native-app-
+  // geschikte routes (zie cancel-and-refund) — groomy-app's facturen/
+  // verdiensten-schermen (Fase B3) downloaden dit bestand zelf via een
+  // Bearer-fetch i.p.v. een cookie-gebaseerde browsernavigatie.
+  const { user, supabase } = await getRequestUser(request, await createClient());
+  if (!user) {
     return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
   }
 
-  const payments = await getPaymentsForBarber(supabase, userData.user.id);
+  const payments = await getPaymentsForBarber(supabase, user.id);
 
   const header = ["Datum", "Dienst", "Duur (min)", "Klant betaalde (EUR)", "Jouw ontvangst (EUR)", "Status", "Vrijgegeven op"];
   const rows = payments.map((p) => [
