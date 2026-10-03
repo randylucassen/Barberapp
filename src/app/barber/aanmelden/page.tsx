@@ -7,6 +7,7 @@ import { UploadTile } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import { getBarberProfile } from "@/lib/supabase/queries";
 import { uploadBarberFile } from "@/lib/supabase/storage";
+import { MIN_SERVICE_PRICE_CENTS, euro } from "@/lib/pricing";
 
 const STEPS = ["Gegevens", "Verificatie", "Diensten"];
 
@@ -184,6 +185,11 @@ export default function BarberSignupPage() {
   // (server-side afgedwongen in /api/admin/barbers/status) — hier al
   // geblokkeerd zodat dat nooit als verrassing bij de goedkeuring komt.
   const step0Valid = fullName.trim() !== "" && kvkNumber.trim() !== "" && city.trim() !== "" && address.trim() !== "";
+  // Zelfde reden als step0Valid: de database-constraint (0041) zou dit
+  // ook tegenhouden, maar dan als een rauwe foutmelding na "Verstuur
+  // aanmelding" — hier al geblokkeerd met een duidelijke Nederlandse
+  // uitleg per dienst.
+  const step2Valid = services.every((s) => Math.round(s.priceEuros * 100) >= MIN_SERVICE_PRICE_CENTS);
 
   return (
     <div className="flex flex-col h-full">
@@ -273,36 +279,44 @@ export default function BarberSignupPage() {
           <>
             <div className="text-[24px] font-bold tracking-[-0.02em]">Diensten en prijzen</div>
             <div className="mt-4">
-              {services.map((s, i) => (
-                <div key={s.name} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-                  <div>
-                    <div className="text-[15px] font-semibold">{s.name}</div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <input
-                        type="number"
-                        min={5}
-                        value={s.durationMinutes}
-                        onChange={(e) => updateService(i, { durationMinutes: Number(e.target.value) })}
-                        className="w-14 text-[13px] text-text-secondary border border-border rounded-sm px-1.5 py-1"
-                      />
-                      <span className="text-[13px] text-text-secondary">min</span>
+              {services.map((s, i) => {
+                const belowMin = Math.round(s.priceEuros * 100) < MIN_SERVICE_PRICE_CENTS;
+                return (
+                  <div key={s.name} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                    <div>
+                      <div className="text-[15px] font-semibold">{s.name}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <input
+                          type="number"
+                          min={5}
+                          value={s.durationMinutes}
+                          onChange={(e) => updateService(i, { durationMinutes: Number(e.target.value) })}
+                          className="w-14 text-[13px] text-text-secondary border border-border rounded-sm px-1.5 py-1"
+                        />
+                        <span className="text-[13px] text-text-secondary">min</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[15px] font-semibold">€</span>
+                        <input
+                          type="number"
+                          min={MIN_SERVICE_PRICE_CENTS / 100}
+                          value={s.priceEuros}
+                          onChange={(e) => updateService(i, { priceEuros: Number(e.target.value) })}
+                          className={`w-16 text-[15px] font-semibold border rounded-sm px-1.5 py-1 ${belowMin ? "border-error text-error" : "border-border"}`}
+                        />
+                      </div>
+                      {belowMin && (
+                        <span className="text-[11px] text-error">min. €{euro(MIN_SERVICE_PRICE_CENTS)}</span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[15px] font-semibold">€</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={s.priceEuros}
-                      onChange={(e) => updateService(i, { priceEuros: Number(e.target.value) })}
-                      className="w-16 text-[15px] font-semibold border border-border rounded-sm px-1.5 py-1"
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="mt-4 bg-surface rounded-md px-4 py-3 text-[13px] text-text-secondary leading-[19px]">
-              KPPRTJE! rekent <b className="text-text-primary">15% servicekosten</b> per boeking. Uitbetaling binnen 24 uur, na afronding vrijgegeven uit escrow.
+              KPPRTJE! rekent <b className="text-text-primary">15% servicekosten</b> per boeking. Uitbetaling binnen 24 uur, na afronding vrijgegeven uit escrow. Elke dienst moet minimaal <b className="text-text-primary">€{euro(MIN_SERVICE_PRICE_CENTS)}</b> kosten.
             </div>
           </>
         )}
@@ -316,7 +330,7 @@ export default function BarberSignupPage() {
         <Button
           full
           variant="accent"
-          disabled={submitting || busy || (step === 0 && !step0Valid)}
+          disabled={submitting || busy || (step === 0 && !step0Valid) || (step === 2 && !step2Valid)}
           onClick={() => (step < 2 ? setStep(step + 1) : handleFinish())}
         >
           {busy ? "Bezig met uploaden…" : step < 2 ? "Volgende" : submitting ? "Bezig…" : "Verstuur aanmelding"}

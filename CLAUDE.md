@@ -2924,6 +2924,53 @@ UI handelt een mislukte fetch nu netjes af i.p.v. voor altijd op "Bezig…"
 te blijven hangen (zie de aparte aantekening in `KPPRTJE-app`'s eigen
 CLAUDE.md).
 
+## Prijs per dienst nu vrij, met een algemeen minimum van €25 (2026-10-03)
+
+Ontstaan vanuit een batch van zes verzoeken aan de native barber-kant
+(`KPPRTJE-app`, zie diens eigen CLAUDE.md "Zes losse fixes vóór de
+volgende build" voor de volledige lijst) — hier alleen het stuk dat deze
+webapp-repo raakt. Barbers mochten tot nu toe geen eigen prijzen
+instellen (vaste catalogusprijzen); de gebruiker wilde dit vrijgeven,
+met een ondergrens tegen een race-naar-de-bodem. Afgestemd met de
+gebruiker: **€25 minimum per actieve dienst**.
+
+- **Nieuwe migratie `supabase/migrations/0041_minimum_service_price.sql`**
+  (**nog niet gepusht**): eerst een backfill (`update services set
+  price_cents = 2500 where active = true and price_cents < 2500` —
+  productiedata bevatte al meerdere actieve diensten onder €25, vooral
+  "Baard trimmen"/"Kids"/"Kinderknipbeurt" uit de oude standaardcatalogus,
+  bevestigd via een directe productiequery vóór het schrijven van de
+  migratie), daarna een **conditionele** check-constraint
+  (`not active or price_cents >= 2500` — niet een kale check op de
+  kolom, zodat historische/inactieve rijen met een oudere, lagere prijs
+  de migratie niet laten falen of herschreven hoeven te worden).
+- **`src/lib/pricing.ts`**: nieuwe `MIN_SERVICE_PRICE_CENTS = 2500`-
+  constante — UI-validatie, moet in sync blijven met de
+  migratie-constraint. Zelfde constante 1-op-1 gekopieerd naar
+  `KPPRTJE-app/src/lib/pricing.ts` (geen gedeeld package tussen de twee
+  repo's, zie dat project se eigen CLAUDE.md).
+- **`barber/aanmelden/page.tsx`**: Diensten-stap kreeg per-dienst-
+  validatie (rode rand + "min. €{bedrag}"-hint onder het minimum) en de
+  submitknop is disabled zolang niet elke dienst voldoet. Dit was de
+  bestaande "verwijder alle diensten, voeg opnieuw in"-reset-aanmeldflow
+  (zie de regel daarover elders in dit bestand) — de constraint hierboven
+  is dus het laatste vangnet tegen een kapotte/omzeilde client, niet de
+  voornaamste validatie.
+
+**Belangrijke volgorde-afhankelijkheid, zelfde patroon als migratie
+0040**: zonder migratie 0041 gepusht dwingt de server het nieuwe minimum
+niet af — alleen de UI-validatie beschermt dan. Niet naar `main`/Vercel
+pushen vóór de gebruiker bevestigt dat de migratie live staat.
+
+**Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. De native-
+kant van deze wijziging (identieke Diensten-stap-redesign, inclusief een
+live test tegen een echt, al-goedgekeurd testaccount met een bestaande
+€15-dienst die meteen correct als onder-het-minimum werd geflagd) staat
+in `KPPRTJE-app`'s eigen CLAUDE.md. Deze webapp-kant (`barber/aanmelden/
+page.tsx`) is **niet** opnieuw live doorlopen in deze sessie — de
+onderliggende validatielogica is identiek aan de al-geverifieerde native
+versie, en de migratie zelf staat nog niet gepusht.
+
 ## Openstaande beslissingen voor een volgende fase
 
 - **Custom SMTP instellen in Supabase** (Authentication → Settings → SMTP

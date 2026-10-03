@@ -7,6 +7,13 @@
 
 export const PLATFORM_FEE_RATE = 0.15;
 
+// Algemeen minimumbedrag per dienst — met de gebruiker afgestemd (€25),
+// voorkomt een race-naar-de-bodem nu barbers hun eigen prijzen vrij
+// bepalen. Server-side afgedwongen via een check-constraint op
+// services.price_cents (zie migratie 0041) — deze constante is voor de
+// UI-validatie/foutmelding, moet in sync blijven met die constraint.
+export const MIN_SERVICE_PRICE_CENTS = 2500;
+
 export interface PriceBreakdown {
   priceCents: number;
   feeCents: number;

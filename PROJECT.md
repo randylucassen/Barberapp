@@ -2739,6 +2739,22 @@ live-locatiekaart (zie de 0033-aantekening in CLAUDE.md, "volgorde
 bewust omgedraaid"). Deze code stond bij het schrijven van deze notitie
 nog niet gepusht naar `main`.
 
+**Update (native app, 2026-10-03)** — opnieuw een echte
+architectuurwijziging, ontstaan vanuit de native barber-kant: **barbers
+bepalen voortaan zelf de prijs per dienst, met een algemeen minimum van
+€25** (was: een vast catalogusprijs-idee). Nieuwe migratie
+`supabase/migrations/0041_minimum_service_price.sql` (backfill van
+bestaande actieve diensten onder €25, daarna een conditionele
+check-constraint `not active or price_cents >= 2500`) — voorkomt een
+race-naar-de-bodem nu barbers vrij zijn in hun prijsstelling. Nieuwe
+`MIN_SERVICE_PRICE_CENTS`-constante in `src/lib/pricing.ts`, UI-validatie
+in `barber/aanmelden/page.tsx`'s Diensten-stap (zelfde herontwerp ook
+1-op-1 overgezet naar de native app). Zie "Zes losse fixes vóór de
+volgende build" in CLAUDE.md voor de volledige toelichting. **Migratie
+0041 moet gepusht zijn** vóór de volgende native build (zelfde
+afhankelijkheidspatroon als migratie 0040 hierboven) — bij het schrijven
+van deze notitie nog niet gepusht.
+
 ## Roadmap
 
 Vervangen op 2026-07-17 door een gedetailleerdere versie van de gebruiker
