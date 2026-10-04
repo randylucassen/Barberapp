@@ -950,6 +950,13 @@ export interface BarberPaymentRow {
   bookingId: string;
   serviceName: string;
   createdAt: string;
+  // Wanneer de boeking daadwerkelijk is afgerond (barber heeft de
+  // knipbeurt gegeven) — null zolang dat nog niet zo is. Dit is het
+  // juiste veld om "verdiend" op te baseren, niet `createdAt` (dat is
+  // alleen wanneer de boeking is *aangevraagd*, wat voor geplande
+  // boekingen dagen vóór de daadwerkelijke afspraak kan liggen — zie de
+  // toelichting bij /barber/dashboard en /barber/verdiensten).
+  completedAt: string | null;
   durationMinutes: number;
   amountCents: number;
   barberPayoutCents: number;
@@ -963,6 +970,7 @@ interface BookingWithPaymentRow {
   service_name_snapshot: string;
   duration_minutes_snapshot: number;
   created_at: string;
+  completed_at: string | null;
   payments: PaymentRow[] | PaymentRow | null;
 }
 
@@ -975,7 +983,7 @@ export async function getPaymentsForBarber(
   const { data, error } = await supabase
     .from("bookings")
     .select(
-      "id, service_name_snapshot, duration_minutes_snapshot, created_at, payments(id, amount_cents, barber_payout_cents, escrow_state, held_at, released_at)"
+      "id, service_name_snapshot, duration_minutes_snapshot, created_at, completed_at, payments(id, amount_cents, barber_payout_cents, escrow_state, held_at, released_at)"
     )
     .eq("barber_id", barberId)
     .order("created_at", { ascending: false });
@@ -990,6 +998,7 @@ export async function getPaymentsForBarber(
         bookingId: row.id,
         serviceName: row.service_name_snapshot,
         createdAt: row.created_at,
+        completedAt: row.completed_at,
         durationMinutes: row.duration_minutes_snapshot,
         amountCents: payment.amount_cents,
         barberPayoutCents: payment.barber_payout_cents,

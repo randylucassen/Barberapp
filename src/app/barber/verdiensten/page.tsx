@@ -18,11 +18,16 @@ function lastSevenDaysBuckets(payments: BarberPaymentRow[]) {
     return { date: d, label: DAY_LABELS[d.getDay()], cents: 0 };
   });
 
+  // Bucket op completedAt, niet createdAt — zelfde reden als de
+  // "Vandaag"-tegel op /barber/dashboard: een geplande boeking kan dagen
+  // vóór de afspraak zijn aangevraagd, dus createdAt zet het bedrag dan
+  // op de verkeerde dag (of een boeking die nog niet is afgerond telt
+  // al mee alsof het al "verdiend" is).
   for (const p of payments) {
-    if (p.escrowState === "refunded") continue;
-    const created = new Date(p.createdAt);
-    created.setHours(0, 0, 0, 0);
-    const bucket = days.find((d) => d.date.getTime() === created.getTime());
+    if (p.escrowState === "refunded" || !p.completedAt) continue;
+    const completed = new Date(p.completedAt);
+    completed.setHours(0, 0, 0, 0);
+    const bucket = days.find((d) => d.date.getTime() === completed.getTime());
     if (bucket) bucket.cents += p.barberPayoutCents;
   }
   return days;
@@ -46,7 +51,9 @@ function EarningsContent() {
     });
   }, []);
 
-  const earnedPayments = payments.filter((p) => p.escrowState !== "refunded");
+  // Alleen daadwerkelijk afgeronde boekingen tellen als "verdiend" — een
+  // betaling kan al in escrow staan terwijl de knipbeurt nog bezig is.
+  const earnedPayments = payments.filter((p) => p.escrowState !== "refunded" && p.completedAt);
   const totalCents = earnedPayments.reduce((sum, p) => sum + p.barberPayoutCents, 0);
   const totalMinutes = earnedPayments.reduce((sum, p) => sum + p.durationMinutes, 0);
   const buckets = lastSevenDaysBuckets(payments);
@@ -90,7 +97,7 @@ function EarningsContent() {
               key={p.paymentId}
               left={<Avatar name={p.serviceName} />}
               title={p.serviceName}
-              sub={new Date(p.createdAt).toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}
+              sub={new Date(p.completedAt as string).toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}
               right={<span className="font-semibold text-success">+€{euro(p.barberPayoutCents)}</span>}
             />
           ))}

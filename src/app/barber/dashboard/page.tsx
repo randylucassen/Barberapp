@@ -117,8 +117,12 @@ export default function BarberDashboardPage() {
       const payments = await getPaymentsForBarber(supabase, barberId);
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
+      // "Vandaag verdiend" = vandaag afgeronde knipbeurten, niet vandaag
+      // *aangevraagde* boekingen — createdAt kan bij een geplande boeking
+      // dagen vóór de afspraak liggen, waardoor een boeking die vandaag
+      // écht is afgerond anders niet meetelde (gemeld door de gebruiker).
       const earnedToday = payments
-        .filter((p) => p.escrowState !== "refunded" && new Date(p.createdAt) >= todayStart)
+        .filter((p) => p.escrowState !== "refunded" && p.completedAt && new Date(p.completedAt) >= todayStart)
         .reduce((sum, p) => sum + p.barberPayoutCents, 0);
       setTodayCents(earnedToday);
     })();
@@ -272,6 +276,7 @@ export default function BarberDashboardPage() {
             <div className="text-[14px] text-text-secondary py-4">Nog geen boekingen.</div>
           </>
         )}
+        {bookings.length > 0 && <div className="text-[17px] font-semibold tracking-[-0.01em] mb-1">Recent</div>}
         {groupedBookings.map((group) => (
           <div key={group.label}>
             <div className="text-[17px] font-semibold tracking-[-0.01em] mb-1 mt-5 first:mt-0">{group.label}</div>

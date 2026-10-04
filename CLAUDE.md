@@ -3064,3 +3064,35 @@ Live bevestigd via de webpreview met `test12345@test.nl`: de
 diensten-editor toont de 4 echte bestaande diensten zonder een
 "Dienst toevoegen"-knop/rij (bevestigd via `get_page_text`, geen
 tekstmatch meer). Landingpagina-header toont het nieuwe K!-icoon correct.
+
+## "Vandaag verdiend" baseerde zich op het verkeerde tijdstempel (2026-10-04)
+
+Gemeld vanuit de native app (barber-dashboard toonde €0,00 ondanks een
+vandaag afgeronde boeking) — bleek **geen native-only bug**, zat al in
+deze webapp-repo en is hier dus ook gefixt (native spiegelt deze query
+1-op-1 inline, geen gedeelde queries.ts daar). Root cause:
+`getPaymentsForBarber()` (`src/lib/supabase/queries.ts`) selecteerde
+alleen `bookings.created_at` (wanneer de boeking is *aangevraagd*) —
+`barber/dashboard/page.tsx`'s "Vandaag"-tegel en
+`barber/verdiensten/page.tsx`'s week-balkjes/totaal/Recent-lijst
+filterden/groepeerden daar allemaal op. Bij een geplande boeking die
+dagen vóór de afspraak is aangevraagd, valt `created_at` niet op de dag
+waarop 'm daadwerkelijk wordt afgerond, dus de boeking telde nooit mee
+bij "Vandaag" — ook al werd het geld die dag pas echt verdiend.
+
+**Fix**: `completed_at` toegevoegd aan `BarberPaymentRow`/de
+onderliggende select, en elke "verdiend"/dag-berekening gebruikt nu
+`completedAt` i.p.v. `createdAt` — inclusief een nieuwe eis dat
+`completedAt` niet-null moet zijn (een betaling kan al in escrow staan
+terwijl de knipbeurt nog bezig is; die telt nu terecht pas mee als
+"verdiend" zodra de boeking echt is afgerond, niet eerder). **Bewust
+ongemoeid**: `barber/uitbetalingen/page.tsx` blijft `createdAt` tonen —
+dat scherm gaat over escrow-*status*-geschiedenis, een legitiem andere
+vraag dan "wanneer heb ik dit verdiend".
+
+**Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Niet opnieuw
+los live doorlopen in deze webapp-repo zelf — de wijziging is mechanisch
+identiek aan de al-geverifieerde native fix (zie `KPPRTJE-app`'s eigen
+CLAUDE.md voor de volledige verificatie, incl. een rechtstreekse
+REST-query die bevestigde dat `completed_at`/`created_at` in de praktijk
+daadwerkelijk uiteenlopen).
