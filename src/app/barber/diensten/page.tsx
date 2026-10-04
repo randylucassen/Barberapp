@@ -1,5 +1,5 @@
 "use client";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Input, NavBar } from "@/components/ui";
@@ -20,6 +20,9 @@ import { MIN_SERVICE_PRICE_CENTS, euro } from "@/lib/pricing";
 // bookings/booking_services snapshotten naam/prijs/duur bij het boeken
 // (`price_cents_snapshot` e.d.) en service_id staat op `on delete set
 // null` (zie 0003/0027) — een oude boeking verliest nooit zijn bedrag.
+// Bewust geen "dienst toevoegen"-knop (gebruikerskeuze) — nieuwe
+// diensten blijven alleen via de aanmeld-wizard aan te maken, dit
+// scherm is puur voor bestaande diensten bewerken/verwijderen.
 interface ServiceRow {
   id: string | null;
   name: string;
@@ -67,10 +70,6 @@ export default function BarberDienstenPage() {
 
   function updateRow(index: number, patch: Partial<ServiceRow>) {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
-  }
-
-  function addRow() {
-    setRows((prev) => [...prev, emptyRow()]);
   }
 
   function removeRow(index: number) {
@@ -197,13 +196,6 @@ export default function BarberDienstenPage() {
                 );
               })}
             </div>
-            <button
-              type="button"
-              onClick={addRow}
-              className="mt-3 w-full flex items-center justify-center gap-1.5 border border-dashed border-border rounded-md py-3 text-[14px] text-text-secondary"
-            >
-              <Plus size={16} /> Dienst toevoegen
-            </button>
             {error && (
               <div className="mt-4 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">
                 {error}

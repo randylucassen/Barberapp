@@ -3033,3 +3033,34 @@ bevestigd op de native kant (zie daar).
 - OAuth (Apple/Google): knoppen staan al (verborgen) in de UI
   (`OAUTH_ENABLED = false` in beide login-pagina's), echte flow nog niet
   gebouwd.
+
+## "Dienst toevoegen" verwijderd uit het nieuwe diensten-editorscherm (2026-10-04)
+
+Vervolg op gisteren se `barber/diensten/page.tsx` (zie hierboven): de
+gebruiker wil geen "nieuwe dienst aanmaken"-pad op dit scherm — nieuwe
+diensten blijven alleen via de aanmeld-wizard aan te maken, dit scherm
+is nu uitsluitend voor bestaande diensten bewerken/verwijderen. De
+"+ Dienst toevoegen"-knop, `addRow()` en de `Plus`-import zijn
+verwijderd. `emptyRow()` blijft bestaan — nog steeds nodig als fallback
+wanneer een barber nul bestaande diensten heeft bij het laden — en de
+verwijderknop blijft gated op `rows.length > 1`, dus een barber kan nooit
+via dit scherm op nul diensten uitkomen.
+
+Tegelijk is ook het (los overwogen, "symboollogo") nieuwe "K!"-icoon
+gebouwd — zwarte achtergrond, witte K, teal uitroepteken, de K- en
+!-vectorpaden 1-op-1 overgenomen uit het bestaande woordmerk-app-icoon
+(`KPPRTJE-brand/logo/svg/app-icon.svg`, letter voor letter opgebouwd uit
+losse paden) om pixelidentieke typografie te garanderen. Nieuw
+`KPPRTJE-landing/src/components/KSymbol.tsx` verving de
+Scissors-icoon-in-een-zwarte-tegel in de landingpagina-header
+(`src/app/page.tsx`); het inhoudelijke `Scissors`-icoon bij het
+"Voor barbers"-kopje is bewust ongemoeid gelaten (geen logo-instantie).
+Zelfde component ook native gebouwd — zie `KPPRTJE-app`'s eigen
+CLAUDE.md voor de volledige toelichting (inclusief de klant-onboarding-
+toepassing, die hier in de webapp-repo niet van toepassing is).
+
+**Geverifieerd**: `npx tsc --noEmit`/`npm run lint` (beide repo's) schoon.
+Live bevestigd via de webpreview met `test12345@test.nl`: de
+diensten-editor toont de 4 echte bestaande diensten zonder een
+"Dienst toevoegen"-knop/rij (bevestigd via `get_page_text`, geen
+tekstmatch meer). Landingpagina-header toont het nieuwe K!-icoon correct.
