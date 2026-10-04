@@ -171,7 +171,12 @@ export default function BarberProfilePage() {
           <div className="mt-2 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">{avatarError}</div>
         )}
         <div className="mt-6">
-          <Row left={<span className="text-primary"><Scissors size={20} /></span>} title="Diensten en prijzen" sub={servicesLabel ?? "…"} />
+          <Row
+            left={<span className="text-primary"><Scissors size={20} /></span>}
+            title="Diensten en prijzen"
+            sub={servicesLabel ?? "…"}
+            onClick={() => router.push("/barber/diensten")}
+          />
           <Row
             left={<span className="text-primary"><Camera size={20} /></span>}
             title="Portfolio"

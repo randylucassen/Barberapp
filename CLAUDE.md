@@ -2971,6 +2971,38 @@ page.tsx`) is **niet** opnieuw live doorlopen in deze sessie — de
 onderliggende validatielogica is identiek aan de al-geverifieerde native
 versie, en de migratie zelf staat nog niet gepusht.
 
+**Update (2026-10-04) — migratie 0041 live, en een echt gevonden gat
+gedicht**: de gebruiker bevestigde dat de migratie live staat; direct
+daarna bleek een barber nergens anders prijzen kon wijzigen dan via de
+hele aanmeld-wizard opnieuw (de "Diensten en prijzen"-rij op
+`barber/profiel/page.tsx` had nooit een `onClick` gehad — puur
+informatief, matcht hoe die rij al die tijd al was). Nieuw scherm
+**`src/app/barber/diensten/page.tsx`**: een echt, los bewerkscherm, met
+een **gerichte diff** i.p.v. de destructieve delete-all-reinsert-reset
+die `aanmelden` gebruikt — bestaande rijen (met een `id`) worden
+ge-update, nieuwe rijen ingevoegd, verwijderde rijen pas bij "Opslaan"
+daadwerkelijk verwijderd. Veilig ook met bestaande boekingsgeschiedenis:
+`bookings`/`booking_services` snapshotten naam/prijs/duur al bij het
+boeken (`price_cents_snapshot` e.d.) en `services.id` staat overal op
+`on delete set null` (0003/0027) — een service verwijderen raakt nooit
+een oude boeking. Hergebruikt dezelfde `MIN_SERVICE_PRICE_CENTS`-
+validatie (rode rand + "min. €{bedrag}"-hint, disabled "Opslaan"-knop)
+als `aanmelden`'s Diensten-stap. `barber/profiel/page.tsx`'s rij kreeg
+een `onClick` naar dit nieuwe scherm. Zelfde scherm 1-op-1 ook native
+gebouwd — zie `KPPRTJE-app`'s eigen CLAUDE.md.
+
+**Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon. Live tegen
+productie bevestigd met `test12345@test.nl` (een echte, al-goedgekeurde
+barber met 4 bestaande diensten, incl. een service — "Kinderknipbeurt" —
+die dankzij de inmiddels live migratie 0041 al automatisch van €15 naar
+€25 was opgehoogd): het scherm laadt alle 4 bestaande diensten correct,
+een prijs onder €25 toont meteen de rode rand + "min. €25,00"-hint en
+disabled de Opslaan-knop, de waarde terugzetten naar €25 maakt de knop
+weer actief. Niet daadwerkelijk opgeslagen tijdens deze testronde (geen
+reden om de live diensten van een bestaand testaccount te overschrijven
+voor een verificatieronde) — add/remove-rij-interacties wel apart
+bevestigd op de native kant (zie daar).
+
 ## Openstaande beslissingen voor een volgende fase
 
 - **Custom SMTP instellen in Supabase** (Authentication → Settings → SMTP
