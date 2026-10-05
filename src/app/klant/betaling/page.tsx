@@ -10,7 +10,15 @@ import { getStripe } from "@/lib/stripe-client";
 import { computePriceBreakdown, euro } from "@/lib/pricing";
 import type { BookingRecord, DiscountPreview } from "@/lib/types";
 
-function CheckoutForm({ bookingId, totalCents }: { bookingId: string; totalCents: number }) {
+function CheckoutForm({
+  bookingId,
+  totalCents,
+  paidRef,
+}: {
+  bookingId: string;
+  totalCents: number;
+  paidRef: React.MutableRefObject<boolean>;
+}) {
   const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
@@ -38,6 +46,11 @@ function CheckoutForm({ bookingId, totalCents }: { bookingId: string; totalCents
       return;
     }
     if (paymentIntent) {
+      // Vóór router.push: de pagina-cleanup hieronder annuleert anders de
+      // net geslaagde boeking, want die kijkt puur naar "heeft dit scherm
+      // ooit een geslaagde betaling gezien" en zou deze unmount anders
+      // aanzien voor een geannuleerde poging.
+      paidRef.current = true;
       router.push(`/klant/succes?bookingId=${bookingId}&payment_intent=${paymentIntent.id}`);
     }
   }
@@ -82,6 +95,19 @@ function PaymentContent() {
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [checkingCode, setCheckingCode] = useState(false);
   const intentRequested = useRef(false);
+  // De vorige stap heeft de boeking al aangemaakt (status 'requested',
+  // nog geen betaling — RLS houdt 'm sowieso onzichtbaar voor barbers tot
+  // booking_has_payment() true is). De terugknop deed tot nu toe alleen
+  // router.back() — de boeking bleef stil op 'requested' staan tot de
+  // 30-minuten-cron 'm opruimde, en zag er in de tussentijd voor de klant
+  // uit als een actieve aanvraag (live gevonden via de native app, zelfde
+  // bug, zelfde fix hier). Expliciet aan de terugknop gehangen i.p.v. een
+  // generieke unmount-cleanup: bij iDEAL navigeert stripe.confirmPayment()
+  // de hele pagina weg naar een Stripe-gehoste pagina (redirect:
+  // "if_required" is dan wél vereist) — een cleanup-effect zou die
+  // navigatie ook als "verlaten zonder betalen" zien en de boeking
+  // verkeerd annuleren terwijl de betaling juist onderweg is.
+  const paidRef = useRef(false);
 
   useEffect(() => {
     if (!bookingId) {
@@ -91,6 +117,23 @@ function PaymentContent() {
     const supabase = createClient();
     getBooking(supabase, bookingId).then(setBooking);
   }, [bookingId, router]);
+
+  function handleBack() {
+    if (!paidRef.current && bookingId) {
+      const supabase = createClient();
+      supabase
+        .from("bookings")
+        .update({
+          status: "cancelled",
+          cancelled_by: "customer",
+          cancelled_reason: "Betaalscherm verlaten zonder te betalen",
+        })
+        .eq("id", bookingId)
+        .eq("status", "requested")
+        .then();
+    }
+    router.back();
+  }
 
   const priceCents = booking?.priceCents ?? 0;
   const { feeCents, totalCents } = computePriceBreakdown(priceCents);
@@ -146,7 +189,7 @@ function PaymentContent() {
 
   return (
     <div className="flex flex-col h-full">
-      <NavBar title="Betaling" onBack={() => router.back()} />
+      <NavBar title="Betaling" onBack={handleBack} />
       <div className="px-5 pt-4 flex-1 overflow-y-auto no-scrollbar">
         <div className="bg-accent-soft rounded-md px-4 py-3.5 flex gap-3 items-start">
           <span className="text-accent-dark flex-shrink-0 mt-px"><Shield size={18} /></span>
@@ -206,7 +249,7 @@ function PaymentContent() {
 
         {clientSecret ? (
           <Elements stripe={getStripe()} options={{ clientSecret }}>
-            <CheckoutForm bookingId={bookingId!} totalCents={chargedTotalCents ?? totalCents} />
+            <CheckoutForm bookingId={bookingId!} totalCents={chargedTotalCents ?? totalCents} paidRef={paidRef} />
           </Elements>
         ) : error ? (
           <div className="mt-5 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">
