@@ -3325,3 +3325,48 @@ geweigerd (`409`).
 Beide fixes gecommit en gepusht (`d02436a` native, `107c0e2` + `bd2f8d5`
 webapp) — Vercel deployt automatisch; de native fix zit nog niet in een
 build.
+
+## Betaal-gate permanent uitgeschakeld voor open-broadcast-boekingen (2026-10-05)
+
+Gemeld door de gebruiker: "Vandaag verdiend" op het barber-dashboard
+steeg niet na het afronden van een echte rit. Root cause bleek veel
+ernstiger dan een weergave-bug: de afgeronde boeking
+(`1d55f0a1-8968-4c98-8ece-9ae2906bfe93`, via barber "Randy van Londen")
+had `status='completed'` met een echte `price_cents_snapshot`, maar
+**geen enkele rij in `payments`** — de barber had de hele rit
+(geaccepteerd → onderweg → aangekomen → bezig → afgerond) kunnen
+doorlopen zonder dat de klant ooit heeft betaald.
+
+**Root cause**: de "Assigned barbers can update ..."-RLS-policy
+(0040) had altijd `booking_has_payment(..) or not requested_asap` als
+eis voor elke statuswijziging door de toegewezen barber — met 0040's
+eigen comment "de betaal-gate blijft wél onverkort gelden voor
+asap-boekingen". 0042/0043 voegde daar `or bookings.open_request` aan
+toe zodat een barber een price_pending-claim kon annuleren vóór de
+klant heeft bevestigd (waar nog geen betaling kán bestaan) — maar
+`open_request` blijft voor altijd `true` op zo'n boeking (bewust, zie
+`create_open_broadcast_request`'s comment: "puur een historisch
+label"). Daardoor was de betaal-gate niet alleen tijdens het claimen
+uitgeschakeld, maar voor **de hele rest van de rit** — elke volgende
+statusovergang (inclusief `accepted -> en_route`, het moment waarop de
+barber daadwerkelijk vertrekt) ging eraan voorbij.
+
+**Fix**: [0046_fix_open_request_payment_bypass.sql](supabase/migrations/0046_fix_open_request_payment_bypass.sql)
+— de `open_request`-uitzondering geldt nu alleen nog zolang
+`status = 'price_pending'`. Zodra de klant bevestigt (`-> accepted`)
+geldt de oorspronkelijke, onverkorte betaal-eis weer.
+
+**Live geverifieerd** (nieuwe open-aanvraag, geclaimd, klant bevestigd
+naar `accepted`, géén betaling):
+1. Annuleren vanuit `price_pending` werkt nog gewoon (barber-kant).
+2. De exploit zelf — barber direct naar `en_route` zonder betaling —
+   wordt nu correct geblokkeerd door RLS (0 rijen geraakt, status
+   blijft `accepted`).
+3. Na het simuleren van een echte `payments`-rij (zoals de Stripe-
+   webhook die zou aanmaken) slaagt dezelfde `en_route`-overgang wél.
+
+De originele kapotte boeking van de gebruiker is bewust ongemoeid
+gelaten (test-exploratie, geen echte klant) — "Vandaag verdiend" sloot
+'m al terecht uit (geen `payments`-rij = niet meegeteld), dat deel was
+dus nooit het probleem; het probleem was dat de rit er ooit kón komen
+zonder betaling.
