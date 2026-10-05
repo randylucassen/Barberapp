@@ -26,10 +26,16 @@
 -- afgehandeld. Zelfde aanpak als eerder succesvol gebruikt op
 -- notification_type (0014/0017/0032/0034) en barber_status/escrow_state.
 
--- ============================================================
--- Nieuwe statuswaarde
--- ============================================================
-alter type public.booking_status add value 'price_pending' after 'requested';
+-- De 'alter type ... add value' zelf staat in een eigen voorafgaande
+-- migratie (0042_price_pending_enum_value.sql), niet hier: Postgres
+-- staat niet toe dat een zojuist toegevoegde enum-waarde in dezelfde
+-- transactie nog gebruikt wordt door een 'language sql'-functie (de
+-- planner valideert die direct bij create function, in tegenstelling
+-- tot 'language plpgsql', dat de body pas bij de eerste aanroep leest)
+-- — hier gebeurt dat in barber_is_online_and_available() hieronder.
+-- Zonder de enum-waarde al gecommit te hebben faalt `supabase db push`
+-- met "unsafe use of new value ... in the same transaction" (SQLSTATE
+-- 55P04).
 
 -- ============================================================
 -- Nieuwe kolommen op bookings
@@ -314,7 +320,7 @@ as $$
 $$;
 
 comment on function public.barber_matches_location_and_service(double precision, double precision, uuid) is
-  'Sinds 0042: twee matchpaden — bestaande booking_services-regels (normale/al-geprijsde broadcast) zoals voorheen, of (nieuw) requested_services-namen voor een open_request-aanvraag die nog geen booking_services heeft. Bypass voor de kolom-grant-lockdown op barber_profiles.lat/lng (0020).';
+  'Sinds 0042/0043: twee matchpaden — bestaande booking_services-regels (normale/al-geprijsde broadcast) zoals voorheen, of (nieuw) requested_services-namen voor een open_request-aanvraag die nog geen booking_services heeft. Bypass voor de kolom-grant-lockdown op barber_profiles.lat/lng (0020).';
 
 grant execute on function public.barber_matches_location_and_service(double precision, double precision, uuid) to authenticated;
 
@@ -354,7 +360,7 @@ as $$
 $$;
 
 comment on function public.barber_is_online_and_available(uuid) is
-  'Online + recent actief (last_active_at < 90s oud) + vandaag beschikbaar volgens weekschema + geen actieve/pending boeking (sinds 0042 ook price_pending: wacht al op een klant-bevestiging, telt niet als beschikbaar voor iets nieuws). Gebruikt door find_nearest_eligible_barber + de broadcast-RLS-policies op bookings.';
+  'Online + recent actief (last_active_at < 90s oud) + vandaag beschikbaar volgens weekschema + geen actieve/pending boeking (sinds 0042/0043 ook price_pending: wacht al op een klant-bevestiging, telt niet als beschikbaar voor iets nieuws). Gebruikt door find_nearest_eligible_barber + de broadcast-RLS-policies op bookings.';
 
 grant execute on function public.barber_is_online_and_available(uuid) to authenticated;
 

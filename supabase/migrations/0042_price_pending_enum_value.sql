@@ -1,0 +1,12 @@
+-- Losgetrokken van 0043_open_broadcast_requests.sql (zie die migratie
+-- voor de volledige context/achtergrond van 'price_pending'). Moet een
+-- eigen, eerder gecommite migratie zijn: Postgres staat niet toe dat
+-- een zojuist toegevoegde enum-waarde in dezelfde transactie al
+-- gebruikt wordt door een 'language sql'-functie (die wordt direct bij
+-- create function tegen de catalogus gevalideerd, in tegenstelling tot
+-- 'language plpgsql', waarvan de body pas bij de eerste aanroep wordt
+-- gelezen) — 0043's barber_is_online_and_available() doet dat. Zonder
+-- deze enum-waarde al gecommit te hebben faalt `supabase db push` op
+-- 0043 met "unsafe use of new value ... in the same transaction"
+-- (SQLSTATE 55P04).
+alter type public.booking_status add value 'price_pending' after 'requested';
