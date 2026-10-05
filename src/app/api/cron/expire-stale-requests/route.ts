@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
 
-const TIMEOUT_MS = 30 * 60 * 1000;
+const UNMATCHED_TIMEOUT_MS = 30 * 60 * 1000;
+// Open-aanvragen (automatisch toewijzen zonder match, zie 0042) krijgen
+// een langer venster — 1 uur in plaats van 30 minuten, met de gebruiker
+// afgestemd — vóórdat ze definitief vervallen. Een tussentijdse claim +
+// geweigerde/verlopen prijsbevestiging (zie
+// expire-price-pending-requests) zet zo'n aanvraag terug naar
+// 'requested' zonder created_at te resetten, dus deze 1-uurs-klok is de
+// enige, absolute "echt dood"-grens voor het hele traject.
+const OPEN_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 
 // Zelfde patroon als release-escrow/route.ts: geen Supabase-sessie
 // (machine-to-machine, aangeroepen door pg_cron/pg_net of handmatig voor
@@ -14,15 +22,15 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServiceClient();
-  const cutoff = new Date(Date.now() - TIMEOUT_MS).toISOString();
+  const results: { bookingId: string; outcome: string }[] = [];
 
+  const unmatchedCutoff = new Date(Date.now() - UNMATCHED_TIMEOUT_MS).toISOString();
   const { data: staleBookings } = await supabase
     .from("bookings")
     .select("id")
     .eq("status", "requested")
-    .lte("created_at", cutoff);
-
-  const results: { bookingId: string; outcome: string }[] = [];
+    .eq("open_request", false)
+    .lte("created_at", unmatchedCutoff);
 
   for (const stale of staleBookings ?? []) {
     // Atomisch claimen (zelfde reden als bij release-escrow): voorkomt
@@ -66,6 +74,36 @@ export async function POST(request: NextRequest) {
     } else {
       results.push({ bookingId: stale.id, outcome: "verlopen" });
     }
+  }
+
+  // Open-aanvragen (0042) hebben nooit een betaling — er is per definitie
+  // nog geen prijs bekend vóór een barber claimt — dus geen refund-stap
+  // nodig, simpelweg annuleren.
+  const openRequestCutoff = new Date(Date.now() - OPEN_REQUEST_TIMEOUT_MS).toISOString();
+  const { data: staleOpenRequests } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("status", "requested")
+    .eq("open_request", true)
+    .lte("created_at", openRequestCutoff);
+
+  for (const stale of staleOpenRequests ?? []) {
+    const { data: claimed } = await supabase
+      .from("bookings")
+      .update({
+        status: "cancelled",
+        cancelled_reason: "Automatisch geannuleerd: niemand heeft binnen 1 uur gereageerd op je aanvraag",
+      })
+      .eq("id", stale.id)
+      .eq("status", "requested")
+      .select("id")
+      .maybeSingle();
+
+    results.push(
+      claimed
+        ? { bookingId: stale.id, outcome: "open-aanvraag verlopen" }
+        : { bookingId: stale.id, outcome: "al geclaimd door een andere run, overgeslagen" }
+    );
   }
 
   return NextResponse.json({ processed: results.length, results });

@@ -115,7 +115,10 @@ export default function RidePage() {
   }
 
   const stage = STAGE[booking.status as keyof typeof STAGE];
-  const earningCents = computePriceBreakdown(booking.priceCents).barberPayoutCents;
+  // Dit scherm is alleen bereikbaar vanaf accepted/en_route/arrived/
+  // in_progress — nooit price_pending (altijd al geprijsd, zie 0042) —
+  // de ?? 0 is puur om TypeScript gerust te stellen.
+  const earningCents = computePriceBreakdown(booking.priceCents ?? 0).barberPayoutCents;
   const firstName = customerName.split(" ")[0];
   const showLiveMap = booking.status === "accepted" || booking.status === "en_route";
 

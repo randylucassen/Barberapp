@@ -33,7 +33,10 @@ function CancelContent() {
   // De servicekosten (feeCents) blijven bij een late annulering altijd
   // volledig staan — de 50%-regel geldt alleen op het dienstbedrag zelf
   // (priceCents), zelfde model als /api/stripe/cancel-and-refund.
-  const { priceCents, totalCents } = booking ? computePriceBreakdown(booking.priceCents) : { priceCents: 0, totalCents: 0 };
+  // Een nog niet geclaimde open-aanvraag (0042) heeft nog geen prijs —
+  // dan is er ook nog nooit iets afgeschreven, dus 0 is hier het
+  // correcte bedrag, niet alleen een type-fallback.
+  const { priceCents, totalCents } = booking ? computePriceBreakdown(booking.priceCents ?? 0) : { priceCents: 0, totalCents: 0 };
   const refundCents = Math.round((priceCents * CANCELLATION_FEE_PERCENTAGE) / 100);
   const keptCents = totalCents - refundCents;
 

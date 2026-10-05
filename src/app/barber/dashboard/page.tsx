@@ -33,6 +33,7 @@ function formatScheduledLabel(iso: string): string {
 
 const STATUS_BADGE: Record<BookingStatus, { label: string; variant: "success" | "accent" | "neutral" | "error" }> = {
   requested: { label: "Nieuw", variant: "accent" },
+  price_pending: { label: "Wacht op klant", variant: "neutral" },
   accepted: { label: "Bevestigd", variant: "success" },
   en_route: { label: "Onderweg", variant: "accent" },
   arrived: { label: "Aangekomen", variant: "accent" },

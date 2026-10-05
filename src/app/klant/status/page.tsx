@@ -2,10 +2,16 @@
 import { MapPin, MessageCircle, Phone } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { Badge, Button, IconButton, NavBar } from "@/components/ui";
+import { Badge, Button, Dialog, IconButton, NavBar } from "@/components/ui";
 import { Avatar, LiveMap } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
-import { getBooking, getBookingBarberPhone, getReviewForBooking } from "@/lib/supabase/queries";
+import {
+  declinePriceAndReopen,
+  getBooking,
+  getBookingBarberPhone,
+  getReviewForBooking,
+  updateBookingStatus,
+} from "@/lib/supabase/queries";
 import { isRideDue } from "@/lib/booking-timing";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
 
@@ -21,6 +27,7 @@ function formatScheduledAt(iso: string): string {
 
 const STATUS_COPY: Record<BookingStatus, { title: string; sub: string; badge: string; progress: number }> = {
   requested: { title: "Aanvraag verstuurd", sub: "Wachten op bevestiging van de barber", badge: "Aangevraagd", progress: 10 },
+  price_pending: { title: "Prijs ontvangen", sub: "Bekijk en bevestig de prijs om verder te gaan", badge: "Bevestig prijs", progress: 20 },
   accepted: { title: "Barber bevestigd", sub: "Je barber komt eraan", badge: "Bevestigd", progress: 30 },
   en_route: { title: "Barber onderweg", sub: "Onderweg naar je adres", badge: "Onderweg", progress: 55 },
   arrived: { title: "Barber is aangekomen", sub: "Bij het opgegeven adres", badge: "Aangekomen", progress: 80 },
@@ -39,6 +46,10 @@ function StatusContent() {
   const [barberName, setBarberName] = useState<string | null>(null);
   const [barberPhone, setBarberPhone] = useState<string | null>(null);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+  const [confirmingPrice, setConfirmingPrice] = useState(false);
+  const [decliningPrice, setDecliningPrice] = useState(false);
+  const [declineDlg, setDeclineDlg] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -87,6 +98,38 @@ function StatusContent() {
     getReviewForBooking(supabase, bookingId).then((r) => setAlreadyReviewed(!!r));
   }, [bookingId, booking?.status, alreadyReviewed]);
 
+  // Klant bevestigt de door een barber voorgestelde prijs (0042) — zet
+  // status naar accepted, normale "ga naar betalen"-pad hierna.
+  async function handleConfirmPrice() {
+    if (!bookingId) return;
+    setConfirmingPrice(true);
+    setActionError(null);
+    const supabase = createClient();
+    const ok = await updateBookingStatus(supabase, bookingId, "accepted");
+    setConfirmingPrice(false);
+    if (!ok) {
+      setActionError("Dit is niet gelukt — mogelijk is de 30 minuten al verstreken. Vernieuw de pagina.");
+      return;
+    }
+    router.push(`/klant/betaling?bookingId=${bookingId}`);
+  }
+
+  // Klant weigert de prijs — aanvraag valt terug naar 'requested' en
+  // wordt weer zichtbaar voor een andere barber (zelfde reset als een
+  // timeout, zie expire-price-pending-requests).
+  async function handleDeclinePrice() {
+    if (!bookingId) return;
+    setDecliningPrice(true);
+    setActionError(null);
+    const supabase = createClient();
+    const ok = await declinePriceAndReopen(supabase, bookingId);
+    setDecliningPrice(false);
+    setDeclineDlg(false);
+    if (!ok) {
+      setActionError("Dit is niet gelukt. Probeer het opnieuw.");
+    }
+  }
+
   if (!bookingId) {
     return (
       <div className="flex flex-col h-full items-center justify-center px-7 text-center text-text-secondary">
@@ -107,6 +150,11 @@ function StatusContent() {
   // moet hier eerst betalen vóór de gewone "afspraak bevestigd"/live-
   // kaart-weergave zin heeft.
   const paymentPending = booking?.status === "accepted" && !!booking.paymentDueAt;
+  const priceConfirmPending = booking?.status === "price_pending";
+  const minutesLeftToConfirm =
+    priceConfirmPending && booking?.priceConfirmDueAt
+      ? Math.max(0, Math.ceil((new Date(booking.priceConfirmDueAt).getTime() - Date.now()) / (60 * 1000)))
+      : null;
   const hoursLeftToPay =
     paymentPending && booking?.paymentDueAt
       ? Math.max(0, Math.ceil((new Date(booking.paymentDueAt).getTime() - Date.now()) / (60 * 60 * 1000)))
@@ -122,7 +170,12 @@ function StatusContent() {
           badge: "Betalen",
           progress: 20,
         }
-      : booking.status === "accepted" && !rideDue
+      : priceConfirmPending
+        ? {
+            ...STATUS_COPY.price_pending,
+            sub: minutesLeftToConfirm !== null ? `Nog ${minutesLeftToConfirm} minuten om te bevestigen` : STATUS_COPY.price_pending.sub,
+          }
+        : booking.status === "accepted" && !rideDue
         ? { ...STATUS_COPY.accepted, title: "Afspraak bevestigd", sub: scheduledLabel ?? STATUS_COPY.accepted.sub, badge: "Gepland" }
         : // Nog niet bevestigd door de barber, maar wel al een gekozen datum/
           // tijd — anders zag de klant hier alleen "Wachten op bevestiging"
@@ -130,7 +183,7 @@ function StatusContent() {
           booking.status === "requested" && !booking.requestedAsap && scheduledLabel
           ? { ...STATUS_COPY.requested, sub: scheduledLabel }
           : STATUS_COPY[booking.status];
-  const canCancel = booking && ["requested", "accepted", "en_route"].includes(booking.status);
+  const canCancel = booking && ["requested", "price_pending", "accepted", "en_route"].includes(booking.status);
   const isCompleted = booking?.status === "completed";
   const canDispute =
     isCompleted &&
@@ -178,7 +231,8 @@ function StatusContent() {
           <div className="flex-1">
             <div className="text-[16px] font-semibold">{barberName ?? "Barber"}</div>
             <div className="text-[13px] text-text-secondary">
-              {booking?.serviceName} · €{booking ? (booking.priceCents / 100).toFixed(2).replace(".", ",") : ""}
+              {booking?.serviceName}
+              {booking?.priceCents != null ? ` · €${(booking.priceCents / 100).toFixed(2).replace(".", ",")}` : " · Prijs volgt"}
             </div>
           </div>
           <div className="flex gap-2">
@@ -205,6 +259,19 @@ function StatusContent() {
               Betaal nu
             </Button>
           )}
+          {priceConfirmPending && (
+            <>
+              <Button full size="md" variant="accent" disabled={confirmingPrice} onClick={handleConfirmPrice}>
+                {confirmingPrice ? "Bezig…" : "Akkoord, ga naar betalen"}
+              </Button>
+              <Button full size="md" variant="secondary" onClick={() => setDeclineDlg(true)}>
+                Weiger, zoek een andere barber
+              </Button>
+            </>
+          )}
+          {actionError && (
+            <div className="bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">{actionError}</div>
+          )}
           {isCompleted && !alreadyReviewed && (
             <Button full size="md" variant="accent" onClick={() => router.push(`/klant/review?bookingId=${bookingId}`)}>
               Laat een review achter
@@ -227,6 +294,22 @@ function StatusContent() {
           )}
         </div>
       </div>
+      <Dialog
+        open={declineDlg}
+        title="Prijs weigeren?"
+        onClose={() => setDeclineDlg(false)}
+        actions={
+          <>
+            <Button full size="md" disabled={decliningPrice} onClick={handleDeclinePrice}>
+              {decliningPrice ? "Bezig…" : "Ja, zoek een andere barber"}
+            </Button>
+            <Button full size="md" variant="ghost" onClick={() => setDeclineDlg(false)}>Terug</Button>
+          </>
+        }
+      >
+        Je aanvraag staat dan weer open voor andere barbers binnen de resterende geldigheid. Er is nog niets in
+        rekening gebracht.
+      </Dialog>
     </div>
   );
 }

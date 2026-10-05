@@ -284,8 +284,8 @@ interface BookingRow {
   customer_id: string;
   barber_id: string | null;
   service_name_snapshot: string;
-  price_cents_snapshot: number;
-  duration_minutes_snapshot: number;
+  price_cents_snapshot: number | null;
+  duration_minutes_snapshot: number | null;
   address: string;
   note: string | null;
   requested_asap: boolean;
@@ -301,10 +301,13 @@ interface BookingRow {
   barber_live_lng: number | null;
   barber_location_updated_at: string | null;
   payment_due_at: string | null;
+  open_request: boolean;
+  requested_services: { name: string; quantity: number }[] | null;
+  price_confirm_due_at: string | null;
 }
 
 const BOOKING_COLUMNS =
-  "id, customer_id, barber_id, service_name_snapshot, price_cents_snapshot, duration_minutes_snapshot, address, note, requested_asap, scheduled_at, status, cancelled_reason, cancelled_by, created_at, completed_at, lat, lng, barber_live_lat, barber_live_lng, barber_location_updated_at, payment_due_at";
+  "id, customer_id, barber_id, service_name_snapshot, price_cents_snapshot, duration_minutes_snapshot, address, note, requested_asap, scheduled_at, status, cancelled_reason, cancelled_by, created_at, completed_at, lat, lng, barber_live_lat, barber_live_lng, barber_location_updated_at, payment_due_at, open_request, requested_services, price_confirm_due_at";
 
 function mapBooking(row: BookingRow): BookingRecord {
   return {
@@ -329,6 +332,9 @@ function mapBooking(row: BookingRow): BookingRecord {
     barberLiveLng: row.barber_live_lng,
     barberLocationUpdatedAt: row.barber_location_updated_at,
     paymentDueAt: row.payment_due_at,
+    openRequest: row.open_request,
+    requestedServices: row.requested_services,
+    priceConfirmDueAt: row.price_confirm_due_at,
   };
 }
 
@@ -417,6 +423,32 @@ export async function createBookingWithServices(
     p_lat: input.lat ?? null,
     p_lng: input.lng ?? null,
     p_lines: input.lines.map((l) => ({ service_id: l.serviceId, quantity: l.quantity })),
+  });
+  if (rpcError || !bookingId) return { booking: null, errorMessage: rpcError?.message ?? null };
+  return { booking: await getBooking(supabase, bookingId as string), errorMessage: null };
+}
+
+export interface CreateOpenBroadcastRequestInput {
+  lines: { name: string; quantity: number }[];
+  address: string;
+  note: string | null;
+  lat: number;
+  lng: number;
+}
+
+// Alleen voor ASAP automatisch-toewijzen zonder match (0042) — zie
+// create_open_broadcast_request() in de migratie voor de volledige
+// toelichting. Altijd ASAP, geen scheduledAt-parameter.
+export async function createOpenBroadcastRequest(
+  supabase: SupabaseClient,
+  input: CreateOpenBroadcastRequestInput
+): Promise<CreateBookingResult> {
+  const { data: bookingId, error: rpcError } = await supabase.rpc("create_open_broadcast_request", {
+    p_address: input.address,
+    p_note: input.note,
+    p_lat: input.lat,
+    p_lng: input.lng,
+    p_lines: input.lines,
   });
   if (rpcError || !bookingId) return { booking: null, errorMessage: rpcError?.message ?? null };
   return { booking: await getBooking(supabase, bookingId as string), errorMessage: null };
@@ -638,7 +670,12 @@ export async function getConflictingScheduledBooking(
     .find((b) => {
       if (!b.scheduledAt) return false;
       const existingStart = new Date(b.scheduledAt).getTime();
-      const existingEnd = existingStart + b.durationMinutes * 60000;
+      // Deze query filtert al op status=accepted/requested_asap=false,
+      // dus durationMinutes is hier in de praktijk altijd gezet (alleen
+      // een open_request-aanvraag kan null zijn, en die is nooit
+      // requested_asap=false) — de ?? 0 is puur om TypeScript gerust te
+      // stellen, geen verwacht pad.
+      const existingEnd = existingStart + (b.durationMinutes ?? 0) * 60000;
       return candidateStart < existingEnd && existingStart < candidateEnd;
     });
   return conflict ?? null;
@@ -814,6 +851,26 @@ export async function claimBooking(
     .maybeSingle();
   if (error || !data) return { success: false, booking: null };
   return { success: true, booking: mapBooking(data as unknown as BookingRow) };
+}
+
+// Alleen voor een open_request-aanvraag in status price_pending (0042)
+// — klant weigert de voorgestelde prijs, aanvraag valt terug naar
+// 'requested' en wordt weer zichtbaar/claimbaar voor een andere barber.
+export async function declinePriceAndReopen(supabase: SupabaseClient, bookingId: string): Promise<boolean> {
+  const { error } = await supabase.rpc("decline_price_and_reopen", { p_booking_id: bookingId });
+  return !error;
+}
+
+// Barber claimt een open_request-aanvraag (0042) tegen zijn eigen
+// prijzen — zet status naar price_pending, niet accepted. Zie
+// claim_open_broadcast_request() in de migratie.
+export async function claimOpenBroadcastRequest(
+  supabase: SupabaseClient,
+  bookingId: string
+): Promise<{ success: boolean; booking: BookingRecord | null; errorMessage: string | null }> {
+  const { data, error } = await supabase.rpc("claim_open_broadcast_request", { p_booking_id: bookingId });
+  if (error || !data) return { success: false, booking: null, errorMessage: error?.message ?? null };
+  return { success: true, booking: await getBooking(supabase, data as string), errorMessage: null };
 }
 
 // ============================================================

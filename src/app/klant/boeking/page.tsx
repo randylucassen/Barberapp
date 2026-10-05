@@ -7,6 +7,7 @@ import { AddressAutocomplete, Avatar, Row } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import {
   createBookingWithServices,
+  createOpenBroadcastRequest,
   findNearestEligibleBarber,
   geocodeAddress,
   getCustomerProfile,
@@ -91,6 +92,11 @@ function BookingContent() {
   const [matchError, setMatchError] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [matchedGeo, setMatchedGeo] = useState<{ lat: number; lng: number } | null>(null);
+  // Alleen voor ASAP automatisch-toewijzen zonder match (0042): niet
+  // meer blokkeren, in plaats daarvan een open-aanvraag-zonder-prijs
+  // versturen. "Plan vooruit" zonder match blijft wél geblokkeerd (zie
+  // de scope-afweging in de migratie-header).
+  const [noMatchFound, setNoMatchFound] = useState(false);
   // null = nog niet bekend/niet van toepassing (auto-mode matcht toch al
   // alleen beschikbare barbers), false = de gekozen barber is nu offline
   // of al bezet met een andere rit. Klant kon dit voorheen nergens zien —
@@ -193,6 +199,7 @@ function BookingContent() {
     // bestemming ontbrak.
     setMatching(true);
     setMatchError(null);
+    setNoMatchFound(false);
     const geo = await geocodeAddress(address);
     if (!geo) {
       setMatching(false);
@@ -218,6 +225,14 @@ function BookingContent() {
     );
     setMatching(false);
     if (!match) {
+      // Alleen ASAP mag altijd versturen (0042) — "plan vooruit" zonder
+      // match blijft geblokkeerd, zelfde reden als in de migratie-
+      // header: de 1-uur/30-minuten-vensters horen bij een spoedaanvraag.
+      if (asap) {
+        setNoMatchFound(true);
+        setDlg(true);
+        return;
+      }
       router.push("/klant/fout/nobarbers");
       return;
     }
@@ -241,11 +256,39 @@ function BookingContent() {
   }
 
   async function handleConfirm() {
-    if (!userId || lines.length === 0) return;
+    if (!userId) return;
+    if (!noMatchFound && lines.length === 0) return;
     if (!auto && !resolvedBarberId) return;
     setSubmitting(true);
     setBookingError(null);
     const client = createClient();
+
+    // Geen match gevonden (altijd ASAP, zie handleStartConfirm): een
+    // open-aanvraag-zonder-prijs versturen i.p.v. de normale, al-
+    // geprijsde boeking — er is nog geen barber om een prijs aan te
+    // ontlenen (0042).
+    if (noMatchFound) {
+      if (!matchedGeo) {
+        setSubmitting(false);
+        setBookingError("Kon je adres niet automatisch lokaliseren. Probeer het opnieuw.");
+        return;
+      }
+      const { booking, errorMessage } = await createOpenBroadcastRequest(client, {
+        lines: wantedServices.map((w) => ({ name: w.name, quantity: w.quantity })),
+        address: address || "Onbekend adres",
+        note: note || null,
+        lat: matchedGeo.lat,
+        lng: matchedGeo.lng,
+      });
+      setSubmitting(false);
+      if (booking) {
+        setDlg(false);
+        router.push(`/klant/status?bookingId=${booking.id}`);
+      } else {
+        setBookingError(errorMessage || "Aanvraag versturen is niet gelukt. Probeer het nog eens.");
+      }
+      return;
+    }
 
     let scheduledAt: string | null = null;
     if (!asap && date && time) {
@@ -456,9 +499,11 @@ function BookingContent() {
           </>
         }
       >
-        {auto
-          ? "De dichtstbijzijnde geschikte barber krijgt je aanvraag direct. Je betaling staat veilig vast tot na afloop."
-          : `${barber?.fullName?.split(" ")[0] ?? "De barber"} krijgt je aanvraag direct. Je betaling staat veilig vast tot na afloop.`}
+        {noMatchFound
+          ? "Nu is er niemand beschikbaar in de buurt, maar je aanvraag blijft 1 uur open — zodra een barber 'm oppakt, krijg je de prijs te zien om te bevestigen."
+          : auto
+            ? "De dichtstbijzijnde geschikte barber krijgt je aanvraag direct. Je betaling staat veilig vast tot na afloop."
+            : `${barber?.fullName?.split(" ")[0] ?? "De barber"} krijgt je aanvraag direct. Je betaling staat veilig vast tot na afloop.`}
         {!asap && date && time && ` Gepland voor ${formatPlannedLabel(date, time)}.`}
         {bookingError && (
           <div className="mt-3 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">

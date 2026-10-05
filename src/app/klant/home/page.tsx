@@ -32,6 +32,7 @@ const SERVICE_TAGS = ["Knipbeurt", "Baard trimmen", "Knippen + baard", "Kids"];
 
 const ACTIVE_STATUS_LABEL: Record<BookingStatus, string> = {
   requested: "Aangevraagd — wachten op een barber",
+  price_pending: "Barber gevonden — bevestig de prijs",
   accepted: "Bevestigd",
   en_route: "Barber is onderweg",
   arrived: "Barber is aangekomen",

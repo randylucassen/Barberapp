@@ -7,6 +7,7 @@ import { Avatar, Row } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import {
   claimBooking,
+  claimOpenBroadcastRequest,
   getBookingCustomerName,
   getBookingServiceLines,
   getConflictingScheduledBooking,
@@ -71,7 +72,36 @@ export default function RequestPage() {
         return;
       }
       setBooking(broadcast);
-      setLines(await getBookingServiceLines(supabase, broadcast.id));
+      if (broadcast.openRequest && broadcast.requestedServices) {
+        // Nog geen booking_services (0042, "altijd kunnen versturen"-
+        // aanvraag zonder match) — toon in plaats daarvan een
+        // voorvertoning-prijs op basis van de EIGEN services van deze
+        // barber. Puur ter preview: claim_open_broadcast_request()
+        // berekent het autoritatieve bedrag straks opnieuw.
+        const names = broadcast.requestedServices.map((s) => s.name);
+        const { data: ownServices } = await supabase
+          .from("services")
+          .select("id, name, price_cents, duration_minutes")
+          .eq("barber_id", data.user.id)
+          .in("name", names)
+          .eq("active", true);
+        const byName = new Map((ownServices ?? []).map((s) => [s.name as string, s]));
+        setLines(
+          broadcast.requestedServices.map((w, i) => {
+            const s = byName.get(w.name);
+            return {
+              id: `preview-${i}`,
+              serviceId: (s?.id as string) ?? null,
+              serviceName: w.name,
+              quantity: w.quantity,
+              unitPriceCents: (s?.price_cents as number) ?? 0,
+              unitDurationMinutes: (s?.duration_minutes as number) ?? 0,
+            };
+          })
+        );
+      } else {
+        setLines(await getBookingServiceLines(supabase, broadcast.id));
+      }
       setIsBroadcast(true);
       // Bij een automatisch-toegewezen aanvraag is de klantnaam pas
       // zichtbaar ná claimen (get_booking_customer_name vereist dat
@@ -125,6 +155,28 @@ export default function RequestPage() {
     // dashboard laat de nieuwe "Geplande afspraken"-sectie 'm meteen zien.
     const destination = booking.requestedAsap ? "/barber/rit" : "/barber/dashboard";
 
+    if (isBroadcast && booking.openRequest) {
+      // Nog geen bevestigde klant — de prijs is net tegen MIJN eigen
+      // services berekend (zie claim_open_broadcast_request()), maar de
+      // klant moet die nog bevestigen vóór er sprake is van een
+      // afspraak. Dus altijd terug naar dashboard, nooit de ritflow in.
+      const { success, errorMessage } = await claimOpenBroadcastRequest(supabase, booking.id);
+      if (success) {
+        router.push("/barber/dashboard");
+      } else {
+        if (errorMessage?.includes("niet (meer) alle gevraagde diensten")) {
+          setAcceptError("Je biedt niet (meer) alle gevraagde diensten aan.");
+          setBusy(false);
+          handledRef.current = false;
+        } else {
+          setTakenError(true);
+          setBusy(false);
+          handledRef.current = false;
+        }
+      }
+      return;
+    }
+
     if (isBroadcast) {
       const barberId = userIdRef.current;
       if (!barberId) return;
@@ -162,7 +214,11 @@ export default function RequestPage() {
           supabase,
           barberId,
           booking.scheduledAt,
-          booking.durationMinutes
+          // Alleen bereikt voor een geplande boeking (requestedAsap
+          // false) — die heeft altijd een duration; een open_request-
+          // aanvraag (waar durationMinutes wél null kan zijn) is altijd
+          // asap en komt hier dus nooit.
+          booking.durationMinutes ?? 0
         );
         setBusy(false);
         if (found) {
@@ -192,7 +248,12 @@ export default function RequestPage() {
     );
   }
 
-  const earningCents = computePriceBreakdown(booking.priceCents).barberPayoutCents;
+  // Voor een open_request-aanvraag (nog geen prijs op de boeking zelf)
+  // is de som van de voorvertoning-regels (lines) het beste dat
+  // beschikbaar is — claim_open_broadcast_request() berekent het
+  // autoritatieve bedrag opnieuw op het moment van accepteren.
+  const previewTotalCents = lines.reduce((sum, l) => sum + l.unitPriceCents * l.quantity, 0);
+  const earningCents = computePriceBreakdown(booking.priceCents ?? previewTotalCents).barberPayoutCents;
 
   return (
     <div className="flex flex-col h-full">
@@ -223,8 +284,8 @@ export default function RequestPage() {
             <Row
               left={<span className="text-primary"><Scissors size={20} /></span>}
               title={booking.serviceName}
-              sub={`${booking.durationMinutes} min`}
-              right={<span className="font-bold text-[17px]">€{euro(booking.priceCents)}</span>}
+              sub={booking.durationMinutes !== null ? `${booking.durationMinutes} min` : undefined}
+              right={<span className="font-bold text-[17px]">€{euro(booking.priceCents ?? 0)}</span>}
             />
           )}
           <Row left={<span className="text-primary"><MapPin size={20} /></span>} title={booking.address} />

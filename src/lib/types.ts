@@ -71,6 +71,10 @@ export interface BarberInvoice {
 
 export type BookingStatus =
   | "requested"
+  // Alleen voor een open_request-aanvraag (automatisch toewijzen zonder
+  // match, zie migratie 0042): een barber heeft 'm geclaimd tegen zijn
+  // eigen prijs, maar de klant moet die prijs nog bevestigen.
+  | "price_pending"
   | "accepted"
   | "en_route"
   | "arrived"
@@ -127,9 +131,11 @@ export interface BookingRecord {
   // boeking kan meerdere diensten bevatten. Zie getBookingServiceLines()
   // in queries.ts voor de individuele regels.
   serviceName: string;
-  // Som over alle dienst-regels (aantal x prijs/duur per regel).
-  priceCents: number;
-  durationMinutes: number;
+  // Som over alle dienst-regels (aantal x prijs/duur per regel). Null
+  // voor een open_request-aanvraag die nog niet geclaimd is (0042) —
+  // er is dan nog geen barber om een prijs aan te ontlenen.
+  priceCents: number | null;
+  durationMinutes: number | null;
   address: string;
   note: string | null;
   requestedAsap: boolean;
@@ -154,6 +160,14 @@ export interface BookingRecord {
   // Alleen gezet voor een geaccepteerde, geplande boeking zonder
   // betaling (0040) — de klant heeft tot dit tijdstip om te betalen.
   paymentDueAt: string | null;
+  // Hieronder: alleen relevant voor een open_request-aanvraag (0042,
+  // automatisch toewijzen zonder match). openRequest blijft true, ook
+  // ná claimen/weigeren — puur een historisch label.
+  openRequest: boolean;
+  requestedServices: { name: string; quantity: number }[] | null;
+  // Alleen gezet zodra status price_pending is — de klant heeft tot dit
+  // tijdstip om de zojuist bepaalde prijs te bevestigen.
+  priceConfirmDueAt: string | null;
 }
 
 // Fase 6 — alleen select-baar door de klant/barber van de eigen boeking

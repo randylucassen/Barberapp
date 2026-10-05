@@ -3096,3 +3096,123 @@ identiek aan de al-geverifieerde native fix (zie `KPPRTJE-app`'s eigen
 CLAUDE.md voor de volledige verificatie, incl. een rechtstreekse
 REST-query die bevestigde dat `completed_at`/`created_at` in de praktijk
 daadwerkelijk uiteenlopen).
+
+## "Altijd een aanvraag kunnen versturen" bij automatisch toewijzen (2026-10-05)
+
+Gemeld: bij "snelst beschikbare barber" (automatisch toewijzen) kon de
+klant helemaal geen aanvraag versturen zodra er op dat moment niemand
+online/in de buurt was — harde blokkade, geen enkele aanvraag kwam ooit
+in de database terecht. Gewenst (met de gebruiker afgestemd, zie het
+plan-bestand voor de volledige afweging): een klant moet **altijd** een
+ASAP-aanvraag kunnen versturen, die **1 uur** geldig blijft. Zodra een
+barber 'm claimt — nu, of pas zodra hij later online komt (dat laatste
+werkt al via de bestaande live-RLS-poll, geen wijziging nodig) — gebruikt
+die barber zijn **eigen** prijzen (sinds migratie 0041 bepalen barbers
+zelf hun prijs per dienst), dus de klant kent de prijs nog niet vooraf en
+moet die binnen **30 minuten** na het claimen bevestigen vóór het
+doorgaat naar betalen. Weigert de klant, of reageert niet op tijd, dan
+staat de aanvraag automatisch weer open voor een andere barber (geen
+annulering — dat is een aparte, bewuste klant-actie via de bestaande
+annuleer-flow).
+
+**Bewust beperkt tot ASAP** — "plan vooruit" zonder match blijft
+geblokkeerd zoals vandaag; de 1-uur/30-minuten-vensters horen bij een
+spoedaanvraag, niet bij een over-een-week-geplande afspraak.
+
+**Nieuwe migratie `supabase/migrations/0042_open_broadcast_requests.sql`**
+(nog niet gepusht):
+- Nieuwe `booking_status`-enumwaarde `price_pending` (tussen `requested`
+  en `accepted`) — bewust geen hergebruik van `accepted`: die status zit
+  in `ACTIVE_RIDE_STATUSES` op het barber-dashboard, en `isRideDue()` zou
+  een asap-boeking met status `accepted` altijd als "nu rijden"-klaar
+  beschouwen. Een nieuwe enum-waarde dwingt bovendien elke
+  `Record<BookingStatus, ...>`-plek in de TypeScript-code tot een
+  compile-fout totdat 'm expliciet is afgehandeld (zelfde eerder bewezen
+  patroon als `notification_type`/`barber_status`/`escrow_state`).
+- `bookings.price_cents_snapshot`/`duration_minutes_snapshot` zijn nu
+  nullable (waren `not null`) — een open-aanvraag heeft bij het
+  versturen nog geen gematchte barber om een prijs aan te ontlenen.
+- Nieuwe kolommen: `open_request` (true alleen voor dit nieuwe
+  aanvraagtype, blijft true ook ná claimen/weigeren — puur een
+  historisch label), `requested_services` (jsonb, dienstnamen i.p.v.
+  service_id's — er is nog geen barber om een catalogus-id aan te
+  ontlenen), `price_confirm_due_at` (30-minuten-deadline, zelfde patroon
+  als `payment_due_at` uit 0040).
+- Drie nieuwe RPC's: `create_open_broadcast_request()` (maakt de
+  prijsloze aanvraag aan, nog geen `booking_services`-rijen),
+  `claim_open_broadcast_request()` (barber claimt 'm tegen zijn EIGEN
+  prijzen — zoekt zijn services op naam op, berekent het bedrag ter
+  plekke, zet status naar `price_pending` i.p.v. `accepted`, maakt dan
+  pas de `booking_services`-rijen aan), `decline_price_and_reopen()`
+  (klant weigert — maakt de claim ongedaan, aanvraag valt terug naar
+  `requested`, opnieuw zichtbaar/claimbaar voor een andere barber).
+- `barber_matches_location_and_service()` herschreven met een tweede
+  matchpad (op `requested_services`-namen i.p.v. `booking_services`-
+  regels, voor een aanvraag die nog niet geclaimd is).
+- `barber_is_online_and_available()` herschreven: `price_pending`
+  toegevoegd aan de actieve-boeking-uitsluiting — een barber die al op
+  een klant-bevestiging wacht, telt niet meer als "beschikbaar" voor een
+  nieuwe match/claim.
+- Vier bestaande RLS-policies (0040) krijgen `or bookings.open_request`
+  — zonder dit ziet geen barber een open-ASAP-aanvraag-zonder-prijs ooit
+  (die heeft per definitie geen `payments`-rij en `requested_asap=true`,
+  dus de bestaande `(booking_has_payment(..) or not requested_asap)`-
+  voorwaarde is daar altijd `false`).
+- `check_booking_status_transition()`/`notify_customer_on_status_change()`
+  herschreven met nieuwe toegestane overgangen/meldingen voor
+  `price_pending` (binnenkomen, klant-bevestiging, terugval naar
+  `requested`).
+- Nieuwe pg_cron-job `expire-price-pending-requests-job` (elke 5 min,
+  zelfde cadans als de bestaande crons) — **reopen, geen cancel**: een
+  verlopen `price_confirm_due_at` zet de claim terug naar `requested`
+  (zelfde reset als `decline_price_and_reopen()`), geen refund-stap
+  nodig (er is nooit iets afgeschreven vóór een prijs bekend is).
+
+**`src/app/api/cron/expire-stale-requests/route.ts`**: de bestaande
+30-minuten-cron filtert nu `open_request=false` (normale aanvragen
+ongewijzigd), plus een nieuwe, parallelle 1-uurs-tak specifiek voor
+onge­claimde open-aanvragen — dit is de enige échte "definitief dood"-
+grens voor het hele traject (vanaf de oorspronkelijke `created_at`, nooit
+gereset door een tussentijdse claim-en-weigering).
+
+**Nieuw bestand `src/app/api/cron/expire-price-pending-requests/
+route.ts`** — de 30-minuten-prijsbevestigingsdeadline, losse
+single-purpose-route (zelfde conventie als de andere expiry-crons).
+
+**UI**: `klant/boeking/page.tsx` blokkeert niet meer bij 0 matches voor
+een ASAP-aanvraag (alleen nog voor gepland, via de bestaande
+`/klant/fout/nobarbers`-redirect) — toont in plaats daarvan de gevraagde
+diensten zonder prijs en verstuurt via een nieuwe
+`createOpenBroadcastRequest()`-helper (`queries.ts`). `klant/status/
+page.tsx` kreeg een `price_pending`-tak met drie acties ("Akkoord, ga
+naar betalen", "Weiger, zoek een andere barber" — nieuwe inline Dialog,
+en de bestaande "Annuleer aanvraag"-flow die nu ook `price_pending`
+accepteert). `barber/aanvraag/page.tsx` toont voor een open-aanvraag een
+voorvertoning-prijs (opgehaald uit de eigen services van de ingelogde
+barber, puur ter preview — de RPC berekent het autoritatieve bedrag
+opnieuw) en claimt via de nieuwe RPC i.p.v. de kale status-update, route
+altijd terug naar het dashboard (nooit de ritflow in — er is nog geen
+bevestigde klant). `BookingRecord.priceCents`/`durationMinutes` zijn nu
+`number | null` — dit dwong via TypeScript-compile-fouten elke
+aanraakplek in de hele codebase af (`barber/afspraak/page.tsx`,
+`barber/rit/page.tsx`, `klant/annuleren/page.tsx`, `barber/dashboard/
+page.tsx`'s `STATUS_BADGE`, `klant/home/page.tsx`'s
+`ACTIVE_STATUS_LABEL`) — overal een null-safe fallback toegevoegd, met
+een toelichting per plek of dat puur defensief is (die status wordt daar
+nooit écht bereikt) of een echt bereikbaar nieuw pad.
+
+**Zelfde feature ook 1-op-1 native gebouwd** — zie `KPPRTJE-app`'s eigen
+CLAUDE.md voor de volledige toelichting van de native-specifieke
+architectuur (elk scherm doet eigen inline Supabase-calls, geen gedeelde
+`queries.ts` zoals hier).
+
+**Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon op beide
+repo's. **Nog niet live getest** — dit is een substantiële wijziging aan
+de boekings-state-machine (nieuwe statuswaarde, nieuwe RLS, twee nieuwe
+crons) die een geschreven-maar-niet-gepushte migratie vereist. Zodra de
+gebruiker bevestigt dat migratie 0042 live staat, moet de volledige flow
+nog end-to-end doorlopen worden (zie het plan-bestand se eigen
+verificatiesectie voor het volledige testscenario: aanvragen zonder
+online barber, claimen, drie paden vanaf het klant-statusscherm,
+beide cron-routes handmatig triggeren met een kunstmatig verstreken
+deadline).

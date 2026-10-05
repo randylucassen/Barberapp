@@ -70,7 +70,11 @@ function AppointmentContent() {
     return <div className="flex flex-col h-full items-center justify-center text-text-secondary">Laden…</div>;
   }
 
-  const earningCents = computePriceBreakdown(booking.priceCents).barberPayoutCents;
+  // Dit scherm toont alleen geaccepteerde, geplande boekingen — nooit
+  // een open_request/price_pending-aanvraag (die is altijd asap, zie
+  // migratie 0042) — priceCents is hier dus in de praktijk altijd
+  // gezet; de ?? 0 is puur om TypeScript gerust te stellen.
+  const earningCents = computePriceBreakdown(booking.priceCents ?? 0).barberPayoutCents;
   const canCancel = booking.status === "accepted";
 
   return (
@@ -109,8 +113,8 @@ function AppointmentContent() {
           <Row
             left={<span className="text-primary"><Scissors size={20} /></span>}
             title={booking.serviceName}
-            sub={`${booking.durationMinutes} min`}
-            right={<span className="font-bold text-[17px]">€{euro(booking.priceCents)}</span>}
+            sub={booking.durationMinutes !== null ? `${booking.durationMinutes} min` : undefined}
+            right={<span className="font-bold text-[17px]">€{euro(booking.priceCents ?? 0)}</span>}
           />
           <Row left={<span className="text-primary"><MapPin size={20} /></span>} title={booking.address} />
           {booking.note && (
