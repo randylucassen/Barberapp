@@ -3207,12 +3207,74 @@ architectuur (elk scherm doet eigen inline Supabase-calls, geen gedeelde
 `queries.ts` zoals hier).
 
 **Geverifieerd**: `npx tsc --noEmit`/`npm run lint` schoon op beide
-repo's. **Nog niet live getest** — dit is een substantiële wijziging aan
-de boekings-state-machine (nieuwe statuswaarde, nieuwe RLS, twee nieuwe
-crons) die een geschreven-maar-niet-gepushte migratie vereist. Zodra de
-gebruiker bevestigt dat migratie 0042 live staat, moet de volledige flow
-nog end-to-end doorlopen worden (zie het plan-bestand se eigen
-verificatiesectie voor het volledige testscenario: aanvragen zonder
-online barber, claimen, drie paden vanaf het klant-statusscherm,
-beide cron-routes handmatig triggeren met een kunstmatig verstreken
-deadline).
+repo's.
+
+## Migratie 0042 opgesplitst + live geverifieerd, twee echte bugs gevonden (2026-10-05)
+
+De oorspronkelijke migratie heette eenmalig `0042_open_broadcast_
+requests.sql` maar `supabase db push` faalde met SQLSTATE 55P04
+("unsafe use of new value ... in the same transaction"): Postgres
+staat niet toe dat een zojuist toegevoegde enum-waarde in dezelfde
+transactie al gebruikt wordt door een `language sql`-functie (die
+wordt direct bij `create function` tegen de catalogus gevalideerd, in
+tegenstelling tot `language plpgsql`, waarvan de body pas bij de
+eerste aanroep gelezen wordt) — `barber_is_online_and_available()`
+deed dat. Opgesplitst in **0042_price_pending_enum_value.sql** (alleen
+de `alter type ... add value`, eigen gecommite migratie) en
+**0043_open_broadcast_requests.sql** (de rest, ongewijzigd). Dit
+patroon (enum-waarde in een eigen voorafgaande migratie) is het nieuwe
+precedent voor elke toekomstige `add value` die in dezelfde ronde door
+een `language sql`-functie gebruikt wordt.
+
+Daarna de **volledige flow live doorlopen** met de testaccounts
+(`test1234@test.nl`/`test12345@test.nl`, rechtstreeks via RPC/REST —
+niet via de UI, zelfde reden als altijd: klik-flakiness in de
+browser-tool). Twee echte, niet-getheoretiseerde bugs gevonden en
+gefixt:
+
+- **0044**: `claim_open_broadcast_request()` is `SECURITY DEFINER` en
+  query't/update't `bookings` dus BUITEN RLS om — de aanname in 0043
+  ("de RLS-select-policy is de poort, geen aparte check nodig") klopt
+  niet voor een SECURITY DEFINER-functie se eigen interne queries. Live
+  aangetoond: een bewust **offline** testbarber kon een open aanvraag
+  alsnog claimen. Fix: `barber_is_online_and_available()` +
+  `barber_matches_location_and_service()` nu expliciet herhaald binnen
+  de functie, vóór er iets wijzigt.
+- **0045**: `check_booking_status_transition()`'s bewaking op
+  `barber_id`-wijzigingen had maar één uitzondering (claimen). Elke
+  andere wijziging — inclusief `decline_price_and_reopen()`'s
+  `barber_id -> null` — werd altijd geweigerd. De "weiger, zoek een
+  andere barber"-knop zou voor **geen enkele klant** ooit gewerkt
+  hebben. Fix: een tweede bypass toegevoegd voor exact die overgang.
+
+**Volledig live bevestigd** (webapp-commits `eaea4d8`/`927b602`/
+`c79521a` gepusht naar `origin/main`, Vercel-deploy afgewacht vóór de
+cron-tests):
+1. Aanvragen zonder online barber → `open_request=true`, geen prijs.
+2. Barber online brengen → zichtbaar via bestaande live-RLS-poll
+   (geen wijziging nodig, zoals verwacht).
+3. Claimen → `price_pending`, prijs/duur correct uit de EIGEN services
+   van de claimende barber, `price_confirm_due_at` 30 min vooruit,
+   `booking_services` correct aangemaakt.
+4. Klant akkoord → `accepted` (bestaand betaal-pad).
+5. Klant weigert → terug naar `requested`, `booking_services`
+   opgeruimd, meteen weer zichtbaar voor een (andere) barber.
+6. Klant annuleert (via de echte `/api/stripe/cancel-and-refund`-
+   route) → `cancelled`, geen kosten (nog nooit betaald vóór een
+   prijs bekend is).
+7. `expire-price-pending-requests`-cron (handmatig getriggerd, 30-min
+   deadline kunstmatig in het verleden gezet) → reopen, identiek aan
+   `decline_price_and_reopen()`.
+8. `expire-stale-requests`-cron, de nieuwe 1-uurs-tak (handmatig
+   getriggerd, `created_at` kunstmatig 65 min terug gezet) → definitief
+   geannuleerd met de juiste "niemand heeft binnen 1 uur gereageerd"-
+   tekst.
+
+**Zijdelings gevonden en gefixt**: de primaire demo-barber
+(`test12345@test.nl`) had `lat`/`lng` = null in `barber_profiles` —
+geocoding was hier nooit voor gezet, dus deze account kon NOOIT via
+locatie gematcht worden, los van online-status. Rechtgezet naar een
+Nijmegen-coördinaat (zelfde stad als `city`) zodat dit account weer
+bruikbaar is voor matching-demo's. Niet gerelateerd aan het eerder onderzochte "Randy van Londen"-account
+(een ander, niet-geseed account — dat bleek simpelweg niet online
+gezet, geen bug, zie de native repo's CLAUDE.md voor die bevinding).

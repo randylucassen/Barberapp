@@ -2755,6 +2755,33 @@ volgende build" in CLAUDE.md voor de volledige toelichting. **Migratie
 afhankelijkheidspatroon als migratie 0040 hierboven) — bij het schrijven
 van deze notitie nog niet gepusht.
 
+## Altijd een aanvraag kunnen versturen bij automatisch toewijzen (2026-10-05)
+
+Tot nu toe blokkeerde de klant-app volledig zodra "automatisch
+toewijzen" (ASAP) gekozen werd en er op dat moment niemand online/in de
+buurt was. Nu kan een klant **altijd** zo'n aanvraag versturen; die
+blijft 1 uur geldig en wordt zichtbaar voor elke geschikte barber zodra
+die online komt (bestaande live-RLS-poll, ongewijzigd). Omdat barbers
+sinds Fase 11 zelf hun prijzen bepalen, is de prijs bij het versturen
+nog onbekend — zodra een barber 'm claimt (tegen zijn eigen prijzen)
+krijgt de klant 30 minuten om die prijs te bevestigen voor het
+doorgaat naar betalen, via een nieuwe tussenstatus `price_pending`.
+Bewust beperkt tot ASAP — "plan vooruit" zonder match blijft
+geblokkeerd. Volledige architectuur/migraties: zie CLAUDE.md
+("Altijd een aanvraag kunnen versturen..." en de daaropvolgende
+migratie-split/bugfix-sectie).
+
+**Live geverifieerd na het pushen** (niet alleen getest op papier): de
+hele flow — versturen zonder match, barber online brengen, claimen,
+alle drie klant-paden (akkoord/weiger/annuleer), en beide nieuwe cron-
+routes (30-min reopen, 1-uur definitief annuleren) — rechtstreeks tegen
+productie doorlopen met de bestaande testaccounts. Daarbij zijn twee
+echte bugs gevonden en gefixt die bij alleen code-review gemist waren:
+een `SECURITY DEFINER`-functie die buiten RLS om claimde (een offline
+barber kon zo elke aanvraag claimen) en een trigger-guard die de
+"weiger"-knop voor iedereen blokkeerde. Zie CLAUDE.md voor de volledige
+technische toelichting per fix.
+
 ## Roadmap
 
 Vervangen op 2026-07-17 door een gedetailleerdere versie van de gebruiker
