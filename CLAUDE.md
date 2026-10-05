@@ -3278,3 +3278,50 @@ Nijmegen-coördinaat (zelfde stad als `city`) zodat dit account weer
 bruikbaar is voor matching-demo's. Niet gerelateerd aan het eerder onderzochte "Randy van Londen"-account
 (een ander, niet-geseed account — dat bleek simpelweg niet online
 gezet, geen bug, zie de native repo's CLAUDE.md voor die bevinding).
+
+## "Boeking kan niet meer betaald worden" + betaalscherm-fixes (2026-10-05)
+
+Twee door de gebruiker gemelde problemen op het echte betaalscherm.
+
+**Onbetaalde boeking bleef als "lopende boeking" staan**: de boeking
+wordt al aangemaakt (status `requested`, geen betaling) vóórdat
+`/klant/betaling` ooit rendert — terugnavigeren annuleerde 'm nooit,
+dus bleef 'ie tot de 30-minuten-cron als actieve boeking op Home staan
+(`.not("status","in","(completed,cancelled)")`), terwijl geen barber
+'m ooit kon zien (RLS vereist `booking_has_payment()`). Gefixt in
+`src/app/klant/betaling/page.tsx`: de terugknop annuleert nu eerst de
+boeking (`status='requested' -> 'cancelled'`) vóórdat `router.back()`
+loopt. **Bewust aan de expliciete terugknop gehangen, niet aan een
+generieke unmount-`useEffect`**: bij iDEAL navigeert
+`stripe.confirmPayment({redirect:"if_required"})` de hele pagina weg
+naar een Stripe-gehoste pagina — een cleanup-effect zou die navigatie
+ook als "verlaten zonder betalen" zien en een boeking met een
+onderweg-zijnde betaling verkeerd annuleren. Zelfde bug + zelfde fix
+ook in de native app (`KPPRTJE-app/src/app/klant/betaling.tsx`) — daar
+wél via een unmount-`useEffect`, want de native PaymentSheet handelt
+redirect-vereisende methodes in een eigen modal af zonder het scherm
+te unmounten, dus die race bestaat daar niet.
+
+**"Deze boeking kan niet meer betaald worden" (409)** — een
+pre-existing bug, niet geïntroduceerd door bovenstaande fix of door de
+0042/0043-feature, maar wel daardoor aan het licht gekomen.
+`src/app/api/stripe/create-payment-intent/route.ts` accepteerde sinds
+de invoering ooit alleen `status === 'requested'`. Twee latere flows
+landen echter op `/klant/betaling` terwijl de status al naar
+`accepted` is opgeschoven: de "Betaal nu"-knop voor geplande boekingen
+(`payment_due_at`, commit `3d94ba9`, "Defer payment to after barber
+acceptance") én de nieuwe "Akkoord, ga naar betalen"-knop na een
+price_pending-bevestiging (0042/0043). Beide liepen hier altijd op
+vast. Root cause: de `existingPayment`-check (plus Stripe's
+`idempotencyKey: payment-intent-${bookingId}`) is de eigenlijke
+bescherming tegen dubbel betalen — niet deze statuscheck — dus de
+check verruimd naar `status !== 'requested' && status !== 'accepted'`.
+Live geverifieerd tegen de lokale dev-server (productie-Supabase):
+nieuwe price_pending-flow slaagt nu (`200`, echte `clientSecret`), de
+oorspronkelijke `requested`-weg nog steeds ongewijzigd werkend (geen
+regressie), en een al-geannuleerde boeking nog steeds correct
+geweigerd (`409`).
+
+Beide fixes gecommit en gepusht (`d02436a` native, `107c0e2` + `bd2f8d5`
+webapp) — Vercel deployt automatisch; de native fix zit nog niet in een
+build.
