@@ -34,7 +34,17 @@ export async function POST(request: NextRequest) {
   if (!booking || booking.customer_id !== user.id) {
     return NextResponse.json({ error: "Boeking niet gevonden" }, { status: 404 });
   }
-  if (booking.status !== "requested") {
+  // 'requested': een asap-boeking die meteen betaalt (de oorspronkelijke,
+  // enige weg). 'accepted': twee latere routes landen hier óók op
+  // /klant/betaling terwijl de status al is opgeschoven — een geplande
+  // boeking die pas ná acceptatie betaalt (payment_due_at, 0040, "Betaal
+  // nu"-knop) én een price_pending-aanvraag die de klant zojuist heeft
+  // bevestigd (0042/0043, "Akkoord, ga naar betalen"). Beide hadden hier
+  // altijd op deze 'requested'-only check vastgelopen met "kan niet meer
+  // betaald worden" — de existingPayment-check hieronder (plus Stripe's
+  // idempotencyKey) blijft de enige échte bescherming tegen dubbel
+  // betalen, niet deze statuscheck.
+  if (booking.status !== "requested" && booking.status !== "accepted") {
     return NextResponse.json({ error: "Deze boeking kan niet meer betaald worden" }, { status: 409 });
   }
 
