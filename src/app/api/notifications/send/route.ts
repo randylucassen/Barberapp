@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const { data: notification } = await supabase
     .from("notifications")
-    .select("id, user_id, title, body")
+    .select("id, user_id, type, title, body, related_booking_id")
     .eq("id", notificationId)
     .single();
   if (!notification) {
@@ -32,11 +32,15 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("email, email_notifications_enabled")
+    .select("email, email_notifications_enabled, expo_push_token")
     .eq("id", notification.user_id)
     .single();
 
-  const results: { email: string | null; push: number } = { email: null, push: 0 };
+  const results: { email: string | null; push: number; expoPush: string | null } = {
+    email: null,
+    push: 0,
+    expoPush: null,
+  };
 
   if (profile?.email_notifications_enabled && profile.email && process.env.RESEND_API_KEY) {
     try {
@@ -96,6 +100,50 @@ export async function POST(request: NextRequest) {
           await supabase.from("push_subscriptions").delete().eq("id", sub.id);
         }
       }
+    }
+  }
+
+  // Echte mobiele pushmelding voor de native app (KPPRTJE-app), via
+  // Expo's gehoste push-service — dezelfde abstractie boven zowel APNs
+  // (iOS) als FCM (Android), geen eigen certificaten/keys nodig. Los
+  // van de hierboven staande Web Push (browser-only, andere
+  // token-vorm, zie push_subscriptions). `data` geeft het tikken op de
+  // melding genoeg mee om native naar de juiste boeking/scherm te
+  // routeren (zie app/_layout.tsx se notification-response-listener).
+  if (profile?.expo_push_token) {
+    try {
+      const res = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          to: profile.expo_push_token,
+          title: notification.title,
+          body: notification.body ?? "",
+          sound: "default",
+          data: {
+            notificationId: notification.id,
+            type: notification.type,
+            relatedBookingId: notification.related_booking_id,
+          },
+        }),
+      });
+      const json = (await res.json()) as { data?: { status: string; details?: { error?: string } } };
+      const ticket = json.data;
+      if (ticket?.status === "ok") {
+        results.expoPush = "sent";
+      } else {
+        results.expoPush = `error: ${ticket?.details?.error ?? "onbekend"}`;
+        // DeviceNotRegistered = het token is niet meer geldig (app
+        // verwijderd, opnieuw geïnstalleerd, enz.) — net als bij de
+        // 404/410-opruiming voor Web Push hierboven, dan niet blijven
+        // proberen.
+        if (ticket?.details?.error === "DeviceNotRegistered") {
+          await supabase.from("profiles").update({ expo_push_token: null }).eq("id", notification.user_id);
+        }
+      }
+    } catch (err) {
+      results.expoPush = `error: ${(err as Error).message}`;
+      Sentry.captureException(err);
     }
   }
 
