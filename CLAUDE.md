@@ -3435,3 +3435,66 @@ geblokkeerd met een duidelijke foutmelding (`"Nog niet betaald — kan
 nog niet van start"`); na een echte betaling slaagt `en_route` alsnog;
 annuleren van een onbetaalde geaccepteerde boeking blijft onaangetast
 werken.
+
+## payment_due_at niet teruggezet na betaling + "altijd online" + echte pushmeldingen (2026-10-06)
+
+Drie los van elkaar staande punten, zelfde dag.
+
+**`payment_due_at` bleef hangen na een geslaagde betaling** (live
+gevonden door de gebruiker: "Betaal nu" bleef staan ná het betalen).
+Niets zette dit veld terug naar null zodra er een `payments`-rij
+ontstond — trof zowel het nieuwe 15-minuten-venster (0048) als het
+al langer bestaande 24-uurs-venster voor geplande boekingen (0040).
+Fix (`0049_clear_payment_due_at_on_payment.sql`): een trigger op
+`payments` (AFTER INSERT) die de bijbehorende boeking se
+`payment_due_at` terugzet naar null, plus een eenmalige backfill voor
+al-betaalde boekingen die dit al meemaakten.
+
+**De betaalscherm-annulering-bij-verlaten zelf bleek ook te
+agressief** — zie de vorige sectie hierboven, teruggedraaid naar
+"gewoon `router.back()`", met de 15-min/24u-vensters + bestaande
+"Betaal nu"-knop als het enige vangnet.
+
+**Native had geen directe betaalbevestiging** (in tegenstelling tot de
+webapp se `klant/succes/page.tsx`, die meteen bij Stripe zelf navraagt
+i.p.v. puur op de webhook te wachten) — na het sluiten van de
+PaymentSheet kon het statusscherm een paar seconden "Betaal nu" tonen
+voordat de webhook de `payments`-rij had aangemaakt. `klant/
+betaling.tsx` roept nu ook `/api/stripe/confirm-payment` aan vóór het
+navigeren, zelfde patroon, zelfde reden.
+
+**"Altijd online" totdat zelf uitgezet** — op verzoek van de gebruiker
+(`0050_online_stays_on_until_toggled_off.sql`):
+`barber_is_online_and_available()` eiste naast `is_online` ook een
+verse `last_active_at`-heartbeat (< 90s oud, migratie 0037) — een
+barber die de app op de achtergrond zette of het scherm vergrendelde
+viel daardoor stil uit de matching, zonder dat `is_online` zelf
+veranderde. Dit was deze hele sessie ook al herhaaldelijk een bron van
+verwarring tijdens het testen. De heartbeat-eis is verwijderd uit de
+beschikbaarheids-check — alleen `is_online` (expliciete toggle,
+uitloggen zet 'm al op false), het weekschema en "geen actieve rit"
+gelden nog. `last_active_at` zelf blijft bestaan als diagnostisch
+gegeven, wordt alleen niet meer gebruikt om beschikbaarheid te gaten.
+
+**Echte pushmeldingen naar de native app** — bestond nog helemaal
+niet. `push_subscriptions` (0013) is Web Push voor de browser
+(endpoint/p256dh/auth), structureel iets anders dan een simpel
+Expo-push-token-string, dus niet hergebruikt. Nieuw:
+`profiles.expo_push_token` (0051_expo_push_tokens.sql), en
+`/api/notifications/send/route.ts` uitgebreid met een derde pad naast
+e-mail/Web Push: een POST naar Expo's gehoste push-API
+(`https://exp.host/--/api/v2/push/send`) wanneer er een token bekend
+is, met `DeviceNotRegistered` → token opruimen (zelfde patroon als de
+bestaande Web-Push-404/410-opruiming). **Geen enkele van de ~15
+plekken die een notificatie-rij aanmaken hoefde aangepast te worden**
+— de bestaande `fan_out_notification`-trigger (0013) roept deze route
+al aan bij elke nieuwe rij, ongeacht bron.
+
+Native kant (zie die repo's eigen CLAUDE.md voor de volledige
+toelichting): `expo-notifications` geïnstalleerd, token-registratie bij
+inloggen, opruiming bij uitloggen (token hoort bij het toestel, niet de
+sessie), en een tik-op-melding-listener die naar het juiste scherm
+routeert (samengevoegde `getHref`-mapping van beide bestaande
+in-app-notificatielijsten, per rol). **Nog niet device-getest** — vereist
+een nieuwe build, en voor iOS vermoedelijk een handmatige
+`eas credentials`-stap (Apple-inloggen, kan niet namens de gebruiker).
