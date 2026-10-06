@@ -3370,3 +3370,68 @@ gelaten (test-exploratie, geen echte klant) — "Vandaag verdiend" sloot
 'm al terecht uit (geen `payments`-rij = niet meegeteld), dat deel was
 dus nooit het probleem; het probleem was dat de rit er ooit kón komen
 zonder betaling.
+
+## Volledige audit van het betaal-pad + laatste twee gaten gesloten (2026-10-06)
+
+Na drie losse live-gevonden betaal-bypass-bugs in korte tijd (0042-0046)
+vroeg de gebruiker expliciet om een volledige audit in plaats van nog
+meer losse fixes. Elke laag nagelopen die een boeking richting
+"bevestigd"/verder kan duwen: alle RLS-policies op `bookings`
+(`pg_policies`, niet uit migratiebestanden gereconstrueerd — de live
+staat), `check_booking_status_transition()`, de Stripe-webhook
+(`/api/stripe/webhook`), de confirm-payment-fallback
+(`/api/stripe/confirm-payment`), kolom-niveau UPDATE-grants op
+`bookings`/`payments`, en elke server-side cron-/adminroute die
+`bookings.status` zet (`grep` op elke `.update({status: "accepted"|
+"en_route"|...})`-vorm in `src/app/api`).
+
+**Bevestigd solide**: de Stripe-webhook en confirm-payment schrijven een
+`payments`-rij uitsluitend op basis van een door Stripe zelf
+geverifieerd `payment_intent.succeeded` (confirm-payment haalt de
+PaymentIntent zelfs opnieuw rechtstreeks bij Stripe op, vertrouwt nooit
+een client-signaal) — zie `src/lib/payment-reconcile.ts`, gedeeld door
+beide plus de reconcile-cron. `authenticated` heeft geen UPDATE-grant op
+`price_cents_snapshot` of enig ander prijsveld, en geen INSERT/UPDATE op
+`payments` — prijsmanipulatie of een nep-betaling kan dus niet, zelfs
+niet via een rechtstreekse REST-call. Elke cron/admin-route die
+`bookings.status` zet, doet dat uitsluitend annulerend, op één na
+(`admin/bookings/force-resolve`, admin-only en alleen bereikbaar vanaf
+`arrived`/`in_progress` — dus altijd al voorbij de betaal-gate).
+
+**Twee resterende gaten gesloten** (`0047_close_remaining_payment_gaps.sql`):
+
+1. **"Customers can update own bookings"-RLS-policy had geen
+   `WITH CHECK`** — puur `USING (auth.uid() = customer_id)`, verder
+   niets. In de praktijk alleen veilig dankzij de hierboven genoemde
+   afwezigheid van een prijs-UPDATE-grant (stilzwijgend, niet
+   expliciet). Nu een expliciete `WITH CHECK (auth.uid() =
+   customer_id)` toegevoegd — zelfde gedrag, maar leesbaar vastgelegd
+   i.p.v. impliciet afhankelijk van een andere laag.
+
+2. **Geplande (niet-asap) boekingen konden de hele rit rijden zonder
+   ooit betaald te zijn.** De betaal-eis zat uitsluitend in de
+   "Assigned barbers can update ..."-RLS-policy, en gold daar met opzet
+   niet voor geplande boekingen (`not requested_asap`, 0040: "betalen
+   binnen 24 uur ná acceptatie" — een bewuste, losstaande
+   betaaltermijn, niet gekoppeld aan het vertrekmoment). Gevolg: een
+   barber kon `accepted -> en_route -> ... -> completed` doorlopen
+   binnen die 24 uur zonder dat er ooit een `payments`-rij bestond, en
+   `expire-unpaid-scheduled-bookings` ving dat niet op (matcht alleen
+   nog `status = 'accepted'`, niet een boeking die intussen al verder
+   is). Fix: `check_booking_status_transition()` eist nu expliciet
+   `booking_has_payment()` bij de overgang `accepted -> en_route`, voor
+   **elke** boeking, niet meer alleen asap — het 24-uurs-betaalvenster
+   blijft intact (de klant kan nog steeds op elk moment vóór het
+   vertrek betalen), alleen het daadwerkelijke vertrekmoment vereist nu
+   een bestaande betaling. Bewust in de trigger toegevoegd i.p.v. de
+   RLS-policy te wijzigen (minder kans op het stapelen van steeds
+   subtielere RLS-uitzonderingen, zoals bij 0043/0044/0046 al gebeurde)
+   — `new.status = 'en_route'` is de enige nieuwe voorwaarde,
+   annuleren blijft op elk moment onaangetast mogelijk.
+
+**Live geverifieerd**: geplande boeking claimen zonder betaling werkt
+nog (ongewijzigd gedrag); `en_route` zonder betaling wordt nu correct
+geblokkeerd met een duidelijke foutmelding (`"Nog niet betaald — kan
+nog niet van start"`); na een echte betaling slaagt `en_route` alsnog;
+annuleren van een onbetaalde geaccepteerde boeking blijft onaangetast
+werken.
