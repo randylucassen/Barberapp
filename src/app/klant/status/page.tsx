@@ -155,9 +155,14 @@ function StatusContent() {
     priceConfirmPending && booking?.priceConfirmDueAt
       ? Math.max(0, Math.ceil((new Date(booking.priceConfirmDueAt).getTime() - Date.now()) / (60 * 1000)))
       : null;
-  const hoursLeftToPay =
+  // In minuten (niet uren) — sinds migratie 0048 kan dit ook een
+  // 15-minuten-venster zijn (asap, prijs net bevestigd), niet meer
+  // uitsluitend het 24-uurs-venster van een geplande boeking. Op hele
+  // uren afronden zou "nog 1 uur" tonen voor een deadline die al over
+  // 14 minuten verstrijkt.
+  const minutesLeftToPay =
     paymentPending && booking?.paymentDueAt
-      ? Math.max(0, Math.ceil((new Date(booking.paymentDueAt).getTime() - Date.now()) / (60 * 60 * 1000)))
+      ? Math.max(0, Math.ceil((new Date(booking.paymentDueAt).getTime() - Date.now()) / (60 * 1000)))
       : null;
   const copy = !booking
     ? null
@@ -166,7 +171,11 @@ function StatusContent() {
           title: "Betaal je afspraak",
           sub:
             (scheduledLabel ? `${scheduledLabel} — ` : "") +
-            (hoursLeftToPay !== null ? `nog ${hoursLeftToPay} uur om te betalen` : "rond de betaling af"),
+            (minutesLeftToPay !== null
+              ? minutesLeftToPay >= 60
+                ? `nog ${Math.ceil(minutesLeftToPay / 60)} uur om te betalen`
+                : `nog ${minutesLeftToPay} minuten om te betalen`
+              : "rond de betaling af"),
           badge: "Betalen",
           progress: 20,
         }

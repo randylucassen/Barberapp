@@ -10,15 +10,7 @@ import { getStripe } from "@/lib/stripe-client";
 import { computePriceBreakdown, euro } from "@/lib/pricing";
 import type { BookingRecord, DiscountPreview } from "@/lib/types";
 
-function CheckoutForm({
-  bookingId,
-  totalCents,
-  paidRef,
-}: {
-  bookingId: string;
-  totalCents: number;
-  paidRef: React.MutableRefObject<boolean>;
-}) {
+function CheckoutForm({ bookingId, totalCents }: { bookingId: string; totalCents: number }) {
   const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
@@ -46,11 +38,6 @@ function CheckoutForm({
       return;
     }
     if (paymentIntent) {
-      // Vóór router.push: de pagina-cleanup hieronder annuleert anders de
-      // net geslaagde boeking, want die kijkt puur naar "heeft dit scherm
-      // ooit een geslaagde betaling gezien" en zou deze unmount anders
-      // aanzien voor een geannuleerde poging.
-      paidRef.current = true;
       router.push(`/klant/succes?bookingId=${bookingId}&payment_intent=${paymentIntent.id}`);
     }
   }
@@ -95,28 +82,19 @@ function PaymentContent() {
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [checkingCode, setCheckingCode] = useState(false);
   const intentRequested = useRef(false);
-  // De vorige stap heeft de boeking al aangemaakt/bevestigd vóórdat deze
-  // pagina ooit rendert — twee paden landen hier: een directe asap-
-  // boeking met status 'requested' (nog geen betaling, RLS houdt 'm
-  // sowieso onzichtbaar voor barbers tot booking_has_payment() true is),
-  // en een open-aanvraag die de klant net via "Akkoord, ga naar betalen"
-  // bevestigde (status al 'accepted', zie claim_open_broadcast_request +
-  // migratie 0046 — ook dáár kan nog geen betaling bestaan). De
-  // terugknop deed tot nu toe alleen router.back() — de boeking bleef
-  // stil open/bevestigd staan tot de 30-minuten-cron 'm opruimde (live
-  // gevonden via de native app; het 'requested'-pad was al gefixt, het
-  // 'accepted'-pad (gemeld door de gebruiker) werd gemist omdat de
-  // boeking dan al niet meer op 'requested' stond). Geplande (niet-asap)
-  // boekingen NIET meenemen: die zijn ook 'accepted' op deze pagina, maar
-  // hebben een legitiem 24-uurs betaalvenster (payment_due_at, 0040) —
-  // terugnavigeren daar mag geen annulering triggeren. Expliciet aan de
-  // terugknop gehangen i.p.v. een generieke unmount-cleanup: bij iDEAL
-  // navigeert stripe.confirmPayment() de hele pagina weg naar een
-  // Stripe-gehoste pagina (redirect: "if_required" is dan wél vereist) —
-  // een cleanup-effect zou die navigatie ook als "verlaten zonder
-  // betalen" zien en de boeking verkeerd annuleren terwijl de betaling
-  // juist onderweg is.
-  const paidRef = useRef(false);
+  // Hier stond eerder een "annuleer de boeking zodra je teruggaat zonder
+  // te betalen"-handler — bedoeld om te voorkomen dat een onbetaalde
+  // boeking als actief bleef hangen. Bleek te agressief: élke
+  // terugnavigatie (ook even iets anders checken) maakte de boeking
+  // definitief onherstelbaar, zonder enige weg terug om alsnog te
+  // betalen (gemeld door de gebruiker via de native app, zelfde pagina's
+  // delen deze logica conceptueel). De juiste vangnetten bestaan al los
+  // van deze pagina: expire-stale-requests (30 min, status 'requested')
+  // en sinds migratie 0048 ook een 15-minuten payment_due_at zodra de
+  // klant een prijs bevestigt (status 'accepted') — klant/status/
+  // page.tsx's "Betaal nu"-knop (paymentPending) laat je binnen die
+  // termijn gewoon terugkeren naar deze pagina. Deze pagina hoeft dus
+  // niets meer zelf te annuleren.
 
   useEffect(() => {
     if (!bookingId) {
@@ -126,25 +104,6 @@ function PaymentContent() {
     const supabase = createClient();
     getBooking(supabase, bookingId).then(setBooking);
   }, [bookingId, router]);
-
-  function handleBack() {
-    if (!paidRef.current && bookingId) {
-      const supabase = createClient();
-      let query = supabase
-        .from("bookings")
-        .update({
-          status: "cancelled",
-          cancelled_by: "customer",
-          cancelled_reason: "Betaalscherm verlaten zonder te betalen",
-        })
-        .eq("id", bookingId);
-      query = booking?.requestedAsap !== false
-        ? query.in("status", ["requested", "accepted"])
-        : query.eq("status", "requested");
-      query.then();
-    }
-    router.back();
-  }
 
   const priceCents = booking?.priceCents ?? 0;
   const { feeCents, totalCents } = computePriceBreakdown(priceCents);
@@ -200,7 +159,7 @@ function PaymentContent() {
 
   return (
     <div className="flex flex-col h-full">
-      <NavBar title="Betaling" onBack={handleBack} />
+      <NavBar title="Betaling" onBack={() => router.back()} />
       <div className="px-5 pt-4 flex-1 overflow-y-auto no-scrollbar">
         <div className="bg-accent-soft rounded-md px-4 py-3.5 flex gap-3 items-start">
           <span className="text-accent-dark flex-shrink-0 mt-px"><Shield size={18} /></span>
@@ -260,7 +219,7 @@ function PaymentContent() {
 
         {clientSecret ? (
           <Elements stripe={getStripe()} options={{ clientSecret }}>
-            <CheckoutForm bookingId={bookingId!} totalCents={chargedTotalCents ?? totalCents} paidRef={paidRef} />
+            <CheckoutForm bookingId={bookingId!} totalCents={chargedTotalCents ?? totalCents} />
           </Elements>
         ) : error ? (
           <div className="mt-5 bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">
