@@ -2650,6 +2650,17 @@ te lopen. Niet blokkerend voor volgende fases.
   reviewlijst) vóór het boeken; barbers beheren hun portfolio los via
   nieuw `/barber/portfolio`. Zie de CLAUDE.md-changelog voor de
   volledige toelichting.
+- **Geen enkele barber in productie is Stripe-gekoppeld (`stripe_payouts_
+  enabled = false` voor iedereen)** — ontdekt 2026-10-07 tijdens het
+  live testen van de nieuwe handmatige "Nu vrijgeven"-knop bij
+  Betalingen: een `held`-betaling van €42,50 (een net dismissed geschil,
+  in het voordeel van de barber) kon niet vrijgegeven worden omdat de
+  betreffende barber (Randy van Londen) de Stripe Connect-onboarding nog
+  niet heeft afgerond. Dit blokkeert zowel de 24u-cron als de nieuwe
+  handmatige knop — zonder een Stripe-koppeling kan **geen** barber ooit
+  daadwerkelijk uitbetaald worden, hoe het geschil ook afloopt. Nodig:
+  zelf (of de testbarber) de Stripe Connect-onboardingflow afronden
+  (`/barber/uitbetalingen` of waar die flow in de app start).
 - **Saved payment methods ("Betaalmethoden") — bewust uitgesteld**
   (2026-08-14, `klant/instellingen`/`klant/profiel`). Elke betaling loopt
   nu via een verse Stripe PaymentIntent per boeking — geen Stripe
@@ -2781,6 +2792,40 @@ een `SECURITY DEFINER`-functie die buiten RLS om claimde (een offline
 barber kon zo elke aanvraag claimen) en een trigger-guard die de
 "weiger"-knop voor iedereen blokkeerde. Zie CLAUDE.md voor de volledige
 technische toelichting per fix.
+
+## Echte pushmeldingen naar de native app (2026-10-06)
+
+Derde notificatiekanaal naast e-mail (Resend) en Web Push (browser-only):
+Expo push voor de native (iOS/Android) app, via een nieuwe
+`profiles.expo_push_token`-kolom. Draait op hetzelfde centrale
+inzendpunt als de andere twee kanalen (Fase 8) — elke bron blijft
+alleen een rij in `notifications` inserten, dus geen van de ~15
+bestaande aanroepplekken hoefde aangepast te worden. Zie CLAUDE.md
+("payment_due_at niet teruggezet... + echte pushmeldingen") voor de
+volledige toelichting, incl. de EAS/Apple-pushcredentials-stap die de
+gebruiker zelf (interactief, Apple-login) moest doorlopen.
+
+## Admin-geschillen/escrow: handmatige vrijgave + direct vrijgeven bij "in voordeel van barber" (2026-10-07)
+
+Wijzigt de in de intro hierboven beschreven escrow-regel ("wordt na
+afronding vrijgegeven, tenzij binnen 24 uur een geschil wordt
+geopend") op twee punten:
+- Een admin kan een `held`-betaling bij **Betalingen** nu ook handmatig
+  direct vrijgeven, los van de 24u-cron (geblokkeerd zolang er nog een
+  open geschil op die boeking staat).
+- Wordt een geschil opgelost **in het voordeel van de barber**
+  ("Vrijgeven aan barber"), dan gebeurt die vrijgave nu ook meteen,
+  i.p.v. te wachten op de volgende cron-run.
+
+Beide hergebruiken dezelfde nieuwe, uit de cron geëxtraheerde
+`releasePaymentEscrow()`-functie (`src/lib/escrow.ts`). Daarnaast in
+dezelfde batch: een tijdstip/locatie bij elke melding in het
+geschillenvenster, klikbare klant-/barbernamen naar een nieuwe
+`/admin/gebruikers/[id]`-profielpagina (boekingsgeschiedenis +
+geschillen in één oogopslag — eerste admin-detailpagina in de app), en
+een statusbalk op klant-home voor een open/net-afgehandeld geschil
+(1-op-1 gemirrored naar de native app). Zie CLAUDE.md voor de volledige
+toelichting en migratie `0052`.
 
 ## Roadmap
 
