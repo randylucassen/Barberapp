@@ -3498,3 +3498,66 @@ routeert (samengevoegde `getHref`-mapping van beide bestaande
 in-app-notificatielijsten, per rol). **Nog niet device-getest** — vereist
 een nieuwe build, en voor iOS vermoedelijk een handmatige
 `eas credentials`-stap (Apple-inloggen, kan niet namens de gebruiker).
+
+## Admin-geschillen/escrow-batch: tijdstip, klikbare profielen, handmatige vrijgave, klant-statusbalk (2026-10-07)
+
+Vijf losse wensen in één keer, zie de verzoektekst voor de letterlijke
+Nederlandse formulering. Database: `0052_dispute_acknowledgment_and_detail.sql`.
+
+**A. Tijdstip in het geschillenvenster** — `disputes.opened_at` bestond
+al sinds de allereerste schema-migratie (0003), werd alleen nergens
+getoond. `DisputesTable` toont 'm nu geformatteerd, plus `bookings.address`
+(ook al bestaand) voor "waar" — geen schema-wijziging nodig, puur een
+weergave-fix in `getDisputesForAdmin()` + `DisputesTable.tsx`.
+
+**C. Klikbare namen → nieuwe gebruikersdetailpagina** — er bestond nog
+geen enkele admin-detailpagina (bevestigd: geen `[id]`-dynamic route
+onder `/admin`). Nieuw: `/admin/gebruikers/[id]`
+(`getUserDetailForAdmin()` in queries.ts) — profiel, rolspecifieke stats
+(barber: rating/online-status/stad/Stripe-koppeling; klant:
+standaardadres), boekingsgeschiedenis (laatste 30, beide kanten) én
+geschillen waar deze gebruiker bij betrokken was (als klant of als
+barber) in één overzicht. Klant-/barbernaam in Geschillen en de naam in
+de bestaande Gebruikers-lijst linken er nu allebei naartoe.
+
+**D + E. Escrow-logica geëxtraheerd naar `src/lib/escrow.ts`** —
+`releasePaymentEscrow()` bevat nu de Stripe-connect-check + atomische
+`held → releasing`-claim + transfer + `released`-update, 1-op-1
+overgenomen uit wat voorheen alleen inline in de 24u-cron
+(`/api/cron/release-escrow`) stond. De cron roept 'm nu aan i.p.v. de
+logica te dupliceren; de leeftijd-/booking-status-/open-geschil-checks
+blijven bij de cron zelf, dat zijn voorwaarden die alleen daar gelden.
+
+Twee nieuwe aanroepers van diezelfde functie:
+- **D: handmatige "Nu vrijgeven"-knop bij Betalingen**
+  (`/api/admin/payments/release-escrow`, nieuwe `PaymentsTable.tsx`) —
+  alleen zichtbaar bij `escrow_state='held'`, blokkeert expliciet als er
+  nog een open geschil op de boeking staat (anders zou deze knop precies
+  de bescherming omzeilen waar geschillen/escrow voor bestaan).
+- **E: "Vrijgeven aan barber" (dismiss) geeft nu direct vrij** — de
+  oude lazy-aanname ("de cron pakt het later toch op") is vervangen door
+  een directe aanroep in `/api/admin/disputes/resolve`'s dismiss-tak.
+  Mislukt de vrijgave (bv. barber nog niet Stripe-gekoppeld), dan sluit
+  het geschil gewoon zonder vrijgave — de cron is en blijft het vangnet
+  voor een eventueel nog-'held'-gebleven betaling.
+
+**B. Statusbalk op klant-home** — nieuw: `disputes.customer_acknowledged_at`
++ RPC `acknowledge_dispute(p_dispute_id)` (SECURITY DEFINER, want
+disputes is "alleen server-side/admin schrijfbaar" sinds 0003 — geen
+kale update-grant aan authenticated, alleen deze ene smalle RPC die
+controleert dat de aanroeper de klant van de boeking is én het geschil
+al afgehandeld is). Een open geschil heeft per definitie altijd
+`acknowledged_at is null` (de RPC staat 'm alleen toe op
+resolved/dismissed), dus `getDisputeBannerForCustomer()` kan met één
+filter (`is("customer_acknowledged_at", null)`) zowel "nog in
+behandeling" als "afgehandeld maar nog niet gezien" vinden. UI: balk
+bovenaan klant-home, open-status toont geen knop (niet wegklikbaar
+terwijl het nog loopt), resolved/dismissed tonen bewust geschreven
+professionele copy (geen placeholder-tekst) + een "Oké!"-knop die de
+RPC aanroept en de balk daarna voorgoed verbergt. 1-op-1 gemirrored naar
+`KPPRTJE-app/src/app/klant/(tabs)/home.tsx`.
+
+Geen van de vijf onderdelen is al live-geverifieerd met een echte
+melding/vrijgave na migratie 0052 — eerstvolgende sessie met
+testaccounts moet dat nog doen (`tsc --noEmit`/lint zijn wel schoon op
+beide repo's).
