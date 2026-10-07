@@ -6,8 +6,13 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getBarbersForAdmin } from "@/lib/supabase/queries";
 import type { BarberStatus } from "@/lib/types";
 
+// "all" i.p.v. "" als sentinel voor "Alle statussen": StatusFilter zet
+// een leeg/falsy value nooit in de URL (zie daar), dus zonder dit zou
+// kiezen voor "Alle statussen" gewoon geen status-param meesturen — en
+// dan verviel effectiveStatus hieronder alsnog terug naar "pending",
+// precies de bug die hier zat.
 const STATUS_OPTIONS = [
-  { value: "", label: "Alle statussen" },
+  { value: "all", label: "Alle statussen" },
   { value: "pending", label: "Pending (wachtrij)" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
@@ -27,7 +32,7 @@ export default async function AdminBarbersPage({
   const supabase = createServiceClient();
   const barbers = await getBarbersForAdmin(
     supabase,
-    effectiveStatus ? (effectiveStatus as BarberStatus) : undefined,
+    effectiveStatus !== "all" ? (effectiveStatus as BarberStatus) : undefined,
     search
   );
 
