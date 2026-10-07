@@ -59,11 +59,18 @@ export function BarbersTable({ barbers }: { barbers: AdminBarberRow[] }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[15px] font-semibold">{b.fullName}</span>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/admin/gebruikers/${b.id}`)}
+                    className="text-[15px] font-semibold underline decoration-border hover:decoration-text-primary"
+                  >
+                    {b.fullName}
+                  </button>
                   <Badge variant={STATUS_VARIANT[b.barberStatus ?? "pending"]}>{b.barberStatus}</Badge>
                 </div>
                 <div className="text-[13px] text-text-secondary mt-0.5">
-                  {b.email} · {b.city ?? "geen stad"} · KvK {b.kvkNumber ?? "onbekend"}
+                  {b.email}
+                  {b.phone && ` · ${b.phone}`} · {b.city ?? "geen stad"} · KvK {b.kvkNumber ?? "onbekend"}
                 </div>
                 <div className="text-[13px] text-text-secondary mt-0.5">{b.address ?? "geen adres"}</div>
                 <div className="text-[13px] text-text-secondary mt-0.5">

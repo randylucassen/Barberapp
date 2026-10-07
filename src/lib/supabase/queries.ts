@@ -1379,6 +1379,7 @@ export interface AdminBarberRow {
   id: string;
   fullName: string;
   email: string;
+  phone: string | null;
   barberStatus: BarberStatus | null;
   createdAt: string;
   kvkNumber: string | null;
@@ -1392,18 +1393,24 @@ export interface AdminBarberRow {
   ratingCount: number;
 }
 
+// search matcht op naam, e-mail óf telefoon — zelfde brede aanpak als
+// getUsersForAdmin() hieronder, zie daar voor de toelichting over het
+// ontsnappen van ,()  in de term vóór .or().
 export async function getBarbersForAdmin(
   supabase: SupabaseClient,
-  statusFilter?: BarberStatus
+  statusFilter?: BarberStatus,
+  search?: string
 ): Promise<AdminBarberRow[]> {
   let query = supabase
     .from("profiles")
     .select(
-      "id, full_name, email, barber_status, created_at, barber_profiles(kvk_number, city, address, portfolio_urls, insurance_doc_url, id_doc_url, diploma_url, rating_avg, rating_count)"
+      "id, full_name, email, phone, barber_status, created_at, barber_profiles(kvk_number, city, address, portfolio_urls, insurance_doc_url, id_doc_url, diploma_url, rating_avg, rating_count)"
     )
     .eq("role", "barber")
     .order("created_at", { ascending: false });
   if (statusFilter) query = query.eq("barber_status", statusFilter);
+  const term = search?.trim().replace(/[,()]/g, "");
+  if (term) query = query.or(`full_name.ilike.*${term}*,email.ilike.*${term}*,phone.ilike.*${term}*`);
 
   const { data, error } = await query;
   if (error || !data) return [];
@@ -1412,6 +1419,7 @@ export async function getBarbersForAdmin(
     id: string;
     full_name: string;
     email: string;
+    phone: string | null;
     barber_status: BarberStatus | null;
     created_at: string;
     barber_profiles: {
@@ -1429,6 +1437,7 @@ export async function getBarbersForAdmin(
     id: row.id,
     fullName: row.full_name,
     email: row.email,
+    phone: row.phone,
     barberStatus: row.barber_status,
     createdAt: row.created_at,
     kvkNumber: row.barber_profiles?.kvk_number ?? null,
@@ -1717,12 +1726,18 @@ export interface AdminUserRow {
   createdAt: string;
 }
 
+// search matcht op naam, e-mail óf telefoon (voorheen alleen naam) — de
+// , ( en ) hebben een speciale betekenis in PostgREST se .or()-syntax,
+// dus die worden uit de term gestript (een zoekterm met die tekens komt
+// hier sowieso nooit legitiem in voor: namen/e-mail/telefoon bevatten ze
+// niet).
 export async function getUsersForAdmin(supabase: SupabaseClient, search?: string): Promise<AdminUserRow[]> {
   let query = supabase
     .from("profiles")
     .select("id, full_name, email, phone, role, barber_status, suspended, created_at")
     .order("created_at", { ascending: false });
-  if (search) query = query.ilike("full_name", `%${search}%`);
+  const term = search?.trim().replace(/[,()]/g, "");
+  if (term) query = query.or(`full_name.ilike.*${term}*,email.ilike.*${term}*,phone.ilike.*${term}*`);
 
   const { data, error } = await query;
   if (error || !data) return [];
