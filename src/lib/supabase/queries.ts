@@ -1758,6 +1758,7 @@ export interface AdminUserDetail {
   id: string;
   fullName: string;
   email: string;
+  phone: string | null;
   role: UserRole;
   suspended: boolean;
   createdAt: string;
@@ -1784,7 +1785,7 @@ export interface AdminUserDetail {
 export async function getUserDetailForAdmin(supabase: SupabaseClient, userId: string): Promise<AdminUserDetail | null> {
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, barber_status, suspended, created_at")
+    .select("id, full_name, email, phone, role, barber_status, suspended, created_at")
     .eq("id", userId)
     .maybeSingle();
   if (!profile) return null;
@@ -1865,6 +1866,7 @@ export async function getUserDetailForAdmin(supabase: SupabaseClient, userId: st
     id: profile.id,
     fullName: profile.full_name,
     email: profile.email,
+    phone: profile.phone,
     role: profile.role,
     suspended: profile.suspended,
     createdAt: profile.created_at,

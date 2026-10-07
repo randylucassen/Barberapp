@@ -26,7 +26,10 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             {user.suspended && <Badge variant="error">geschorst</Badge>}
             {user.role === "barber" && user.barberStatus && <Badge variant="neutral">{user.barberStatus}</Badge>}
           </div>
-          <div className="text-[14px] text-text-secondary mt-1">{user.email}</div>
+          <div className="text-[14px] text-text-secondary mt-1">
+            {user.email}
+            {user.phone && <> · {user.phone}</>}
+          </div>
           <div className="text-[13px] text-text-secondary mt-0.5">Lid sinds {formatDate(user.createdAt)}</div>
         </div>
         {user.role === "customer" && <UserDetailActions customerId={user.id} suspended={user.suspended} />}
