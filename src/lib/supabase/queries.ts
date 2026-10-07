@@ -1710,6 +1710,7 @@ export interface AdminUserRow {
   id: string;
   fullName: string;
   email: string;
+  phone: string | null;
   role: UserRole;
   barberStatus: BarberStatus | null;
   suspended: boolean;
@@ -1719,7 +1720,7 @@ export interface AdminUserRow {
 export async function getUsersForAdmin(supabase: SupabaseClient, search?: string): Promise<AdminUserRow[]> {
   let query = supabase
     .from("profiles")
-    .select("id, full_name, email, role, barber_status, suspended, created_at")
+    .select("id, full_name, email, phone, role, barber_status, suspended, created_at")
     .order("created_at", { ascending: false });
   if (search) query = query.ilike("full_name", `%${search}%`);
 
@@ -1729,6 +1730,7 @@ export async function getUsersForAdmin(supabase: SupabaseClient, search?: string
     id: row.id,
     fullName: row.full_name,
     email: row.email,
+    phone: row.phone,
     role: row.role,
     barberStatus: row.barber_status,
     suspended: row.suspended,

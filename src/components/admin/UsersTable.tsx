@@ -52,7 +52,10 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
               {u.suspended && <Badge variant="error">geschorst</Badge>}
               {u.role === "barber" && u.barberStatus && <Badge variant="neutral">{u.barberStatus}</Badge>}
             </div>
-            <div className="text-[13px] text-text-secondary mt-0.5">{u.email}</div>
+            <div className="text-[13px] text-text-secondary mt-0.5">
+              {u.email}
+              {u.phone && <> · {u.phone}</>}
+            </div>
           </div>
           {u.role === "customer" ? (
             <Button size="sm" variant={u.suspended ? "secondary" : "ghost"} disabled={busyId === u.id} onClick={() => toggleSuspend(u.id, !u.suspended)}>
