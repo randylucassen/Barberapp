@@ -41,7 +41,13 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
         <div key={u.id} className="bg-white border border-border rounded-lg p-4 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[15px] font-semibold">{u.fullName}</span>
+              <button
+                type="button"
+                onClick={() => router.push(`/admin/gebruikers/${u.id}`)}
+                className="text-[15px] font-semibold underline decoration-border hover:decoration-text-primary"
+              >
+                {u.fullName}
+              </button>
               <Badge variant={u.role === "barber" ? "accent" : "neutral"}>{u.role}</Badge>
               {u.suspended && <Badge variant="error">geschorst</Badge>}
               {u.role === "barber" && u.barberStatus && <Badge variant="neutral">{u.barberStatus}</Badge>}

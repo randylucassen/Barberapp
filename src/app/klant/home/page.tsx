@@ -8,8 +8,10 @@ import { createClient } from "@/lib/supabase/client";
 import {
   getActiveBookingForCustomer,
   getCustomerProfile,
+  getDisputeBannerForCustomer,
   getRecentCompletedBookingsForCustomer,
   hasUnreadNotifications,
+  type CustomerDisputeBanner,
   type RecentBookingSummary,
 } from "@/lib/supabase/queries";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
@@ -29,6 +31,26 @@ function timeAgo(iso: string): string {
 // exacte match in /klant/barbers geen resultaat en valt hij terug op de
 // eerste dienst van de barber.
 const SERVICE_TAGS = ["Knipbeurt", "Baard trimmen", "Knippen + baard", "Kids"];
+
+// "maak hier iets professioneels van" — geen letterlijke placeholder-
+// tekst, maar een korte, geruststellende melding per fase. "open" toont
+// geen "Oké!"-knop (de melding staat nog in behandeling, niet iets om
+// weg te klikken); "resolved"/"dismissed" wel, zie DisputeBanner hieronder.
+const DISPUTE_BANNER_COPY: Record<CustomerDisputeBanner["status"], { title: string; body: (service: string) => string }> = {
+  open: {
+    title: "Je melding wordt bekeken",
+    body: (service) => `We onderzoeken je melding over ${service}. Je hoort van ons zodra er een update is.`,
+  },
+  resolved: {
+    title: "Geschil afgehandeld",
+    body: (service) =>
+      `We hebben je melding over ${service} beoordeeld en een terugbetaling verwerkt. Bekijk je e-mail voor de details.`,
+  },
+  dismissed: {
+    title: "Geschil afgehandeld",
+    body: (service) => `We hebben je melding over ${service} beoordeeld. Bekijk je e-mail voor de uitkomst en meer informatie.`,
+  },
+};
 
 const ACTIVE_STATUS_LABEL: Record<BookingStatus, string> = {
   requested: "Aangevraagd — wachten op een barber",
@@ -52,6 +74,8 @@ export default function HomePage() {
   const [activeBooking, setActiveBooking] = useState<BookingRecord | null>(null);
   const [recentBookings, setRecentBookings] = useState<RecentBookingSummary[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
+  const [disputeBanner, setDisputeBanner] = useState<CustomerDisputeBanner | null>(null);
+  const [acknowledging, setAcknowledging] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -67,6 +91,7 @@ export default function HomePage() {
       const recent = await getRecentCompletedBookingsForCustomer(supabase, data.user.id);
       setRecentBookings(recent);
       setHasUnread(await hasUnreadNotifications(supabase, data.user.id));
+      setDisputeBanner(await getDisputeBannerForCustomer(supabase, data.user.id));
     }
 
     (async () => {
@@ -130,6 +155,15 @@ export default function HomePage() {
     router.push(`/klant/barbers?${params.toString()}`);
   }
 
+  async function acknowledgeDispute() {
+    if (!disputeBanner) return;
+    setAcknowledging(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("acknowledge_dispute", { p_dispute_id: disputeBanner.id });
+    setAcknowledging(false);
+    if (!error) setDisputeBanner(null);
+  }
+
   function bookAgain(booking: RecentBookingSummary) {
     if (booking.lines.length === 0) return;
     const params = new URLSearchParams({
@@ -147,6 +181,28 @@ export default function HomePage() {
         <span className="font-bold text-[22px] tracking-[-0.03em]">KPPRTJE!</span>
         <NotificationBell hasUnread={hasUnread} onClick={() => router.push("/klant/notificaties")} />
       </div>
+      {disputeBanner && (
+        <div className="px-5 pt-4">
+          <div className="bg-accent-soft border border-accent/20 rounded-lg p-4">
+            <div className="text-[14px] font-semibold text-text-primary">
+              {DISPUTE_BANNER_COPY[disputeBanner.status].title}
+            </div>
+            <div className="text-[13px] text-text-secondary mt-1 leading-[18px]">
+              {DISPUTE_BANNER_COPY[disputeBanner.status].body(disputeBanner.serviceName)}
+            </div>
+            {disputeBanner.status !== "open" && (
+              <button
+                type="button"
+                disabled={acknowledging}
+                onClick={acknowledgeDispute}
+                className="mt-3 text-[13px] font-semibold px-4 py-1.5 rounded-md bg-primary text-white disabled:opacity-60"
+              >
+                Oké!
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {activeBooking && (
         <div className="px-5 pt-4">
           <Card variant="inverse" padding={16} onClick={() => router.push(`/klant/status?bookingId=${activeBooking.id}`)}>

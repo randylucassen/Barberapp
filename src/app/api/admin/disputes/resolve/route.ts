@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
 import { requireAdmin, logAdminAction } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { releasePaymentEscrow } from "@/lib/escrow";
 
 // Twee resolutiepaden, allebei bewust géén hergebruik van bestaande
 // booking-brede routes:
@@ -21,11 +22,14 @@ import { checkRateLimit } from "@/lib/rate-limit";
 //   waarde, zie de "isPartial"-tak hieronder. Zijn alle regels volledig
 //   gekozen (of ontbreekt refundLines), dan is het een volledige
 //   terugbetaling en krijgt de barber niets voor deze boeking.
-// - "dismiss": alleen disputes.status -> dismissed. De bestaande
-//   release-escrow-cron (elke 15 min) slaat een boeking met een open
-//   geschil bewust over — zodra het geschil niet meer open is, pakt de
-//   eerstvolgende cron-run de vrijgave vanzelf op. Geen aparte
-//   "nu vrijgeven"-actie nodig.
+// - "dismiss": disputes.status -> dismissed, én de betaling wordt
+//   meteen vrijgegeven aan de barber (niet meer wachten op de volgende
+//   24u-cron-run, met de gebruiker afgestemd: "na een opgelost geschil
+//   in voordeel van barber moet het ook direct worden vrijgegeven").
+//   Mislukt die vrijgave (bv. barber nog niet Stripe-gekoppeld, of de
+//   betaling is al anders afgehandeld), dan wordt het geschil wél
+//   gewoon gesloten — de cron pakt een eventueel nog-'held'-gebleven
+//   betaling later alsnog op, dat bestaande vangnet blijft ongewijzigd.
 export async function POST(request: NextRequest) {
   const limited = await checkRateLimit(request, { prefix: "admin-mutation", requests: 30, window: "60 s" });
   if (limited) return limited;
@@ -210,6 +214,19 @@ export async function POST(request: NextRequest) {
       .update({ status: "resolved", resolution_notes: resolutionNotes, resolved_at: new Date().toISOString() })
       .eq("id", disputeId);
   } else {
+    const { data: payment } = await service
+      .from("payments")
+      .select("id, barber_payout_cents, escrow_state")
+      .eq("booking_id", dispute.booking_id)
+      .maybeSingle();
+
+    if (payment && payment.escrow_state === "held") {
+      const release = await releasePaymentEscrow(service, payment, booking?.barber_id ?? null);
+      resolutionNotes = release.ok
+        ? "Vrijgegeven aan barber"
+        : `Vrijgegeven aan barber (betaling volgt nog automatisch: ${release.reason})`;
+    }
+
     await service
       .from("disputes")
       .update({ status: "dismissed", resolution_notes: resolutionNotes, resolved_at: new Date().toISOString() })

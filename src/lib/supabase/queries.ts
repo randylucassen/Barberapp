@@ -510,6 +510,52 @@ export async function getActiveBookingForCustomer(
   return mapBooking(data as unknown as BookingRow);
 }
 
+export interface CustomerDisputeBanner {
+  id: string;
+  status: "open" | "resolved" | "dismissed";
+  serviceName: string;
+  bookingId: string;
+}
+
+// Voor de statusbalk op klant-home: toont een OPEN geschil altijd
+// (geen "Oké!"-knop — de klant kan 'm niet wegklikken terwijl de melding
+// nog in behandeling is), en een afgehandeld geschil totdat de klant op
+// "Oké!" heeft geklikt (acknowledge_dispute() zet dan
+// customer_acknowledged_at, zie migratie 0052) — daarna verdwijnt hij
+// voorgoed. Maximaal één tegelijk: de meest recente die aan een van
+// beide voorwaarden voldoet.
+export async function getDisputeBannerForCustomer(
+  supabase: SupabaseClient,
+  customerId: string
+): Promise<CustomerDisputeBanner | null> {
+  const { data: bookings } = await supabase.from("bookings").select("id, service_name_snapshot").eq("customer_id", customerId);
+  const bookingIds = (bookings ?? []).map((b) => b.id);
+  if (bookingIds.length === 0) return null;
+  const serviceNameByBooking = new Map((bookings ?? []).map((b) => [b.id, b.service_name_snapshot]));
+
+  // acknowledge_dispute() zet alleen ooit acknowledged_at op een
+  // resolved/dismissed geschil — een open geschil heeft dit altijd nog
+  // op null, dus deze ene filter dekt beide gevallen (open, én
+  // afgehandeld-maar-nog-niet-gezien).
+  const { data: disputes } = await supabase
+    .from("disputes")
+    .select("id, booking_id, status, customer_acknowledged_at")
+    .in("booking_id", bookingIds)
+    .is("customer_acknowledged_at", null)
+    .order("opened_at", { ascending: false })
+    .limit(1);
+
+  const row = (disputes ?? [])[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    status: row.status,
+    bookingId: row.booking_id,
+    serviceName: serviceNameByBooking.get(row.booking_id) ?? "je boeking",
+  };
+}
+
 export interface RecentBookingSummary {
   id: string;
   barberId: string;
@@ -1413,8 +1459,11 @@ export interface AdminDisputeRow {
   openedAt: string;
   resolvedAt: string | null;
   serviceName: string;
+  customerId: string | null;
   customerName: string;
+  barberId: string | null;
   barberName: string;
+  address: string | null;
   escrowState: EscrowState | null;
   stripePaymentIntentId: string | null;
   priceCents: number;
@@ -1431,7 +1480,7 @@ export async function getDisputesForAdmin(supabase: SupabaseClient): Promise<Adm
   const bookingIds = disputes.map((d) => d.booking_id);
   const { data: bookings } = await supabase
     .from("bookings")
-    .select("id, service_name_snapshot, customer_id, barber_id, price_cents_snapshot")
+    .select("id, service_name_snapshot, customer_id, barber_id, price_cents_snapshot, address")
     .in("id", bookingIds);
 
   const profileIds = Array.from(
@@ -1476,8 +1525,11 @@ export async function getDisputesForAdmin(supabase: SupabaseClient): Promise<Adm
       openedAt: d.opened_at,
       resolvedAt: d.resolved_at,
       serviceName: booking?.service_name_snapshot ?? "Onbekende dienst",
+      customerId: booking?.customer_id ?? null,
       customerName: (booking && nameById.get(booking.customer_id)) || "Onbekend",
+      barberId: booking?.barber_id ?? null,
       barberName: (booking?.barber_id && nameById.get(booking.barber_id)) || "Onbekend",
+      address: booking?.address ?? null,
       escrowState: payment?.escrow_state ?? null,
       stripePaymentIntentId: payment?.stripe_payment_intent_id ?? null,
       priceCents: booking?.price_cents_snapshot ?? 0,
@@ -1682,6 +1734,146 @@ export async function getUsersForAdmin(supabase: SupabaseClient, search?: string
     suspended: row.suspended,
     createdAt: row.created_at,
   }));
+}
+
+export interface AdminUserBookingSummary {
+  id: string;
+  status: BookingStatus;
+  serviceName: string;
+  priceCents: number;
+  otherPartyName: string;
+  createdAt: string;
+}
+
+export interface AdminUserDisputeSummary {
+  id: string;
+  bookingId: string;
+  status: "open" | "resolved" | "dismissed";
+  reason: string;
+  openedAt: string;
+  asCustomer: boolean;
+}
+
+export interface AdminUserDetail {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  suspended: boolean;
+  createdAt: string;
+  barberStatus: BarberStatus | null;
+  // Alleen gezet voor role === "barber".
+  barberStats: {
+    ratingAvg: number | null;
+    ratingCount: number;
+    isOnline: boolean;
+    city: string | null;
+    stripePayoutsEnabled: boolean;
+  } | null;
+  defaultAddress: string | null;
+  bookings: AdminUserBookingSummary[];
+  disputes: AdminUserDisputeSummary[];
+}
+
+// Voor de klikbare namen in Geschillen (zie DisputesTable) — "profiel en
+// verleden in de app en gegevens in 1 oogopslag" in één aanroep: profiel +
+// rol-specifieke stats + boekingsgeschiedenis (als klant én als barber,
+// een gebruiker heeft maar één rol maar de kolom-aanduiding "andere
+// partij" hieronder werkt voor beide kanten) + geschillen waar deze
+// gebruiker bij betrokken was, aan welke kant dan ook.
+export async function getUserDetailForAdmin(supabase: SupabaseClient, userId: string): Promise<AdminUserDetail | null> {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, role, barber_status, suspended, created_at")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!profile) return null;
+
+  let barberStats: AdminUserDetail["barberStats"] = null;
+  let defaultAddress: string | null = null;
+  if (profile.role === "barber") {
+    const { data: bp } = await supabase
+      .from("barber_profiles")
+      .select("rating_avg, rating_count, is_online, city, stripe_payouts_enabled")
+      .eq("id", userId)
+      .maybeSingle();
+    barberStats = {
+      ratingAvg: bp?.rating_avg ?? null,
+      ratingCount: bp?.rating_count ?? 0,
+      isOnline: bp?.is_online ?? false,
+      city: bp?.city ?? null,
+      stripePayoutsEnabled: bp?.stripe_payouts_enabled ?? false,
+    };
+  } else {
+    const { data: cp } = await supabase.from("customer_profiles").select("default_address").eq("id", userId).maybeSingle();
+    defaultAddress = cp?.default_address ?? null;
+  }
+
+  const bookingFilter = profile.role === "barber" ? `barber_id.eq.${userId}` : `customer_id.eq.${userId}`;
+  const { data: bookingRows } = await supabase
+    .from("bookings")
+    .select("id, status, service_name_snapshot, price_cents_snapshot, customer_id, barber_id, created_at")
+    .or(bookingFilter)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  const otherPartyIds = Array.from(
+    new Set(
+      (bookingRows ?? [])
+        .map((b) => (profile.role === "barber" ? b.customer_id : b.barber_id))
+        .filter((id): id is string => !!id)
+    )
+  );
+  const { data: otherProfiles } = otherPartyIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", otherPartyIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const otherNameById = new Map((otherProfiles ?? []).map((p) => [p.id, p.full_name]));
+
+  const bookings: AdminUserBookingSummary[] = (bookingRows ?? []).map((b) => ({
+    id: b.id,
+    status: b.status,
+    serviceName: b.service_name_snapshot,
+    priceCents: b.price_cents_snapshot ?? 0,
+    otherPartyName:
+      (profile.role === "barber" ? otherNameById.get(b.customer_id) : b.barber_id && otherNameById.get(b.barber_id)) ||
+      "Onbekend",
+    createdAt: b.created_at,
+  }));
+
+  const disputeFilter = profile.role === "barber" ? `barber_id.eq.${userId}` : `customer_id.eq.${userId}`;
+  const { data: involvedBookings } = await supabase.from("bookings").select("id, customer_id, barber_id").or(disputeFilter);
+  const involvedBookingIds = (involvedBookings ?? []).map((b) => b.id);
+  const { data: disputeRows } = involvedBookingIds.length
+    ? await supabase
+        .from("disputes")
+        .select("id, booking_id, status, reason, opened_at")
+        .in("booking_id", involvedBookingIds)
+        .order("opened_at", { ascending: false })
+    : { data: [] as { id: string; booking_id: string; status: string; reason: string; opened_at: string }[] };
+  const bookingMetaById = new Map((involvedBookings ?? []).map((b) => [b.id, b]));
+
+  const disputes: AdminUserDisputeSummary[] = (disputeRows ?? []).map((d) => ({
+    id: d.id,
+    bookingId: d.booking_id,
+    status: d.status as "open" | "resolved" | "dismissed",
+    reason: d.reason,
+    openedAt: d.opened_at,
+    asCustomer: bookingMetaById.get(d.booking_id)?.customer_id === userId,
+  }));
+
+  return {
+    id: profile.id,
+    fullName: profile.full_name,
+    email: profile.email,
+    role: profile.role,
+    suspended: profile.suspended,
+    createdAt: profile.created_at,
+    barberStatus: profile.barber_status,
+    barberStats,
+    defaultAddress,
+    bookings,
+    disputes,
+  };
 }
 
 export interface AdminLogEntry {

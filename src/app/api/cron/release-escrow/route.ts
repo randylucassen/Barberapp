@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { getStripe } from "@/lib/stripe";
+import { releasePaymentEscrow } from "@/lib/escrow";
 
 const RELEASE_AFTER_MS = 24 * 60 * 60 * 1000;
 
@@ -51,59 +51,8 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const { data: barberProfile } = await supabase
-      .from("barber_profiles")
-      .select("stripe_account_id, stripe_payouts_enabled")
-      .eq("id", booking.barber_id)
-      .single();
-
-    if (!barberProfile?.stripe_account_id || !barberProfile.stripe_payouts_enabled) {
-      results.push({ bookingId: booking.id, outcome: "barber nog niet Stripe-gekoppeld, overgeslagen" });
-      continue;
-    }
-
-    // Atomisch claimen vóór de Stripe-call — zelfde patroon als
-    // claimBooking(): de where-clause wordt door Postgres opnieuw
-    // geëvalueerd bij gelijktijdige updates, dus als twee cron-runs
-    // (bv. een overlappende pg_cron-trigger + een handmatige test-run)
-    // deze rij tegelijk oppakken, "wint" er maar één en krijgt de ander
-    // hier data: null terug — geen dubbele transfer meer mogelijk.
-    const { data: claimed } = await supabase
-      .from("payments")
-      .update({ escrow_state: "releasing" })
-      .eq("id", payment.id)
-      .eq("escrow_state", "held")
-      .select("id")
-      .maybeSingle();
-
-    if (!claimed) {
-      results.push({ bookingId: booking.id, outcome: "al geclaimd door een andere run, overgeslagen" });
-      continue;
-    }
-
-    // Eén mislukte transfer (bv. Stripe weigert de connected account nog
-    // even) mag de rest van deze batch niet blokkeren — vang de fout op
-    // per boeking i.p.v. de hele run te laten crashen, zodat andere
-    // boekingen in dezelfde run alsnog vrijgegeven worden. De rij gaat
-    // terug naar 'held' zodat de volgende cron-run het gewoon opnieuw
-    // probeert i.p.v. voorgoed vast te blijven staan op 'releasing'.
-    try {
-      const transfer = await getStripe().transfers.create({
-        amount: payment.barber_payout_cents,
-        currency: "eur",
-        destination: barberProfile.stripe_account_id,
-      });
-
-      await supabase
-        .from("payments")
-        .update({ escrow_state: "released", released_at: new Date().toISOString(), stripe_transfer_id: transfer.id })
-        .eq("id", payment.id);
-
-      results.push({ bookingId: booking.id, outcome: "vrijgegeven" });
-    } catch (err) {
-      await supabase.from("payments").update({ escrow_state: "held" }).eq("id", payment.id);
-      results.push({ bookingId: booking.id, outcome: `transfer mislukt: ${(err as Error).message}` });
-    }
+    const result = await releasePaymentEscrow(supabase, payment, booking.barber_id);
+    results.push({ bookingId: booking.id, outcome: result.ok ? "vrijgegeven" : result.reason });
   }
 
   return NextResponse.json({ processed: results.length, results });

@@ -6,6 +6,16 @@ import type { AdminDisputeRow } from "@/lib/supabase/queries";
 
 type Recipient = "customer" | "barber" | "both";
 
+function formatTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString("nl-NL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function DisputesTable({ disputes }: { disputes: AdminDisputeRow[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -90,7 +100,34 @@ export function DisputesTable({ disputes }: { disputes: AdminDisputeRow[] }) {
                 </Badge>
               </div>
               <div className="text-[13px] text-text-secondary mt-0.5">
-                Klant: {d.customerName} · Barber: {d.barberName}
+                Klant:{" "}
+                {d.customerId ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/admin/gebruikers/${d.customerId}`)}
+                    className="font-medium text-text-primary underline decoration-border hover:decoration-text-primary"
+                  >
+                    {d.customerName}
+                  </button>
+                ) : (
+                  d.customerName
+                )}{" "}
+                · Barber:{" "}
+                {d.barberId ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/admin/gebruikers/${d.barberId}`)}
+                    className="font-medium text-text-primary underline decoration-border hover:decoration-text-primary"
+                  >
+                    {d.barberName}
+                  </button>
+                ) : (
+                  d.barberName
+                )}
+              </div>
+              <div className="text-[13px] text-text-secondary mt-0.5">
+                Gemeld op {formatTimestamp(d.openedAt)}
+                {d.address && <> · {d.address}</>}
               </div>
               <div className="text-[14px] mt-2">&ldquo;{d.reason}&rdquo;</div>
               {d.resolutionNotes && (
