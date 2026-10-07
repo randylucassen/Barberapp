@@ -8,6 +8,9 @@ import { Avatar } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
 import {
   addFavoriteBarber,
+  findNearestEligibleBarber,
+  geocodeAddress,
+  getApprovedBarberDistances,
   getApprovedBarbersWithServices,
   getCompletedBarberIdsForCustomer,
   getFavoriteBarberIds,
@@ -210,6 +213,11 @@ function BarbersContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailBarber, setDetailBarber] = useState<{ barber: BarberListItem; matched: MatchedServices } | null>(null);
+  // Afstand per barber (km) + wie "Snelste" krijgt — allebei pas bekend
+  // ná geocoden van het adres, dus null totdat dat klaar is (geen adres
+  // meegegeven = blijft null, geen afstanden/badge, geen harde fout).
+  const [distanceByBarberId, setDistanceByBarberId] = useState<Map<string, number>>(new Map());
+  const [nearestBarberId, setNearestBarberId] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -224,6 +232,32 @@ function BarbersContent() {
       getCompletedBarberIdsForCustomer(supabase, data.user.id).then(setKnownBarberIds);
     });
   }, []);
+
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+    (async () => {
+      const geo = await geocodeAddress(address);
+      if (!geo || cancelled) return;
+      const supabase = createClient();
+      getApprovedBarberDistances(supabase, geo.lat, geo.lng).then((m) => {
+        if (!cancelled) setDistanceByBarberId(m);
+      });
+      // Zelfde functie als chooseAuto() straks echt aanroept — dus de
+      // "Snelste"-badge hieronder wijst precies de barber aan die
+      // automatisch-toewijzen ook zou kiezen, i.p.v. de vorige, puur op
+      // array-volgorde gebaseerde (en dus feitelijk willekeurige) badge.
+      if (wantedServices.length > 0) {
+        findNearestEligibleBarber(supabase, wantedServices.map((w) => w.name), geo.lat, geo.lng).then((match) => {
+          if (!cancelled) setNearestBarberId(match?.barberId ?? null);
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
 
   async function toggleFavorite(barberId: string) {
     if (!userId) return;
@@ -290,9 +324,13 @@ function BarbersContent() {
       : when === "plan"
         ? availableBarbers.filter((b) => knownBarberIds.has(b.id))
         : availableBarbers;
+  // Prijs laag->hoog — op verzoek van de gebruiker. Voorheen stond de
+  // lijst in willekeurige (query-)volgorde, met een "Snelste"-badge op
+  // item 0 die daardoor niets met afstand te maken had.
   const visibleBarbers = scopedBarbers
     .map((b) => ({ barber: b, matched: matchServices(b, wantedServices) }))
-    .filter((x): x is { barber: BarberListItem; matched: MatchedServices } => x.matched !== null);
+    .filter((x): x is { barber: BarberListItem; matched: MatchedServices } => x.matched !== null)
+    .sort((a, b) => a.matched.totalPriceCents - b.matched.totalPriceCents);
   const first = visibleBarbers[0];
 
   if (detailBarber) {
@@ -355,8 +393,9 @@ function BarbersContent() {
                       : "Op dit moment is geen enkele barber online. Probeer het straks nog eens."}
           </div>
         )}
-        {visibleBarbers.map(({ barber: b, matched }, i) => {
+        {visibleBarbers.map(({ barber: b, matched }) => {
           const isFavorite = favoriteIds.has(b.id);
+          const distanceKm = distanceByBarberId.get(b.id);
           return (
             <div
               key={b.id}
@@ -367,7 +406,7 @@ function BarbersContent() {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[16px] font-semibold tracking-[-0.01em]">{b.fullName}</span>
-                  {i === 0 && when !== "favorieten" && <Badge variant="accent">Snelste</Badge>}
+                  {b.id === nearestBarberId && when !== "favorieten" && <Badge variant="accent">Snelste</Badge>}
                   <button
                     type="button"
                     aria-label={isFavorite ? "Verwijder als favoriet" : "Zet als favoriet"}
@@ -391,7 +430,10 @@ function BarbersContent() {
                     <span>Nieuw op KPPRTJE!</span>
                   )}
                 </div>
-                <div className="text-[13px] text-text-secondary mt-0.5">{b.isOnline ? "Nu beschikbaar" : "Nu niet online"}</div>
+                <div className="text-[13px] text-text-secondary mt-0.5">
+                  {b.isOnline ? "Nu beschikbaar" : "Nu niet online"}
+                  {distanceKm !== undefined && ` · ${distanceKm.toFixed(1).replace(".", ",")} km`}
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-[17px] font-bold">€{(matched.totalPriceCents / 100).toFixed(2).replace(".", ",")}</div>

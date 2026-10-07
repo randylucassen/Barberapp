@@ -861,6 +861,20 @@ export async function findNearestEligibleBarber(
   };
 }
 
+// Voor /klant/barbers: exacte afstand per barber tonen zonder ooit
+// lat/lng zelf naar de client te halen (zie get_approved_barber_
+// distances in migratie 0053 voor de volledige toelichting — zelfde
+// privacy-precedent als findNearestEligibleBarber hierboven).
+export async function getApprovedBarberDistances(
+  supabase: SupabaseClient,
+  lat: number,
+  lng: number
+): Promise<Map<string, number>> {
+  const { data, error } = await supabase.rpc("get_approved_barber_distances", { p_lat: lat, p_lng: lng });
+  if (error || !data) return new Map();
+  return new Map((data as { barber_id: string; distance_km: number }[]).map((r) => [r.barber_id, r.distance_km]));
+}
+
 // Eerste openstaande, automatisch-toegewezen aanvraag die deze barber mag
 // zien — RLS (0007) filtert al op straal/dienst/beschikbaarheid, dus geen
 // barberId-parameter nodig.
