@@ -13,6 +13,9 @@ export default function SettingsPage() {
   const [push, setPush] = useState(false);
   const [mail, setMail] = useState(true);
   const [dlg, setDlg] = useState(false);
+  const [deleteDlg, setDeleteDlg] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -63,6 +66,27 @@ export default function SettingsPage() {
     router.refresh();
   }
 
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    setDeleteError(null);
+    const supabase = createClient();
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) throw new Error();
+      await supabase.auth.signOut();
+      router.push("/klant/login");
+      router.refresh();
+    } catch {
+      setDeleteError("Verwijderen is niet gelukt. Probeer het opnieuw.");
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <NavBar title="Instellingen" onBack={() => router.push("/klant/profiel")} />
@@ -88,8 +112,13 @@ export default function SettingsPage() {
         <Row left={<span className="text-primary"><MessageCircle size={20} /></span>} title="E-mailupdates" right={<Switch checked={mail} onChange={handleToggleMail} />} />
         <SectionLabel>Overig</SectionLabel>
         <Row left={<span className="text-primary"><Shield size={20} /></span>} title="Privacy en voorwaarden" right={null} />
-        <div className="mt-6 mb-4">
+        <div className="mt-6 mb-2">
           <Button full variant="secondary" onClick={() => setDlg(true)}>Uitloggen</Button>
+        </div>
+        <div className="mb-4">
+          <Button full variant="ghost" onClick={() => setDeleteDlg(true)}>
+            Account verwijderen
+          </Button>
         </div>
       </div>
       <Dialog
@@ -104,6 +133,28 @@ export default function SettingsPage() {
         }
       >
         Je kunt altijd weer inloggen met je e-mailadres.
+      </Dialog>
+      <Dialog
+        open={deleteDlg}
+        title="Account verwijderen?"
+        onClose={() => !deleting && setDeleteDlg(false)}
+        actions={
+          <>
+            <Button full size="md" variant="secondary" onClick={handleDeleteAccount} disabled={deleting}>
+              {deleting ? "Bezig…" : "Verwijder mijn account"}
+            </Button>
+            <Button full size="md" variant="ghost" onClick={() => setDeleteDlg(false)} disabled={deleting}>
+              Annuleer
+            </Button>
+          </>
+        }
+      >
+        <>
+          Je kunt hierna niet meer inloggen en je persoonlijke gegevens (naam, telefoon, adres) worden gewist. Dit
+          kan niet ongedaan worden gemaakt. Je boekingsgeschiedenis blijft geanonimiseerd bewaard voor de
+          barbers die je eerder boekte.
+          {deleteError && <div className="mt-3 text-error-text text-[13px]">{deleteError}</div>}
+        </>
       </Dialog>
     </div>
   );

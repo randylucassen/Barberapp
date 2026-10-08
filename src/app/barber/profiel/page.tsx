@@ -35,6 +35,9 @@ export default function BarberProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [deleteDlg, setDeleteDlg] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -138,6 +141,27 @@ export default function BarberProfilePage() {
     router.refresh();
   }
 
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    setDeleteError(null);
+    const supabase = createClient();
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) throw new Error();
+      await supabase.auth.signOut();
+      router.push("/barber/login");
+      router.refresh();
+    } catch {
+      setDeleteError("Verwijderen is niet gelukt. Probeer het opnieuw.");
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <NavBar title="Profiel" />
@@ -236,8 +260,13 @@ export default function BarberProfilePage() {
         <SectionLabel>Meldingen</SectionLabel>
         <Row left={<span className="text-primary"><Bell size={20} /></span>} title="Pushmeldingen" right={<Switch checked={push} onChange={handleTogglePush} />} />
         <Row left={<span className="text-primary"><MessageCircle size={20} /></span>} title="E-mailupdates" right={<Switch checked={mail} onChange={handleToggleMail} />} />
-        <div className="mt-6 mb-4">
+        <div className="mt-6 mb-2">
           <Button full variant="secondary" onClick={() => setDlg(true)}>Uitloggen</Button>
+        </div>
+        <div className="mb-4">
+          <Button full variant="ghost" onClick={() => setDeleteDlg(true)}>
+            Account verwijderen
+          </Button>
         </div>
       </div>
       <Dialog
@@ -252,6 +281,28 @@ export default function BarberProfilePage() {
         }
       >
         Je kunt altijd weer inloggen met je e-mailadres.
+      </Dialog>
+      <Dialog
+        open={deleteDlg}
+        title="Account verwijderen?"
+        onClose={() => !deleting && setDeleteDlg(false)}
+        actions={
+          <>
+            <Button full size="md" variant="secondary" onClick={handleDeleteAccount} disabled={deleting}>
+              {deleting ? "Bezig…" : "Verwijder mijn account"}
+            </Button>
+            <Button full size="md" variant="ghost" onClick={() => setDeleteDlg(false)} disabled={deleting}>
+              Annuleer
+            </Button>
+          </>
+        }
+      >
+        <>
+          Je kunt hierna niet meer inloggen en je persoonlijke/bedrijfsgegevens (naam, telefoon, adres, KvK,
+          documenten, portfoliofoto&apos;s) worden gewist. Dit kan niet ongedaan worden gemaakt. Je
+          boekingsgeschiedenis en facturen blijven geanonimiseerd bewaard voor de boekhouding.
+          {deleteError && <div className="mt-3 text-error-text text-[13px]">{deleteError}</div>}
+        </>
       </Dialog>
     </div>
   );

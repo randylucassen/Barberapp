@@ -3607,3 +3607,70 @@ voor de RN-specifieke kant (`measureInWindow()` i.p.v.
 Profiel-tab-icoon, die in de layout leeft i.p.v. op het scherm zelf).
 Op expliciet verzoek van de gebruiker **gebouwd maar bewust nog niet
 gebuild** ("ik wil alles in 1x builden") — nog geen device-test.
+
+## "Account verwijderen"-knop op klant/instellingen + barber/profiel (2026-10-08)
+
+Apple's App Store Review Guideline 5.1.1(v) eist dat elke app met
+accountaanmaak ook account-verwijdering aanbiedt — relevant nu met de
+App Store-indiening in het stappenplan staat. **Bewust geen hard
+delete**: `bookings.customer_id`/`barber_id` staan op `on delete
+cascade` naar `profiles(id)` (0003) — een echte delete van de
+auth.users/profiles-rij zou dus ook alle boekingen/betalingen/facturen
+van de ANDERE partij (barber resp. klant) meesleuren, en de wettelijke
+7-jaars-bewaarplicht voor de btw-administratie van barbers (0038)
+breken.
+
+**In plaats daarvan: login blokkeren + persoonsgegevens anonimiseren**,
+boekingen/betalingen/facturen blijven onder het geanonimiseerde profiel
+bestaan:
+- **Migratie `0055_account_deletion.sql`**: nieuwe `profiles.deleted_at`-
+  kolom (puur audit-tijdstip, geen client-grant) + nieuwe security-
+  definer-functie `request_account_deletion()` — zet `full_name` op
+  "Verwijderd account", wist `phone`, en per rol: klant krijgt
+  `profiles.suspended = true` (hergebruikt de bestaande
+  schorsings-kolom uit 0016 — geen nieuwe kolom/enum-waarde nodig),
+  barber krijgt `barber_status = 'suspended'` (sluit 'm meteen uit van
+  élke bestaande `barber_status = 'approved'`-check in de hele app —
+  0003/0005/0007/0027/0028/0039/0053 — zonder die checks één voor één
+  te moeten aanpassen) + anonimiseert `bio`/`kvk_number`/`city`/
+  `address`/`portfolio_urls`/`insurance_doc_url`/`id_doc_url`/`iban`/
+  `avatar_url`/`diploma_url` en zet `is_online = false`.
+- **Nieuwe route `/api/account/delete`** (`getRequestUser()`, dus ook
+  bereikbaar voor de native app): roept de RPC aan via de eigen sessie,
+  ruimt daarna (via de service role) de Storage-bestanden onder
+  `{userId}/` in `barber-media`/`barber-documents` op, zet een
+  **permanente Auth Admin-ban** (`ban_duration: "876000h"`, ~100 jaar —
+  geen `deleteUser()`, dat zou dezelfde cascade-ramp triggeren als
+  hierboven beschreven), vervangt het e-mailadres door
+  `deleted-{userId}@kpprtje.invalid` (zodat het origineel vrijkomt voor
+  een nieuwe registratie) en forceert een globale sign-out van de
+  sessie.
+- **UI**: "Account verwijderen"-rij onder "Uitloggen" op zowel
+  `klant/instellingen/page.tsx` als `barber/profiel/page.tsx`, met een
+  bevestigingsdialoog die de onomkeerbaarheid en wat er met de
+  boekingsgeschiedenis gebeurt expliciet benoemt — zelfde
+  `Dialog`-patroon als de bestaande uitlog-bevestiging, geen nieuwe
+  Button-variant nodig (destructieve bevestigingen in dit project
+  gebruiken al langer gewoon `variant="secondary"`, zie
+  `klant/annuleren/page.tsx` — de dialoogtekst draagt de waarschuwing,
+  niet de knopkleur).
+- **Bekend, geaccepteerd randgeval**: een klant krijgt
+  `profiles.suspended = true` gezet, maar de auth-ban blokkeert het
+  inloggen al — een admin die later per ongeluk op "Herstel" klikt bij
+  een geanonimiseerd account zou dus geen echte toegang teruggeven,
+  puur een inactieve vlag omkeren. Niet verder afgedicht (lage impact,
+  geen beveiligingsgat), maar goed om te weten bij een toekomstige
+  admin-UI-wijziging rond schorsing.
+
+1-op-1 ook native gebouwd (`klant/instellingen.tsx`/
+`barber/(tabs)/profiel.tsx` in `KPPRTJE-app`, dezelfde
+`/api/account/delete`-route aangeroepen via Bearer-auth, zelfde
+Dialog-patroon als de bestaande uitlog-bevestiging aldaar).
+
+**Geverifieerd**: `npx tsc --noEmit`/`npm run lint` (webapp) en `npx tsc
+--noEmit`/`npx expo lint` (native) schoon. **Niet live getest** — vereist
+een wegwerptestaccount om een echte verwijdering tegen productie te
+bevestigen (ban-gedrag, Storage-opruiming, de `barber_status`-
+uitsluiting uit matching/lijsten); nog te doen in een volgende sessie
+met testaccount-toegang. Migratie `0055` — nog te pushen door de
+gebruiker.
