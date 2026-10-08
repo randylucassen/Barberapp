@@ -3561,3 +3561,49 @@ Geen van de vijf onderdelen is al live-geverifieerd met een echte
 melding/vrijgave na migratie 0052 — eerstvolgende sessie met
 testaccounts moet dat nog doen (`tsc --noEmit`/lint zijn wel schoon op
 beide repo's).
+
+## Eerste-keer-rondleiding voor klant en barber (2026-10-08)
+
+Op verzoek van de gebruiker eerst een los klikbaar HTML-voorbeeld
+gebouwd en afgestemd (Artifact: spotlight-overlay op een telefoon-
+mockup, Klant/Barber-toggle), pas daarna de echte implementatie.
+
+**Nieuw**: `src/components/tutorial/OnboardingTutorial.tsx` —
+`position:fixed`-overlay die een opgegeven DOM-element uitlicht
+(scrim met een rechthoekig gat + ring + tooltip), met stap-dots, Terug/
+Volgende/"Overslaan". Scrollt het doelwit automatisch in beeld als het
+(bv. onder de geschillenbalk) buiten de viewport valt. Migratie `0054`:
+nieuwe `profiles.tutorial_seen_at`-kolom (**met backfill** — anders
+zouden alle bestaande/test-accounts 'm bij de eerstvolgende load alsnog
+te zien krijgen, dit is bewust alleen voor nieuwe registraties na de
+migratie), `getTutorialSeenAt()`/`markTutorialSeen()`/`resetTutorial()`
+in queries.ts.
+
+- **Klant-home** (6 stappen): welkom → adresveld → dienst-tags → "Boek
+  direct" → wallet (licht de Profiel-tab-icoon uit, geen navigatie
+  nodig — die staat al op hetzelfde scherm via `klant/layout.tsx`) →
+  afronding.
+- **Barber-dashboard** (5 stappen, bewust geen wallet-stap — op verzoek
+  van de gebruiker alleen bij de klant): welkom → online-toggle →
+  cijfers → "Nieuwe aanvraag" (licht niets uit als er nu geen live
+  aanvraag zichtbaar is — het doelwit bestaat dan simpelweg niet in de
+  DOM, de component filtert zo'n stap vanzelf weg) → afronding.
+- `Card`-component kreeg een `id`-prop (nodig om 'm als meetbaar
+  doelwit te kunnen gebruiken, had die nog niet).
+- "Rondleiding opnieuw bekijken" in zowel `/klant/profiel` als
+  `/barber/profiel` (zet `tutorial_seen_at` terug op `null`, navigeert
+  naar het scherm waar de rondleiding hoort).
+
+**Live doorlopen** via de dev-server met een echt klant-testaccount:
+alle 6 stappen correct uitgelicht (incl. de scroll-in-beeld-fix voor
+een doelwit dat door de geschillenbalk buiten beeld viel), "Overslaan"
+en "Begrepen" ronden 'm netjes af. De barber-kant is alleen via
+code-review geverifieerd (zelfde component/patroon, niet apart met een
+barber-sessie doorlopen).
+
+1-op-1 gemirrored naar de native app — zie die repo's eigen CLAUDE.md
+voor de RN-specifieke kant (`measureInWindow()` i.p.v.
+`getBoundingClientRect()`, en de `tutorial-targets.ts`-registry voor de
+Profiel-tab-icoon, die in de layout leeft i.p.v. op het scherm zelf).
+Op expliciet verzoek van de gebruiker **gebouwd maar bewust nog niet
+gebuild** ("ik wil alles in 1x builden") — nog geen device-test.
