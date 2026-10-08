@@ -43,7 +43,7 @@ const KLANT_TUTORIAL_STEPS: TutorialStep[] = [
   {
     targetId: "tab-profiel",
     title: "Je wallet",
-    body: "Via Profiel vind je je wallet: waardeer op en krijg een bonus vanaf €50, en verdien €5 door vrienden uit te nodigen met je eigen code.",
+    body: "Via Profiel vind je je wallet: waardeer op met een bonus vanaf €50, verdien €5 per uitgenodigde vriend, en spaar bij elke afgeronde boeking 1 loyaliteitspunt per bestede euro — in te wisselen voor saldo.",
   },
   {
     title: "Klaar om te knippen!",
@@ -139,6 +139,17 @@ export default function HomePage() {
       setHasUnread(await hasUnreadNotifications(supabase, data.user.id));
       setDisputeBanner(await getDisputeBannerForCustomer(supabase, data.user.id));
       setCompletedBanner(await getCompletedBookingBannerForCustomer(supabase, data.user.id));
+      // Hoort hier (niet in de losse mount-only IIFE hieronder) om
+      // precies dezelfde reden als "Recent" hierboven: na "Rondleiding
+      // opnieuw bekijken" (reset + router.push naar dit scherm) kan
+      // Next.js' client-side router-cache de al bestaande component-
+      // instantie hergebruiken i.p.v. een verse mount te doen — dan zou
+      // een check die alleen in de mount-only IIFE staat de reset nooit
+      // oppikken. loadHomeData() draait wél opnieuw via de drie
+      // listeners hieronder.
+      setTutorialUserId(data.user.id);
+      setTutorialSeenAt(await getTutorialSeenAt(supabase, data.user.id));
+      setTutorialChecked(true);
     }
 
     (async () => {
@@ -146,9 +157,6 @@ export default function HomePage() {
       if (!data.user) return;
       const customerProfile = await getCustomerProfile(supabase, data.user.id);
       if (customerProfile?.defaultAddress) setAddress(customerProfile.defaultAddress);
-      setTutorialUserId(data.user.id);
-      setTutorialSeenAt(await getTutorialSeenAt(supabase, data.user.id));
-      setTutorialChecked(true);
       await loadHomeData();
     })();
 

@@ -91,15 +91,15 @@ export function OnboardingTutorial({ steps, userId }: { steps: TutorialStep[]; u
     setStepIndex((i) => Math.max(0, i - 1));
   }
 
-  const tipWidth = 280;
+  const tipWidth = Math.min(336, vw - 24);
   let tipLeft = hole.left + hole.width / 2 - tipWidth / 2;
   tipLeft = Math.max(12, Math.min(tipLeft, vw - tipWidth - 12));
   let tipTop: number;
   if (!rect) {
-    tipTop = vh / 2 - 110;
+    tipTop = vh / 2 - 130;
   } else {
     const spaceBelow = vh - (hole.top + hole.height);
-    tipTop = spaceBelow > 220 ? hole.top + hole.height + 16 : Math.max(12, hole.top - 236);
+    tipTop = spaceBelow > 260 ? hole.top + hole.height + 16 : Math.max(12, hole.top - 276);
   }
 
   const scrimClass = "fixed bg-[rgba(10,16,15,0.58)] cursor-pointer";
@@ -125,24 +125,27 @@ export function OnboardingTutorial({ steps, userId }: { steps: TutorialStep[]; u
           onClick={next}
         />
       )}
-      <div className="fixed w-[280px] bg-white rounded-lg p-4 shadow-[0_20px_40px_-18px_rgba(10,16,15,.45)]" style={{ left: tipLeft, top: tipTop }}>
-        <div className="text-[10.5px] font-bold uppercase tracking-wide text-accent-dark">
+      <div
+        className="fixed bg-white rounded-lg p-5 shadow-[0_20px_40px_-18px_rgba(10,16,15,.45)]"
+        style={{ left: tipLeft, top: tipTop, width: tipWidth }}
+      >
+        <div className="text-[11px] font-bold uppercase tracking-wide text-accent-dark">
           Stap {stepIndex + 1} van {resolvedSteps.length}
         </div>
-        <div className="text-[16px] font-extrabold tracking-[-0.01em] mt-1">{step.title}</div>
-        <div className="text-[12.5px] text-text-secondary mt-1.5 leading-[18px]">{step.body}</div>
-        <div className="flex gap-1.5 mt-3">
+        <div className="text-[18px] font-extrabold tracking-[-0.01em] mt-1.5">{step.title}</div>
+        <div className="text-[14px] text-text-secondary mt-2 leading-[21px]">{step.body}</div>
+        <div className="flex gap-1.5 mt-4">
           {resolvedSteps.map((_, i) => (
             <span key={i} className={`h-1.5 rounded-full ${i === stepIndex ? "w-3.5 bg-accent" : "w-1.5 bg-border"}`} />
           ))}
         </div>
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-4">
           {stepIndex > 0 && (
-            <button type="button" onClick={back} className="h-9 px-3.5 rounded-md text-[13px] font-semibold text-text-secondary">
+            <button type="button" onClick={back} className="h-10 px-4 rounded-md text-[14px] font-semibold text-text-secondary">
               Terug
             </button>
           )}
-          <button type="button" onClick={next} className="flex-1 h-9 rounded-md bg-primary text-white text-[13px] font-bold">
+          <button type="button" onClick={next} className="flex-1 h-10 rounded-md bg-primary text-white text-[14px] font-bold">
             {isLast ? "Begrepen" : "Volgende"}
           </button>
         </div>

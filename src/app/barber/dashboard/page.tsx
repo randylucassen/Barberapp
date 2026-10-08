@@ -187,6 +187,14 @@ export default function BarberDashboardPage() {
         setActiveBooking(await getActiveBookingForBarber(supabase, userId!));
         setScheduledBookings(await getScheduledBookingsForBarber(supabase, userId!));
         setHasUnread(await hasUnreadNotifications(supabase, userId!));
+        // Hier (niet alleen in de mount-only effect hierboven) om
+        // dezelfde reden als klant/home/page.tsx: na "Rondleiding
+        // opnieuw bekijken" (reset + router.push naar dit scherm) kan
+        // Next.js' client-side router-cache de bestaande component-
+        // instantie hergebruiken i.p.v. een verse mount te doen — deze
+        // poll blijft wel gewoon doorlopen en pikt de reset zo alsnog op.
+        setTutorialSeenAt(await getTutorialSeenAt(supabase, userId!));
+        setTutorialChecked(true);
       } catch {
         // stil negeren, volgende tick probeert opnieuw
       }
