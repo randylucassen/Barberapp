@@ -513,7 +513,10 @@ export async function getActiveBookingForCustomer(
 export interface CustomerDisputeBanner {
   id: string;
   status: "open" | "resolved" | "dismissed";
-  serviceName: string;
+  // Datum van de boeking zelf (completed_at, of created_at als die om
+  // wat voor reden dan ook ontbreekt) — op verzoek van de gebruiker
+  // getoond i.p.v. de dienstnaam ("melding over boeking van [datum]").
+  bookingDate: string;
   bookingId: string;
 }
 
@@ -528,10 +531,13 @@ export async function getDisputeBannerForCustomer(
   supabase: SupabaseClient,
   customerId: string
 ): Promise<CustomerDisputeBanner | null> {
-  const { data: bookings } = await supabase.from("bookings").select("id, service_name_snapshot").eq("customer_id", customerId);
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select("id, completed_at, created_at")
+    .eq("customer_id", customerId);
   const bookingIds = (bookings ?? []).map((b) => b.id);
   if (bookingIds.length === 0) return null;
-  const serviceNameByBooking = new Map((bookings ?? []).map((b) => [b.id, b.service_name_snapshot]));
+  const dateByBooking = new Map((bookings ?? []).map((b) => [b.id, b.completed_at ?? b.created_at]));
 
   // acknowledge_dispute() zet alleen ooit acknowledged_at op een
   // resolved/dismissed geschil — een open geschil heeft dit altijd nog
@@ -552,8 +558,43 @@ export async function getDisputeBannerForCustomer(
     id: row.id,
     status: row.status,
     bookingId: row.booking_id,
-    serviceName: serviceNameByBooking.get(row.booking_id) ?? "je boeking",
+    bookingDate: dateByBooking.get(row.booking_id) ?? new Date().toISOString(),
   };
+}
+
+export interface CustomerCompletedBookingBanner {
+  bookingId: string;
+  completedAt: string;
+}
+
+// Voor klant-home: zodra een boeking afrondt verdwijnt de "Lopende
+// boeking"-kaart meteen (activeBooking sluit completed/cancelled uit),
+// en tot nu toe was een reminder om te reviewen/een probleem te melden
+// alleen bereikbaar via een notificatie — niet rechtstreeks op home
+// zelf. Zelfde 24u-venster als /klant/status se eigen "canReportProblem"
+// (en de server-side geschillen-insert-policy, 0009) — ná dat venster
+// kan er sowieso geen geschil meer geopend worden, dus heeft een banner
+// hier geen zin meer; de boeking blijft dan gewoon in "Recent" staan.
+export async function getCompletedBookingBannerForCustomer(
+  supabase: SupabaseClient,
+  customerId: string
+): Promise<CustomerCompletedBookingBanner | null> {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("id, completed_at")
+    .eq("customer_id", customerId)
+    .eq("status", "completed")
+    .gte("completed_at", cutoff)
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!booking) return null;
+
+  const existingReview = await getReviewForBooking(supabase, booking.id);
+  if (existingReview) return null;
+
+  return { bookingId: booking.id, completedAt: booking.completed_at };
 }
 
 export interface RecentBookingSummary {

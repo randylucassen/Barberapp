@@ -7,10 +7,12 @@ import { AddressAutocomplete, Avatar, NotificationBell, Row } from "@/components
 import { createClient } from "@/lib/supabase/client";
 import {
   getActiveBookingForCustomer,
+  getCompletedBookingBannerForCustomer,
   getCustomerProfile,
   getDisputeBannerForCustomer,
   getRecentCompletedBookingsForCustomer,
   hasUnreadNotifications,
+  type CustomerCompletedBookingBanner,
   type CustomerDisputeBanner,
   type RecentBookingSummary,
 } from "@/lib/supabase/queries";
@@ -32,23 +34,30 @@ function timeAgo(iso: string): string {
 // eerste dienst van de barber.
 const SERVICE_TAGS = ["Knipbeurt", "Baard trimmen", "Knippen + baard", "Kids"];
 
+function formatBookingDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
+}
+
 // "maak hier iets professioneels van" — geen letterlijke placeholder-
 // tekst, maar een korte, geruststellende melding per fase. "open" toont
 // geen "Oké!"-knop (de melding staat nog in behandeling, niet iets om
 // weg te klikken); "resolved"/"dismissed" wel, zie DisputeBanner hieronder.
-const DISPUTE_BANNER_COPY: Record<CustomerDisputeBanner["status"], { title: string; body: (service: string) => string }> = {
+// Toont de datum van de boeking i.p.v. de dienstnaam (op verzoek van de
+// gebruiker) — bij meerdere diensten in één boeking was "knipbeurt" toch
+// al onvolledig/willekeurig.
+const DISPUTE_BANNER_COPY: Record<CustomerDisputeBanner["status"], { title: string; body: (date: string) => string }> = {
   open: {
     title: "Je melding wordt bekeken",
-    body: (service) => `We onderzoeken je melding over ${service}. Je hoort van ons zodra er een update is.`,
+    body: (date) => `We onderzoeken je melding over je boeking van ${date}. Je hoort van ons zodra er een update is.`,
   },
   resolved: {
     title: "Geschil afgehandeld",
-    body: (service) =>
-      `We hebben je melding over ${service} beoordeeld en een terugbetaling verwerkt. Bekijk je e-mail voor de details.`,
+    body: (date) =>
+      `We hebben je melding over je boeking van ${date} beoordeeld en een terugbetaling verwerkt. Bekijk je e-mail voor de details.`,
   },
   dismissed: {
     title: "Geschil afgehandeld",
-    body: (service) => `We hebben je melding over ${service} beoordeeld. Bekijk je e-mail voor de uitkomst en meer informatie.`,
+    body: (date) => `We hebben je melding over je boeking van ${date} beoordeeld. Bekijk je e-mail voor de uitkomst en meer informatie.`,
   },
 };
 
@@ -76,6 +85,7 @@ export default function HomePage() {
   const [hasUnread, setHasUnread] = useState(false);
   const [disputeBanner, setDisputeBanner] = useState<CustomerDisputeBanner | null>(null);
   const [acknowledging, setAcknowledging] = useState(false);
+  const [completedBanner, setCompletedBanner] = useState<CustomerCompletedBookingBanner | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -92,6 +102,7 @@ export default function HomePage() {
       setRecentBookings(recent);
       setHasUnread(await hasUnreadNotifications(supabase, data.user.id));
       setDisputeBanner(await getDisputeBannerForCustomer(supabase, data.user.id));
+      setCompletedBanner(await getCompletedBookingBannerForCustomer(supabase, data.user.id));
     }
 
     (async () => {
@@ -188,7 +199,7 @@ export default function HomePage() {
               {DISPUTE_BANNER_COPY[disputeBanner.status].title}
             </div>
             <div className="text-[13px] text-text-secondary mt-1 leading-[18px]">
-              {DISPUTE_BANNER_COPY[disputeBanner.status].body(disputeBanner.serviceName)}
+              {DISPUTE_BANNER_COPY[disputeBanner.status].body(formatBookingDate(disputeBanner.bookingDate))}
             </div>
             {disputeBanner.status !== "open" && (
               <button
@@ -201,6 +212,21 @@ export default function HomePage() {
               </button>
             )}
           </div>
+        </div>
+      )}
+      {completedBanner && (
+        <div className="px-5 pt-4">
+          <Card variant="inverse" padding={16} onClick={() => router.push(`/klant/status?bookingId=${completedBanner.bookingId}`)}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[13px] text-white/60">Voltooide boeking</div>
+                <div className="text-[15px] font-semibold mt-0.5">Laat een review achter</div>
+              </div>
+              <span className="text-accent">
+                <ChevronRight size={22} />
+              </span>
+            </div>
+          </Card>
         </div>
       )}
       {activeBooking && (
