@@ -9,6 +9,7 @@ import {
   declinePriceAndReopen,
   getBooking,
   getBookingBarberPhone,
+  getDisputeForBooking,
   getReviewForBooking,
   updateBookingStatus,
 } from "@/lib/supabase/queries";
@@ -46,6 +47,7 @@ function StatusContent() {
   const [barberName, setBarberName] = useState<string | null>(null);
   const [barberPhone, setBarberPhone] = useState<string | null>(null);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+  const [hasDispute, setHasDispute] = useState(false);
   const [confirmingPrice, setConfirmingPrice] = useState(false);
   const [decliningPrice, setDecliningPrice] = useState(false);
   const [declineDlg, setDeclineDlg] = useState(false);
@@ -97,6 +99,15 @@ function StatusContent() {
     const supabase = createClient();
     getReviewForBooking(supabase, bookingId).then((r) => setAlreadyReviewed(!!r));
   }, [bookingId, booking?.status, alreadyReviewed]);
+
+  // "Probleem melden" moet verdwijnen zodra er al een geschil bestaat op
+  // deze boeking — open of al opgelost, maakt niet uit: disputes.
+  // booking_id is uniek, dus een tweede melding zou hoe dan ook falen.
+  useEffect(() => {
+    if (!bookingId || booking?.status !== "completed" || hasDispute) return;
+    const supabase = createClient();
+    getDisputeForBooking(supabase, bookingId).then((d) => setHasDispute(!!d));
+  }, [bookingId, booking?.status, hasDispute]);
 
   // Klant bevestigt de door een barber voorgestelde prijs (0042) — zet
   // status naar accepted, normale "ga naar betalen"-pad hierna.
@@ -196,6 +207,7 @@ function StatusContent() {
   const isCompleted = booking?.status === "completed";
   const canDispute =
     isCompleted &&
+    !hasDispute &&
     !!booking?.completedAt &&
     Date.now() - new Date(booking.completedAt).getTime() < 24 * 60 * 60 * 1000;
   // Live kaart heeft alleen zin zolang de barber onderweg is — daarvoor

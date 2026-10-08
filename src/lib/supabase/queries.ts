@@ -1068,6 +1068,19 @@ export async function openDispute(
   return !error;
 }
 
+// Voor "Probleem melden" op /klant/status — disputes.booking_id is uniek
+// (0003: `unique references bookings`), dus een tweede melding op
+// dezelfde boeking faalt sowieso server-side. Deze check voorkomt dat de
+// knop na een al-opgelost (of nog open) geschil misleidend klikbaar
+// blijft staan.
+export async function getDisputeForBooking(
+  supabase: SupabaseClient,
+  bookingId: string
+): Promise<{ id: string; status: "open" | "resolved" | "dismissed" } | null> {
+  const { data } = await supabase.from("disputes").select("id, status").eq("booking_id", bookingId).maybeSingle();
+  return data ?? null;
+}
+
 // ============================================================
 // Betalingen (Fase 6) — payments heeft geen client-schrijfrecht, alleen
 // select (RLS: "Participants can view own payment"). Rijen ontstaan

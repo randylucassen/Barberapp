@@ -1,10 +1,10 @@
 "use client";
 import { AlertTriangle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Button, NavBar } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
-import { openDispute } from "@/lib/supabase/queries";
+import { getDisputeForBooking, openDispute } from "@/lib/supabase/queries";
 
 function DisputeContent() {
   const router = useRouter();
@@ -14,6 +14,24 @@ function DisputeContent() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Alleen bereikbaar via /klant/status, die de knop al verbergt zodra er
+  // een geschil bestaat — dit is puur een vangnet voor een oude link/
+  // race, want disputes.booking_id is uniek (server zou dit sowieso
+  // weigeren).
+  const [alreadyDisputed, setAlreadyDisputed] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    if (!bookingId) {
+      setChecking(false);
+      return;
+    }
+    const supabase = createClient();
+    getDisputeForBooking(supabase, bookingId).then((d) => {
+      setAlreadyDisputed(!!d);
+      setChecking(false);
+    });
+  }, [bookingId]);
 
   async function handleSubmit() {
     if (!bookingId || !reason.trim()) return;
@@ -29,10 +47,23 @@ function DisputeContent() {
     const ok = await openDispute(supabase, bookingId, data.user.id, reason.trim());
     setSubmitting(false);
     if (!ok) {
-      setError("Melden is niet gelukt — mogelijk is het venster van 24 uur al verstreken.");
+      setError("Melden is niet gelukt — mogelijk is het venster van 24 uur al verstreken, of er is al een melding voor deze boeking.");
       return;
     }
     setDone(true);
+  }
+
+  if (!checking && alreadyDisputed) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center px-7 text-center">
+        <div className="text-[20px] font-bold tracking-[-0.01em]">Al gemeld</div>
+        <div className="text-[15px] text-text-secondary mt-2 leading-[22px]">
+          Je hebt voor deze boeking al eerder een melding gemaakt. Je kunt per boeking maar één keer
+          een probleem melden.
+        </div>
+        <Button full className="mt-6" onClick={() => router.push("/klant/home")}>Naar home</Button>
+      </div>
+    );
   }
 
   if (done) {
