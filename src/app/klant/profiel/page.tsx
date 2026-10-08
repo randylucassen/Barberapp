@@ -1,11 +1,11 @@
 "use client";
-import { Bell, ChevronRight, CreditCard, FileText, MapPin, Wallet as WalletIcon } from "lucide-react";
+import { Bell, ChevronRight, CreditCard, FileText, HelpCircle, MapPin, Wallet as WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NavBar, Switch } from "@/components/ui";
 import { Avatar, Row } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
-import { getWallet } from "@/lib/supabase/queries";
+import { getWallet, resetTutorial } from "@/lib/supabase/queries";
 import { euro } from "@/lib/pricing";
 
 export default function ProfilePage() {
@@ -14,17 +14,25 @@ export default function ProfilePage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
+      setUserId(data.user.id);
       setName((data.user.user_metadata?.full_name as string) ?? "");
       setEmail(data.user.email ?? "");
       const wallet = await getWallet(supabase, data.user.id);
       setWalletBalanceCents(wallet?.balanceCents ?? 0);
     });
   }, []);
+
+  async function replayTutorial() {
+    if (!userId) return;
+    await resetTutorial(createClient(), userId);
+    router.push("/klant/home");
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -60,6 +68,12 @@ export default function ProfilePage() {
             sub="Account, privacy, uitloggen"
             right={null}
             onClick={() => router.push("/klant/instellingen")}
+          />
+          <Row
+            left={<span className="text-primary"><HelpCircle size={20} /></span>}
+            title="Rondleiding opnieuw bekijken"
+            right={null}
+            onClick={replayTutorial}
           />
         </div>
         <div className="h-4" />

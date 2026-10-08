@@ -1,11 +1,11 @@
 "use client";
-import { Bell, Calendar, Camera, CreditCard, FileText, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
+import { Bell, Calendar, Camera, CreditCard, FileText, HelpCircle, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
 import { Avatar, Row, SectionLabel } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
-import { getBarberProfile, getWallet, setBarberOnline } from "@/lib/supabase/queries";
+import { getBarberProfile, getWallet, resetTutorial, setBarberOnline } from "@/lib/supabase/queries";
 import { uploadBarberFile } from "@/lib/supabase/storage";
 import { subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { euro } from "@/lib/pricing";
@@ -218,6 +218,15 @@ export default function BarberProfilePage() {
             title="Reviews"
             sub={profile?.ratingAvg ? `${profile.ratingAvg.toFixed(1).replace(".", ",")} · ${profile.ratingCount} reviews` : "Nog geen reviews"}
             onClick={() => router.push("/barber/reviews")}
+          />
+          <Row
+            left={<span className="text-primary"><HelpCircle size={20} /></span>}
+            title="Rondleiding opnieuw bekijken"
+            onClick={async () => {
+              if (!userId) return;
+              await resetTutorial(createClient(), userId);
+              router.push("/barber/dashboard");
+            }}
           />
         </div>
         <SectionLabel>Meldingen</SectionLabel>

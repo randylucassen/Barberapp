@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Card, Tag } from "@/components/ui";
 import { AddressAutocomplete, Avatar, NotificationBell, Row } from "@/components/shared";
+import { OnboardingTutorial, type TutorialStep } from "@/components/tutorial/OnboardingTutorial";
 import { createClient } from "@/lib/supabase/client";
 import {
   getActiveBookingForCustomer,
@@ -11,12 +12,44 @@ import {
   getCustomerProfile,
   getDisputeBannerForCustomer,
   getRecentCompletedBookingsForCustomer,
+  getTutorialSeenAt,
   hasUnreadNotifications,
   type CustomerCompletedBookingBanner,
   type CustomerDisputeBanner,
   type RecentBookingSummary,
 } from "@/lib/supabase/queries";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
+
+// 6 stappen: welkom -> adres -> diensten -> boek direct -> wallet (via de
+// Profiel-tab, die al op dit scherm staat — geen navigatie nodig) ->
+// afronding. Zie de eerder goedgekeurde "KPPRTJE Rondleiding"-preview.
+const KLANT_TUTORIAL_STEPS: TutorialStep[] = [
+  { title: "Welkom bij KPPRTJE!", body: "In 6 korte stappen laten we zien hoe je in een paar tikken een barber boekt." },
+  {
+    targetId: "tut-k-address",
+    title: "Vul je adres in",
+    body: "Zo kunnen we een barber bij jou in de buurt vinden. Je kunt dit adres later altijd aanpassen.",
+  },
+  {
+    targetId: "tut-k-tags",
+    title: "Kies je dienst(en)",
+    body: "Tik op een tegel om die te selecteren, tik nogmaals om het aantal te verhogen. Je kunt meerdere diensten combineren in één boeking.",
+  },
+  {
+    targetId: "tut-k-book",
+    title: "Boek direct",
+    body: "Wij zoeken automatisch de snelste beschikbare barber voor je. Liever zelf kiezen? Dat kan ook, via de lijst met barbers in de buurt.",
+  },
+  {
+    targetId: "tab-profiel",
+    title: "Je wallet",
+    body: "Via Profiel vind je je wallet: waardeer op en krijg een bonus vanaf €50, en verdien €5 door vrienden uit te nodigen met je eigen code.",
+  },
+  {
+    title: "Klaar om te knippen!",
+    body: "Dat was het — je kunt nu direct je eerste barber boeken. Deze rondleiding vind je terug via Profiel.",
+  },
+];
 
 function timeAgo(iso: string): string {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -86,6 +119,9 @@ export default function HomePage() {
   const [disputeBanner, setDisputeBanner] = useState<CustomerDisputeBanner | null>(null);
   const [acknowledging, setAcknowledging] = useState(false);
   const [completedBanner, setCompletedBanner] = useState<CustomerCompletedBookingBanner | null>(null);
+  const [tutorialUserId, setTutorialUserId] = useState<string | null>(null);
+  const [tutorialSeenAt, setTutorialSeenAt] = useState<string | null>(null);
+  const [tutorialChecked, setTutorialChecked] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -110,6 +146,9 @@ export default function HomePage() {
       if (!data.user) return;
       const customerProfile = await getCustomerProfile(supabase, data.user.id);
       if (customerProfile?.defaultAddress) setAddress(customerProfile.defaultAddress);
+      setTutorialUserId(data.user.id);
+      setTutorialSeenAt(await getTutorialSeenAt(supabase, data.user.id));
+      setTutorialChecked(true);
       await loadHomeData();
     })();
 
@@ -246,7 +285,7 @@ export default function HomePage() {
       )}
       <div className="px-5 pt-5">
         <div className="text-[34px] leading-[40px] font-bold tracking-[-0.02em]">Waar knippen we je?</div>
-        <div className="mt-4">
+        <div className="mt-4" id="tut-k-address">
           <AddressAutocomplete
             value={address}
             onChange={setAddress}
@@ -256,7 +295,7 @@ export default function HomePage() {
             inputClassName="flex-1 min-w-0 border-none outline-none bg-transparent font-sans text-[17px] text-text-primary placeholder:text-text-tertiary"
           />
         </div>
-        <div className="flex gap-2 mt-3.5 flex-wrap">
+        <div className="flex gap-2 mt-3.5 flex-wrap" id="tut-k-tags">
           {SERVICE_TAGS.map((t) => {
             const count = selected.get(t) ?? 0;
             return (
@@ -285,7 +324,7 @@ export default function HomePage() {
         )}
       </div>
       <div className="px-5 pt-6">
-        <Card variant="inverse" padding={20} onClick={bookService}>
+        <Card id="tut-k-book" variant="inverse" padding={20} onClick={bookService}>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[17px] font-semibold">Boek direct</div>
@@ -316,6 +355,9 @@ export default function HomePage() {
             />
           ))}
         </div>
+      )}
+      {tutorialChecked && !tutorialSeenAt && tutorialUserId && (
+        <OnboardingTutorial steps={KLANT_TUTORIAL_STEPS} userId={tutorialUserId} />
       )}
     </div>
   );

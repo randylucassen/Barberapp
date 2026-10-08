@@ -9,6 +9,7 @@ interface CardProps {
   onClick?: MouseEventHandler<HTMLDivElement>;
   children?: ReactNode;
   className?: string;
+  id?: string;
 }
 
 const variantClasses: Record<Variant, string> = {
@@ -17,9 +18,10 @@ const variantClasses: Record<Variant, string> = {
   inverse: "bg-primary text-white",
 };
 
-export function Card({ variant = "surface", padding = 16, onClick, children, className = "" }: CardProps) {
+export function Card({ variant = "surface", padding = 16, onClick, children, className = "", id }: CardProps) {
   return (
     <div
+      id={id}
       onClick={onClick}
       style={{ padding }}
       className={[

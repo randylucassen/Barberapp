@@ -74,6 +74,22 @@ export async function getProfile(
   return mapProfile(data as ProfileRow);
 }
 
+// Voor de eerste-keer-rondleiding (klant-home/barber-dashboard) — los van
+// getProfile()'s Profile-type gehouden, dit is de enige plek die dit
+// veld nodig heeft.
+export async function getTutorialSeenAt(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  const { data } = await supabase.from("profiles").select("tutorial_seen_at").eq("id", userId).maybeSingle();
+  return data?.tutorial_seen_at ?? null;
+}
+
+export async function markTutorialSeen(supabase: SupabaseClient, userId: string): Promise<void> {
+  await supabase.from("profiles").update({ tutorial_seen_at: new Date().toISOString() }).eq("id", userId);
+}
+
+export async function resetTutorial(supabase: SupabaseClient, userId: string): Promise<void> {
+  await supabase.from("profiles").update({ tutorial_seen_at: null }).eq("id", userId);
+}
+
 interface BarberProfileRow {
   id: string;
   bio: string | null;

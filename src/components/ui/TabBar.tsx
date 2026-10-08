@@ -22,6 +22,7 @@ export function TabBar({ items, value, onChange }: TabBarProps) {
         return (
           <button
             key={it.key}
+            id={`tab-${it.key}`}
             onClick={() => onChange(it.key)}
             className={`flex-1 flex flex-col items-center justify-center gap-[3px] border-none bg-transparent cursor-pointer ${
               active ? "text-text-primary" : "text-text-tertiary"

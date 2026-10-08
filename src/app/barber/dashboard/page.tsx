@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, Switch } from "@/components/ui";
 import { Avatar, NotificationBell, Row } from "@/components/shared";
+import { OnboardingTutorial, type TutorialStep } from "@/components/tutorial/OnboardingTutorial";
 import { createClient } from "@/lib/supabase/client";
 import {
   getActiveBookingForBarber,
@@ -14,12 +15,42 @@ import {
   getPendingRequestForBarber,
   getRecentBookingsForBarber,
   getScheduledBookingsForBarber,
+  getTutorialSeenAt,
   hasUnreadNotifications,
   setBarberOnline,
 } from "@/lib/supabase/queries";
 import { euro } from "@/lib/pricing";
 import { isRideDue } from "@/lib/booking-timing";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
+
+// 5 stappen: welkom -> online-toggle -> cijfers -> aanvraag (valt vanzelf
+// weg als er nu geen openstaande aanvraag te zien is) -> afronding. Geen
+// wallet-stap hier — op verzoek van de gebruiker alleen bij de klant.
+const BARBER_TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    title: "Welkom, barber!",
+    body: "Voordat je je eerste aanvraag binnenkrijgt, lopen we in 5 korte stappen door wat je op dit dashboard ziet.",
+  },
+  {
+    targetId: "tut-b-online",
+    title: "Zet jezelf online",
+    body: "Alleen als je online staat, krijg je aanvragen te zien. Je blijft online totdat je dit zelf weer uitzet — ook na uitloggen.",
+  },
+  {
+    targetId: "tut-b-stats",
+    title: "Je cijfers in één oogopslag",
+    body: "Wat je vandaag verdiend hebt, je aantal boekingen en je gemiddelde beoordeling staan altijd boven in beeld.",
+  },
+  {
+    targetId: "tut-b-request",
+    title: "Zo ziet een aanvraag eruit",
+    body: "Nieuwe aanvragen verschijnen hier. Wees er snel bij: wie als eerste accepteert, krijgt de klus.",
+  },
+  {
+    title: "Ga aan de slag!",
+    body: "Zet jezelf online en je eerste aanvraag kan binnenkomen. Deze rondleiding vind je terug via je profiel.",
+  },
+];
 
 function formatScheduledLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("nl-NL", {
@@ -93,6 +124,8 @@ export default function BarberDashboardPage() {
   const [bookings, setBookings] = useState<(BookingRecord & { customerName: string })[]>([]);
   const [ratingAvg, setRatingAvg] = useState<number | null>(null);
   const [todayCents, setTodayCents] = useState(0);
+  const [tutorialSeenAt, setTutorialSeenAt] = useState<string | null>(null);
+  const [tutorialChecked, setTutorialChecked] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -101,6 +134,8 @@ export default function BarberDashboardPage() {
       if (!data.user) return;
       const barberId = data.user.id;
       setUserId(barberId);
+      setTutorialSeenAt(await getTutorialSeenAt(supabase, barberId));
+      setTutorialChecked(true);
 
       const profile = await getBarberProfile(supabase, barberId);
       setOnline(profile?.isOnline ?? false);
@@ -200,7 +235,7 @@ export default function BarberDashboardPage() {
         <NotificationBell hasUnread={hasUnread} onClick={() => router.push("/barber/notificaties")} />
       </div>
       <div className="px-5 pt-5">
-        <Card variant={online ? "inverse" : "outline"} padding={20}>
+        <Card id="tut-b-online" variant={online ? "inverse" : "outline"} padding={20}>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[17px] font-semibold">{online ? "Je bent online" : "Je bent offline"}</div>
@@ -265,7 +300,7 @@ export default function BarberDashboardPage() {
           ))}
         </div>
       )}
-      <div className="px-5 pt-4 flex gap-2.5">
+      <div className="px-5 pt-4 flex gap-2.5" id="tut-b-stats">
         <Stat label="Vandaag" value={`€${euro(todayCents)}`} accent />
         <Stat label="Boekingen" value={String(bookings.length)} />
         <Stat label="Rating" value={ratingAvg ? `${ratingAvg.toFixed(1).replace(".", ",")}` : "–"} />
@@ -297,13 +332,16 @@ export default function BarberDashboardPage() {
         ))}
       </div>
       {online && hasRequest && (
-        <div className="px-5 pt-3 pb-2 border-t border-border">
+        <div className="px-5 pt-3 pb-2 border-t border-border" id="tut-b-request">
           <div className="flex items-center gap-2.5 mb-3">
             <span className="w-2 h-2 rounded-full bg-accent" />
             <span className="text-[15px] font-semibold">Nieuwe aanvraag</span>
           </div>
           <Button full variant="accent" onClick={() => router.push("/barber/aanvraag")}>Bekijk aanvraag</Button>
         </div>
+      )}
+      {tutorialChecked && !tutorialSeenAt && userId && (
+        <OnboardingTutorial steps={BARBER_TUTORIAL_STEPS} userId={userId} />
       )}
     </div>
   );
