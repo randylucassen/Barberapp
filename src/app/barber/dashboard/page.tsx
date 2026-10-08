@@ -349,7 +349,11 @@ export default function BarberDashboardPage() {
         </div>
       )}
       {tutorialChecked && !tutorialSeenAt && userId && (
-        <OnboardingTutorial steps={BARBER_TUTORIAL_STEPS} userId={userId} />
+        <OnboardingTutorial
+          steps={BARBER_TUTORIAL_STEPS}
+          userId={userId}
+          onFinish={() => setTutorialSeenAt(new Date().toISOString())}
+        />
       )}
     </div>
   );

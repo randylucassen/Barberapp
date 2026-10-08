@@ -365,7 +365,11 @@ export default function HomePage() {
         </div>
       )}
       {tutorialChecked && !tutorialSeenAt && tutorialUserId && (
-        <OnboardingTutorial steps={KLANT_TUTORIAL_STEPS} userId={tutorialUserId} />
+        <OnboardingTutorial
+          steps={KLANT_TUTORIAL_STEPS}
+          userId={tutorialUserId}
+          onFinish={() => setTutorialSeenAt(new Date().toISOString())}
+        />
       )}
     </div>
   );

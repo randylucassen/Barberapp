@@ -23,7 +23,25 @@ interface Rect {
 // het ontwerp. `position:fixed` t.o.v. de viewport (niet t.o.v.
 // PhoneShell's desktop-telefoonkader) — op een echt toestel is dat
 // precies hetzelfde, PhoneShell's kader is puur een desktop-devgemak.
-export function OnboardingTutorial({ steps, userId }: { steps: TutorialStep[]; userId: string }) {
+export function OnboardingTutorial({
+  steps,
+  userId,
+  onFinish,
+}: {
+  steps: TutorialStep[];
+  userId: string;
+  // Aangeroepen zodra de rondleiding sluit (Overslaan of de laatste
+  // "Begrepen") — het aanroepende scherm moet hiermee zélf meteen zijn
+  // tutorialSeenAt-state bijwerken (niet wachten op de eerstvolgende
+  // poll/focus-herlading). Zonder dit blijft deze component gemount met
+  // resolvedSteps=[] totdat de volgende natuurlijke herlading de echte
+  // (niet-null) waarde ophaalt — klik je vóór die tijd nogmaals op
+  // "Rondleiding opnieuw bekijken", dan wordt deze instantie hergebruikt
+  // i.p.v. vers gemount, en blijft hij dus leeg staan (gemeld door de
+  // gebruiker: de 2e keer werkte het niet totdat er eerst ergens anders
+  // heen genavigeerd werd, wat alsnog een unmount forceerde).
+  onFinish?: () => void;
+}) {
   const [resolvedSteps, setResolvedSteps] = useState<TutorialStep[] | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -80,6 +98,7 @@ export function OnboardingTutorial({ steps, userId }: { steps: TutorialStep[]; u
 
   async function finish() {
     setResolvedSteps([]);
+    onFinish?.();
     const supabase = createClient();
     await markTutorialSeen(supabase, userId);
   }

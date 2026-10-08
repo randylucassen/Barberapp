@@ -31,7 +31,14 @@ export default function ProfilePage() {
   async function replayTutorial() {
     if (!userId) return;
     await resetTutorial(createClient(), userId);
-    router.push("/klant/home");
+    // Bewust window.location i.p.v. router.push(): Next.js' client-side
+    // router-cache kan /klant/home se al-bestaande component-instantie
+    // hergebruiken zodra die al eerder in deze sessie bezocht is — dan
+    // draait geen enkel effect opnieuw (geen mount, geen pageshow/focus/
+    // visibilitychange, want er verandert voor de browser niets zichtbaar
+    // aan het document), en blijft de rondleiding dus verborgen. Een
+    // volledige navigatie omzeilt dat gegarandeerd.
+    window.location.href = "/klant/home";
   }
 
   return (

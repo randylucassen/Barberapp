@@ -225,7 +225,11 @@ export default function BarberProfilePage() {
             onClick={async () => {
               if (!userId) return;
               await resetTutorial(createClient(), userId);
-              router.push("/barber/dashboard");
+              // Zelfde reden als klant/profiel/page.tsx: een volledige
+              // navigatie omzeilt Next.js' client-side router-cache, die
+              // anders de bestaande dashboard-instantie kan hergebruiken
+              // zonder enig effect opnieuw te draaien.
+              window.location.href = "/barber/dashboard";
             }}
           />
         </div>
