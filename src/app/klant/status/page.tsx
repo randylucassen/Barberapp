@@ -202,7 +202,6 @@ function StatusContent() {
           booking.status === "requested" && !booking.requestedAsap && scheduledLabel
           ? { ...STATUS_COPY.requested, sub: scheduledLabel }
           : STATUS_COPY[booking.status];
-  const canCancel = booking && ["requested", "price_pending", "accepted", "en_route"].includes(booking.status);
   const isCompleted = booking?.status === "completed";
   const canDispute =
     isCompleted &&
@@ -273,7 +272,7 @@ function StatusContent() {
             </IconButton>
           </div>
         </div>
-        <div className="mt-4 mb-2 flex flex-col gap-2">
+        <div className="mt-9 mb-2 flex flex-col gap-2">
           {paymentPending && (
             <Button full size="md" variant="accent" onClick={() => router.push(`/klant/betaling?bookingId=${bookingId}`)}>
               Betaal nu
@@ -300,11 +299,6 @@ function StatusContent() {
           {canDispute && (
             <Button full size="md" variant="ghost" onClick={() => router.push(`/klant/geschil?bookingId=${bookingId}`)}>
               Probleem melden
-            </Button>
-          )}
-          {canCancel && (
-            <Button full size="md" variant="secondary" onClick={() => router.push(`/klant/annuleren?bookingId=${bookingId}`)}>
-              Annuleer aanvraag
             </Button>
           )}
           {booking?.status === "cancelled" && (
