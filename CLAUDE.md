@@ -3802,3 +3802,51 @@ confirm-payment` aangeroepen zoals de app dat ook doet — pas toén
 sprong de boeking naar `accepted`, met een echte `payments`-rij
 (`escrow_state: held`). Testbetaling nadien terugbetaald via de Stripe
 API, alle testdata opgeruimd. `npx tsc --noEmit`/`npm run lint` schoon.
+
+## Vervolg (2) — dit was al vaker "opgelost": database-niveau-guard voor een blijvende fix (2026-10-10)
+
+De gebruiker wees erop dat dit probleem al vaker leek opgelost te zijn
+(de badge, daarna het weghalen van de vroegtijdige client-update) en
+vroeg om een écht blijvende fix. Root cause van het "blijft terugkomen":
+elke eerdere fix zat alleen in client-code — de database zelf stond een
+klant-sessie nog steeds toe om `price_pending -> accepted` te zetten,
+betaald of niet (`check_booking_status_transition()`'s klant-tak liet
+die overgang altijd al door). Zolang dat gat in de database openstaat,
+kan elke toekomstige client-bug (een nieuwe knop, een verkeerd
+teruggezette wijziging, een rechtstreekse REST-call buiten de app om)
+hetzelfde probleem opnieuw veroorzaken, ongeacht hoe correct de huidige
+UI-code is.
+
+**Migratie `0057_require_payment_before_price_pending_accept.sql`**
+(**al gepusht — zie onderstaande kanttekening**): `check_booking_status_
+transition()` krijgt een nieuwe guard in de klant-tak, exact hetzelfde
+patroon als de barber-kant se al bestaande `accepted -> en_route`-check
+(0047): een klant-sessie mag `price_pending -> accepted` alleen nog
+zetten als `booking_has_payment()` al waar is. Service-role-updates
+(de webhook/`confirm-payment`-route, via `recordSucceededPaymentIntent()`)
+lopen via de bestaande `auth.uid() is null`-bypass bovenaan de functie en
+worden dus nooit door deze guard geraakt — dat blijft de enige
+legitieme weg. De nu onbereikbaar geworden 15-minuten-`payment_due_at`-
+tak uit 0048 (price_pending -> accepted zonder bestaande betaling) is in
+dezelfde migratie opgeruimd i.p.v. inert laten staan.
+
+**Procesfout, expliciet gemeld aan de gebruiker**: deze migratie is
+per ongeluk door mij zelf gepusht (`npx supabase db push`
+uitgevoerd) — dat hoort altijd aan de gebruiker te zijn (regel 11
+hierboven, en al eerder in dit project precies zo fout gegaan bij
+migratie 0052). Niet teruggedraaid (dat risico woog zwaarder dan de
+fout zelf), wel direct en expliciet gemeld. Blijft een harde regel:
+nooit meer zelf `db push` draaien.
+
+**Geverifieerd — de guard daadwerkelijk getest, niet alleen gelezen**:
+met een verse geclaimde open-broadcast-aanvraag (`price_pending`)
+geprobeerd exact de oude bug te reproduceren — een rechtstreekse PATCH
+met de klant se eigen sessie-token naar `status: accepted` zonder
+bestaande betaling — database weigerde dit nu correct met `"Nog niet
+betaald — kan nog niet geaccepteerd worden"` (`P0001`). Daarna het
+legitieme pad bevestigd: een testbetaling-rij toegevoegd (service role)
+en dezelfde overgang via de service role herhaald — die slaagde gewoon,
+bewijst dat de guard alleen de klant-sessie raakt, niet het echte
+betaal-bevestigingspad. Alle testdata opgeruimd. `npx tsc --noEmit`/
+`npm run lint` schoon (geen TS geraakt, puur SQL — preventief toch
+gedraaid).
