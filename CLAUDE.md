@@ -4023,3 +4023,47 @@ uitsluiting.
 
 `npx tsc --noEmit` schoon op beide repo's (geen client-codewijziging
 nodig — volledig backend/RLS).
+
+## "Snelste beschikbare barber" (ASAP): nu altijd open broadcast, geen vooraf-match meer
+
+Op uitdrukkelijk verzoek: pad 1 (directe/matched broadcast — vooraf één
+nabije barber zoeken via `find_nearest_eligible_barber`, prijs al
+bekend vóór versturen) bestaat voor ASAP + automatisch toewijzen niet
+meer. Elke "Snelste beschikbare barber"-aanvraag met ASAP gaat nu
+altijd via pad 2 (`create_open_broadcast_request`, 0042/0043): zonder
+prijs naar alle online barbers binnen bereik tegelijk, wie als eerste
+claimt bepaalt de prijs (eigen tarieven), klant bevestigt daarna. Geen
+vooraf-match-poging meer — ook niet als er in werkelijkheid al een
+barber online en geschikt is (live geverifieerd: een online, matchende
+testbarber wordt NIET meer vooraf gekozen/getoond, de aanvraag blijft
+een echte broadcast en die barber moet 'm, net als elke andere, zelf
+claimen).
+
+**"Plan vooruit" (niet-asap) automatisch toewijzen blijft ongewijzigd**:
+zoekt nog steeds vooraf een match met bekende prijs, blokkeert zonder
+match (bewuste scope-afweging uit 0042/0043, vandaag niet heroverwogen
+— de gebruiker had het specifiek over "snelst beschikbare barber", dat
+is in deze app altijd de ASAP-automatisch-toewijzen-knop).
+
+**Bestanden**: `src/app/klant/boeking/page.tsx` (`handleStartConfirm()`
+slaat de `findNearestEligibleBarber`-aanroep nu over zodra `asap` true
+is, zet direct `noMatchFound`/opent de dialoog) — en de bijbehorende
+teksten (kaart-subtitel, dialoogtekst) niet meer suggereren dat er
+"niemand beschikbaar" is, want dat is nu de normale gang van zaken, geen
+schaarste-fallback meer. Native: zie de eigen CLAUDE.md
+("'Snelste beschikbare barber': altijd open broadcast" hieronder).
+
+**Live geverifieerd** (echte webapp-UI via lokale dev-server, niet
+alleen API): ingelogd als `test1234@test.nl`, testbarber (`test12345@
+test.nl`) bewust online gezet met een matchende dienst — Home → "Boek
+direct" → "Snelste beschikbare barber" → "Kies" toont **geen prijs**
+("Bij matching" per dienst, "Bij matching" als totaal), subtitel "Je
+aanvraag gaat naar alle beschikbare barbers bij jou in de buurt",
+dialoogtekst bevestigt hetzelfde. Na "Verstuur": rechtstreeks
+gecontroleerd in de database — `open_request: true, barber_id: null,
+price_cents_snapshot: null`, ondanks de online matchende testbarber.
+Die testbarber zag de aanvraag daarna gewoon via RLS en kon 'm succesvol
+claimen tegen zijn eigen prijs (`price_pending`, €25,00). Testdata
+nadien opgeruimd, testbarber weer offline gezet.
+
+`npx tsc --noEmit`/`npm run lint` schoon.

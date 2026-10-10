@@ -92,10 +92,10 @@ function BookingContent() {
   const [matchError, setMatchError] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [matchedGeo, setMatchedGeo] = useState<{ lat: number; lng: number } | null>(null);
-  // Alleen voor ASAP automatisch-toewijzen zonder match (0042): niet
-  // meer blokkeren, in plaats daarvan een open-aanvraag-zonder-prijs
-  // versturen. "Plan vooruit" zonder match blijft wél geblokkeerd (zie
-  // de scope-afweging in de migratie-header).
+  // true zodra ASAP + automatisch toewijzen gekozen is: altijd een
+  // open-aanvraag-zonder-prijs (geen vooraf-match meer, zie
+  // handleStartConfirm). "Plan vooruit" zonder match blijft wél
+  // geblokkeerd (zie de scope-afweging in migratie 0042/0043).
   const [noMatchFound, setNoMatchFound] = useState(false);
   // null = nog niet bekend/niet van toepassing (auto-mode matcht toch al
   // alleen beschikbare barbers), false = de gekozen barber is nu offline
@@ -217,6 +217,19 @@ function BookingContent() {
       setMatching(false);
       return;
     }
+
+    // Snelste beschikbare barber (asap): altijd een open aanvraag zonder
+    // vooraf bekende prijs — er is nog geen barber gekozen, dus geen
+    // find_nearest_eligible_barber-poging meer voor dit pad (vóór
+    // vandaag alleen de fallback bij nul matches, migratie 0042/0043;
+    // nu altijd voor asap). "Plan vooruit" hieronder ongewijzigd.
+    if (asap) {
+      setMatching(false);
+      setNoMatchFound(true);
+      setDlg(true);
+      return;
+    }
+
     const match = await findNearestEligibleBarber(
       createClient(),
       wantedServices.map((w) => w.name),
@@ -225,14 +238,6 @@ function BookingContent() {
     );
     setMatching(false);
     if (!match) {
-      // Alleen ASAP mag altijd versturen (0042) — "plan vooruit" zonder
-      // match blijft geblokkeerd, zelfde reden als in de migratie-
-      // header: de 1-uur/30-minuten-vensters horen bij een spoedaanvraag.
-      if (asap) {
-        setNoMatchFound(true);
-        setDlg(true);
-        return;
-      }
       router.push("/klant/fout/nobarbers");
       return;
     }
@@ -339,7 +344,11 @@ function BookingContent() {
               </div>
               <div className="flex-1">
                 <div className="text-[16px] font-semibold">Automatisch toewijzen</div>
-                <div className="text-[13px] text-text-secondary mt-0.5">De dichtstbijzijnde geschikte barber krijgt je aanvraag</div>
+                <div className="text-[13px] text-text-secondary mt-0.5">
+                  {asap
+                    ? "Je aanvraag gaat naar alle beschikbare barbers bij jou in de buurt"
+                    : "De dichtstbijzijnde geschikte barber krijgt je aanvraag"}
+                </div>
               </div>
             </div>
           </Card>
@@ -500,7 +509,7 @@ function BookingContent() {
         }
       >
         {noMatchFound
-          ? "Nu is er niemand beschikbaar in de buurt, maar je aanvraag blijft 1 uur open — zodra een barber 'm oppakt, krijg je de prijs te zien om te bevestigen."
+          ? "Je aanvraag gaat naar alle beschikbare barbers bij jou in de buurt en blijft 1 uur open — zodra een barber 'm oppakt, krijg je de prijs te zien om te bevestigen."
           : auto
             ? "De dichtstbijzijnde geschikte barber krijgt je aanvraag direct. Je betaling staat veilig vast tot na afloop."
             : `${barber?.fullName?.split(" ")[0] ?? "De barber"} krijgt je aanvraag direct. Je betaling staat veilig vast tot na afloop.`}
