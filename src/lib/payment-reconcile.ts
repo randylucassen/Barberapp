@@ -37,7 +37,7 @@ export async function recordSucceededPaymentIntent(
 
   const { data: booking } = await supabase
     .from("bookings")
-    .select("id, price_cents_snapshot")
+    .select("id, status, price_cents_snapshot")
     .eq("id", bookingId)
     .single();
   if (!booking) return { created: false, outcome: "boeking niet gevonden" };
@@ -74,5 +74,27 @@ export async function recordSucceededPaymentIntent(
     Sentry.captureException(new Error(`payments-insert mislukt voor booking ${bookingId}: ${insertError.message}`));
     return { created: false, outcome: `insert mislukt: ${insertError.message}` };
   }
+
+  // De aanvraag mag pas "geaccepteerd" ogen zodra er daadwerkelijk
+  // betaald is — een price_pending-aanvraag (open-broadcast, 0042/0043)
+  // wordt daarom pas hier, ná de geslaagde payments-insert hierboven,
+  // naar 'accepted' gezet, nooit al bij het klikken op "Akkoord, ga naar
+  // betalen" zelf (zie klant/status se handleConfirmPrice en CLAUDE.md
+  // 2026-10-10). Service-role-update, dus check_booking_status_
+  // transition() z'n auth.uid()-is-null-bypass slaat hier meteen toe —
+  // geen aparte RPC nodig.
+  if (booking.status === "price_pending") {
+    const { error: statusError } = await supabase
+      .from("bookings")
+      .update({ status: "accepted" })
+      .eq("id", bookingId)
+      .eq("status", "price_pending");
+    if (statusError) {
+      Sentry.captureException(
+        new Error(`price_pending -> accepted na betaling mislukt voor booking ${bookingId}: ${statusError.message}`)
+      );
+    }
+  }
+
   return { created: true, outcome: "payments-rij alsnog aangemaakt" };
 }

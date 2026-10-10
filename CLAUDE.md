@@ -3734,3 +3734,71 @@ dev-server — "Actieve rit"-kaart toont nu "Wacht op betaling", en
 "Vertrek"-knop. Testdata nadien opgeruimd (boeking + `booking_services`
 verwijderd, testbarber weer offline gezet). `npx tsc --noEmit`/`npm run
 lint` schoon.
+
+## Vervolg — de badge was niet genoeg: de échte fix is "payment gates acceptance" (2026-10-10)
+
+De gebruiker wees de badge-fix hierboven terecht af: een badge verbergt
+het probleem, maar de boeking werd nog steeds al "goedgekeurd" (status
+`accepted`) gezet vóórdat er iets betaald was — precies zodra de klant op
+"Akkoord, ga naar betalen" tikte, dus al bij het *starten* van een
+betaling, niet pas na het *slagen* ervan. Expliciete instructie: "aanvraag
+mag pas doorgezet worden na bevestiging van betaling."
+
+**Het al bestaande, bewezen patroon elders in dit project teruggevonden**
+(`git log --oneline | grep -i payment` als zoekmethode) en hier
+toegepast: een **directe** asap-boeking wordt al sinds Fase 6 pas
+zichtbaar voor de barber ná een geslaagde betaling (RLS eist
+`booking_has_payment()`) — de open-broadcast-prijsbevestigingsflow
+(0042/0043/0048) volgde dat principe nooit, en zette `accepted` juist
+vóór betaling, met alleen een vervallende deadline (15 min, 0048) als
+vangnet. Die inconsistentie was de eigenlijke, herhaaldelijk terugkerende
+bron van dit "lijkt goedgekeurd"-probleem — niet iets dat met een UI-
+badge op te lossen is.
+
+**Architectuurfix (geen migratie nodig — de bypass voor service-role-
+updates in `check_booking_status_transition()`, `auth.uid() is null`,
+bestond al)**:
+- **`klant/status/page.tsx`'s `handleConfirmPrice()`**: doet nu
+  helemaal geen `.update()` meer — stuurt alleen door naar
+  `/klant/betaling`. De boeking blijft dus gewoon `price_pending` zolang
+  er niet betaald is. `confirmingPrice`-state (overbodig zonder async
+  call) en de nu-ongebruikte `updateBookingStatus`-import verwijderd.
+- **`src/app/api/stripe/create-payment-intent/route.ts`**: `price_pending`
+  toegevoegd aan de toegestane statussen (naast `requested`/`accepted`)
+  — anders zou deze route een PaymentIntent voor deze boeking weigeren.
+- **`src/lib/payment-reconcile.ts`'s `recordSucceededPaymentIntent()`**:
+  nieuwe stap ná de geslaagde `payments`-insert — als de boeking op dat
+  moment `price_pending` is, zet 'm door naar `accepted` (service-role-
+  update, dus de transitie-trigger z'n `auth.uid() is null`-bypass geldt
+  meteen). Dit is **de enige plek** die een price_pending-aanvraag nu nog
+  "goedkeurt" — en dat gebeurt dus pas ná een bevestigde betaling, nooit
+  ervoor. Gebruikt door de webhook, `/api/stripe/confirm-payment` én de
+  reconcile-cron, dus alle drie de paden krijgen dit gratis mee.
+- **Geen wijziging nodig aan** `expire-price-pending-requests` (de
+  30-minuten-cron op `price_confirm_due_at`) — die vangt nu vanzelf ook
+  "klant tikte Akkoord maar betaalde nooit" op, want de boeking verlaat
+  `price_pending` niet meer totdat er echt betaald is. De losse
+  15-minuten-`payment_due_at`-tak uit 0048 (price_pending -> accepted
+  zonder bestaande betaling) wordt hierdoor dode code — bewust niet
+  verwijderd/gemigreerd, onschadelijk inert, en nog steeds het juiste
+  vangnet mocht er ooit weer een ander pad ontstaan dat wél vroegtijdig
+  naar accepted zet.
+- De dashboard-/rit-badge-fix van hierboven blijft staan — niet fout,
+  gewoon niet de kern van dit probleem; blijft wel relevant voor het
+  aparte, nog steeds legitieme geval van een **geplande** boeking die
+  door de barber geaccepteerd is maar binnen het 24-uursvenster nog niet
+  betaald (dat `accepted`-vóór-betaling-patroon is daar wél bewust zo
+  ontworpen, zie 0040).
+
+**Geverifieerd — volledig end-to-end tegen productie, niet alleen
+aangenomen**: een verse open-broadcast-aanvraag aangemaakt en geclaimd
+(zelfde testaccounts), daarna `create-payment-intent` aangeroepen (de
+"start betaling"-stap) — **boeking bleef `price_pending`**,
+`payment_due_at` bleef `null`, en verscheen **niet** in de barber se
+actieve-boekingen-query (exact het scenario dat eerder "weer
+goedgekeurd" oogde). Daarna de PaymentIntent écht laten slagen (Stripe
+testkaart, `pm_card_visa`, server-side confirm) en `/api/stripe/
+confirm-payment` aangeroepen zoals de app dat ook doet — pas toén
+sprong de boeking naar `accepted`, met een echte `payments`-rij
+(`escrow_state: held`). Testbetaling nadien terugbetaald via de Stripe
+API, alle testdata opgeruimd. `npx tsc --noEmit`/`npm run lint` schoon.

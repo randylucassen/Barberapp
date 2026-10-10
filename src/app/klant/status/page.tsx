@@ -11,7 +11,6 @@ import {
   getBookingBarberPhone,
   getDisputeForBooking,
   getReviewForBooking,
-  updateBookingStatus,
 } from "@/lib/supabase/queries";
 import { isRideDue } from "@/lib/booking-timing";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
@@ -48,7 +47,6 @@ function StatusContent() {
   const [barberPhone, setBarberPhone] = useState<string | null>(null);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
   const [hasDispute, setHasDispute] = useState(false);
-  const [confirmingPrice, setConfirmingPrice] = useState(false);
   const [decliningPrice, setDecliningPrice] = useState(false);
   const [declineDlg, setDeclineDlg] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -109,19 +107,20 @@ function StatusContent() {
     getDisputeForBooking(supabase, bookingId).then((d) => setHasDispute(!!d));
   }, [bookingId, booking?.status, hasDispute]);
 
-  // Klant bevestigt de door een barber voorgestelde prijs (0042) — zet
-  // status naar accepted, normale "ga naar betalen"-pad hierna.
-  async function handleConfirmPrice() {
+  // Klant bevestigt de door een barber voorgestelde prijs (0042) — stuurt
+  // alleen door naar het betaalscherm, zet BEWUST geen status meer
+  // (gebeurde hier voorheen wél meteen, vóór er ook maar iets betaald
+  // was — dat liet een onbetaalde aanvraag op barber-dashboards/-de
+  // ritflow als een volwaardig "geaccepteerd" ogen, zie CLAUDE.md
+  // 2026-10-10). De boeking blijft dus gewoon 'price_pending' totdat een
+  // betaling daadwerkelijk slaagt — pas dan zet
+  // recordSucceededPaymentIntent() (payment-reconcile.ts) 'm door naar
+  // 'accepted'. Blijft de klant hier zonder te betalen vandaan, dan vangt
+  // de bestaande expire-price-pending-requests-cron (30 min,
+  // price_confirm_due_at) dit vanzelf op, precies zoals bij een nog
+  // niet-bevestigde prijs.
+  function handleConfirmPrice() {
     if (!bookingId) return;
-    setConfirmingPrice(true);
-    setActionError(null);
-    const supabase = createClient();
-    const ok = await updateBookingStatus(supabase, bookingId, "accepted");
-    setConfirmingPrice(false);
-    if (!ok) {
-      setActionError("Dit is niet gelukt — mogelijk is de 30 minuten al verstreken. Vernieuw de pagina.");
-      return;
-    }
     router.push(`/klant/betaling?bookingId=${bookingId}`);
   }
 
@@ -282,8 +281,8 @@ function StatusContent() {
           )}
           {priceConfirmPending && (
             <>
-              <Button full size="md" variant="accent" disabled={confirmingPrice} onClick={handleConfirmPrice}>
-                {confirmingPrice ? "Bezig…" : "Akkoord, ga naar betalen"}
+              <Button full size="md" variant="accent" onClick={handleConfirmPrice}>
+                Akkoord, ga naar betalen
               </Button>
               <Button full size="md" variant="secondary" onClick={() => setDeclineDlg(true)}>
                 Weiger, zoek een andere barber
