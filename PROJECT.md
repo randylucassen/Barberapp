@@ -2827,6 +2827,26 @@ een statusbalk op klant-home voor een open/net-afgehandeld geschil
 (1-op-1 gemirrored naar de native app). Zie CLAUDE.md voor de volledige
 toelichting en migratie `0052`.
 
+## Betaling pas na prijsbevestiging bij open-aanvraag + weigerende barber uitgesloten (2026-10-10)
+
+Correctie op een eerdere aanname van diezelfde dag: bij een
+open-aanvraag-zonder-match (`open_request`, zie "Altijd een aanvraag
+kunnen versturen..." hierboven) hoeft de klant **niet** vooraf te
+betalen — alleen de directe/matched-broadcast-variant werkt zo. Een
+UX-fix die dit onderscheid niet maakte ("Betaling niet afgerond" op
+een verse, nog onbeprijsde open-aanvraag) is teruggedraaid.
+
+Nieuw gebouwd: een barber wiens voorgestelde prijs de klant weigert,
+kan diezelfde aanvraag niet nog eens claimen — de aanvraag verdwijnt
+voor die ene barber volledig (onzichtbaar + niet-claimbaar), blijft
+gewoon zichtbaar/claimbaar voor elke andere barber, en die barber
+krijgt een notificatie dat zijn prijsvoorstel is afgewezen (dat laatste
+bestond al sinds de oorspronkelijke bouw, nu voor het eerst expliciet
+gecontroleerd). Live geverifieerd met echte test-accounts, inclusief
+een tweede barber die de vrijgekomen aanvraag alsnog succesvol claimt.
+Zie CLAUDE.md ("Correctie: betaling hoeft NIET vooraf..." en "Migratie
+0058...") voor de volledige technische toelichting.
+
 ## Roadmap
 
 Vervangen op 2026-07-17 door een gedetailleerdere versie van de gebruiker

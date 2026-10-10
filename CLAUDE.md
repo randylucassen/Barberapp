@@ -3941,3 +3941,85 @@ niet het probleem waar dit gesprek over ging.
 
 `npx tsc --noEmit`/`npm run lint` schoon (geen nieuwe code-wijziging
 deze ronde — puur verificatie + opruiming).
+
+## Correctie: betaling hoeft NIET vooraf bij een open-aanvraag (pad 2)
+
+De gebruiker wees er na het voorgaande terecht op dat de aanname
+"betaling moet altijd vóór een barber de aanvraag ziet" alleen klopt
+voor **pad 1** (directe/matched broadcast, prijs al bekend bij
+versturen). **Pad 2** (open-aanvraag-zonder-match, `open_request=true`,
+0042/0043) is bewust anders ontworpen: geen prijs en geen betaling bij
+het versturen, de aanvraag gaat naar alle online barbers, wie als
+eerste claimt krijgt 'm, de klant krijgt daarna een prijsopgave, en
+pas bij accepteren ontstaat de betaalverplichting. Dit stond al zo in
+het oorspronkelijke plan (`enchanted-dazzling-reef.md`) — alleen was
+dat tijdens dit gesprek niet meer scherp voor de gebruiker, en had ik
+zelf eerder op dezelfde dag een client-fix gebouwd die dit onderscheid
+niet maakte.
+
+**Teruggedraaid**: de "Betaling niet afgerond"/"Betaal nu"-UX-fix
+(`hasPayment`/`paymentMissing` in `klant/status/page.tsx` en
+`activeBookingUnpaid` in `klant/home/page.tsx`, zie de sectie hierboven)
+checkte alleen `status === 'requested' && requestedAsap`, zonder
+`open_request` uit te sluiten. Een verse open-aanvraag zit legitiem
+precies in die staat (geen prijs, dus geen betaling, terwijl er nog op
+een barber gewacht wordt) — de fix liet dat dus onterecht als "Betaling
+niet afgerond" zien. Volledig gerevert (webapp `b97d337`, native
+`33efae7`) in plaats van gepatcht — de oorspronkelijke "Aangevraagd —
+wachten op een barber"-copy is voor pad 2 namelijk altijd al correct
+geweest, er was geen bug om te fixen zodra `open_request` goed
+uitgesloten zou zijn; terugdraaien was dus eenvoudiger en veiliger dan
+de net-gebouwde check alsnog te repareren.
+
+## Migratie 0058 — barber uitgesloten na weigeren prijs (pad 2)
+
+Expliciet gevraagd: een barber wiens voorgestelde prijs de klant
+weigert, mag die specifieke open-aanvraag niet nog eens claimen. Dit
+stond in het oorspronkelijke plan bewust buiten scope ("bewust simpel
+gehouden voor een eerste versie") — nu alsnog gebouwd in
+[0058_exclude_declining_barber_from_reclaim.sql](supabase/migrations/0058_exclude_declining_barber_from_reclaim.sql):
+
+- Nieuwe kolom `bookings.declined_barber_ids` (`uuid[]`, default `{}`).
+- `decline_price_and_reopen()`: voegt de huidige `barber_id` toe aan
+  `declined_barber_ids` vóórdat 'm terugzet naar `null`. Een
+  cron-timeout (`/api/cron/expire-price-pending-requests`) doet
+  bewust dezelfde reset zónder deze toevoeging — dat is geen actieve
+  weigering door de klant, dus die barber blijft na een timeout
+  gewoon weer gewoon beschikbaar voor deze aanvraag.
+- `claim_open_broadcast_request()`: weigert expliciet met "De klant
+  heeft jouw prijs voor deze aanvraag al afgewezen" als de claimende
+  barber al in `declined_barber_ids` staat, plus dezelfde voorwaarde
+  in de atomaire claim-`update`. Dit is puur een backend-vangnet
+  (SECURITY DEFINER query't buiten RLS om) — in de normale UI komt een
+  barber hier nooit tegenaan, want:
+- Beide RLS-policies ("Barbers can view/claim open, pending-payment,
+  or no-price requests within radius") sluiten een gedeclineerde
+  barber nu ook uit — de aanvraag verdwijnt voor die ene barber
+  volledig uit zijn openstaande-aanvragen-lijst (volgende 5s-poll),
+  zichtbaar/claimbaar voor elke andere barber blijft ongewijzigd.
+
+**De barber-notificatie bij een weigering bestond al** (sinds 0043,
+niet nieuw vandaag): `notify_customer_on_status_change()` stuurt bij
+elke `price_pending → requested`-overgang (weigeren én timeout, zelfde
+tekst voor beide) een notificatie naar `old.barber_id`: *"Aanvraag
+staat weer open — De klant is niet akkoord gegaan met je
+prijsvoorstel — de aanvraag staat weer open voor andere barbers."* Dit
+was tijdens eerdere verificatierondes nooit expliciet gecontroleerd —
+vandaag opnieuw live bevestigd (echte `decline_price_and_reopen`-call,
+notificatie-rij verscheen meteen voor de juiste barber).
+
+**Live geverifieerd** (echte RPC-calls, echte sessies, test-
+accounts, nadien volledig opgeruimd): klant stuurt open-aanvraag
+(`test1234@test.nl`) → barber A claimt (`test12345@test.nl`, eigen
+prijs €25) → klant weigert → barber A kan niet opnieuw claimen (expliciete
+weigering + onzichtbaar via RLS) + ontvangt de bovenstaande
+notificatie → een tweede, los aangemaakte testbarber (zelfde locatie/
+dienst) ziet de aanvraag wél nog en claimt 'm met succes (eigen prijs,
+`declined_barber_ids` blijft ongewijzigd voor hem) → klant proberen te
+accepteren zonder te betalen faalt nog steeds op de 0057-guard ("Nog
+niet betaald — kan nog niet geaccepteerd worden"), bevestigt dat de
+betaalverplichting-bij-accepteren intact blijft bovenop deze nieuwe
+uitsluiting.
+
+`npx tsc --noEmit` schoon op beide repo's (geen client-codewijziging
+nodig — volledig backend/RLS).
