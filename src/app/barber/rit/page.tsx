@@ -115,6 +115,13 @@ export default function RidePage() {
   }
 
   const stage = STAGE[booking.status as keyof typeof STAGE];
+  // Een asap-boeking telt al als "actieve rit" zodra de klant de prijs
+  // bevestigt (price_pending -> accepted), vóórdat er daadwerkelijk
+  // betaald is (zie 0048's 15-minuten payment_due_at) — zonder deze
+  // check kon de barber hier gewoon op "Vertrek" tikken en pas dan een
+  // (voorheen onbegrijpelijke) foutmelding krijgen, terwijl de aanvraag
+  // op het dashboard al als volwaardig "actieve rit" oogde.
+  const awaitingPayment = booking.status === "accepted" && !!booking.paymentDueAt;
   // Dit scherm is alleen bereikbaar vanaf accepted/en_route/arrived/
   // in_progress — nooit price_pending (altijd al geprijsd, zie 0042) —
   // de ?? 0 is puur om TypeScript gerust te stellen.
@@ -164,7 +171,11 @@ export default function RidePage() {
             <div className="text-[22px] font-bold tracking-[-0.01em]">{title}</div>
             <div className="text-[15px] text-text-secondary mt-0.5">{sub}</div>
           </div>
-          {stage && <Badge variant={stage.badgeVariant}>{stage.badge}</Badge>}
+          {awaitingPayment ? (
+            <Badge variant="error">Wacht op betaling</Badge>
+          ) : (
+            stage && <Badge variant={stage.badgeVariant}>{stage.badge}</Badge>
+          )}
         </div>
         <div className="flex gap-3.5 items-center mt-5 pt-4 border-t border-border-soft">
           <Avatar name={customerName} size={48} />
@@ -198,10 +209,16 @@ export default function RidePage() {
               {error}
             </div>
           )}
-          {stage && (
-            <Button full variant="accent" disabled={busy} onClick={advance}>
-              {stage.next === "completed" ? `${stage.cta} · €${euro(earningCents)}` : stage.cta}
-            </Button>
+          {awaitingPayment ? (
+            <div className="bg-error-soft text-error-text text-[13px] rounded-md px-3 py-2.5 leading-[18px]">
+              Wacht tot de klant de prijs heeft betaald voordat je kunt vertrekken.
+            </div>
+          ) : (
+            stage && (
+              <Button full variant="accent" disabled={busy} onClick={advance}>
+                {stage.next === "completed" ? `${stage.cta} · €${euro(earningCents)}` : stage.cta}
+              </Button>
+            )
           )}
         </div>
       </div>

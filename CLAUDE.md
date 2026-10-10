@@ -3674,3 +3674,63 @@ bevestigen (ban-gedrag, Storage-opruiming, de `barber_status`-
 uitsluiting uit matching/lijsten); nog te doen in een volgende sessie
 met testaccount-toegang. Migratie `0055` — nog te pushen door de
 gebruiker.
+
+## "Aanvraag wordt weer goedgekeurd" bij betaling starten-en-wegdrukken — root cause gevonden en gefixt (2026-10-10)
+
+Gemeld: een asap-aanvraag lijkt weer "goedgekeurd" zodra de klant op
+"Akkoord, ga naar betalen" tikt en daarna de betaling wegdrukt zonder te
+betalen. **Hard gereproduceerd** (niet aangenomen) via directe RPC/REST-
+calls met de bestaande testaccounts: `create_open_broadcast_request` →
+`claim_open_broadcast_request` → klant bevestigt de prijs (exact de
+`.update({status:'accepted'}).eq('status','price_pending')`-call die
+`klant/status`/native `klant/booking/[id].tsx` ook doet) → boeking staat
+op `status: 'accepted'`, `payment_due_at` 15 min vooruit (0048 werkt dus
+al correct), **geen `payments`-rij**.
+
+**Root cause zat niet in het betaalscherm** (dat gedrag — `router.back()`,
+geen agressieve annulering-bij-verlaten — is al eerder bewust zo gelaten,
+zie 0048/0049) **maar in `barber/dashboard/page.tsx`/`barber/rit/page.tsx`**:
+`payment_due_at` staat sinds migratie `0048` ook op een net-bevestigde
+**asap**-boeking (15 min), niet meer uitsluitend op een geplande boeking
+(24u, sinds 0040) — maar de "Actieve rit"-kaart en de rit-flow zelf
+checkten dit veld nergens, alleen de "Geplande afspraken"-sectie deed dat
+(met een inmiddels **stale** comment die expliciet zei "paymentDueAt
+staat alleen op een geaccepteerde GEPLANDE boeking", geschreven vóór
+0048 bestond). Gevolg: een onbetaalde, net-bevestigde asap-boeking
+(`isRideDue()` is voor asap altijd waar) verscheen op het barber-
+dashboard als een volwaardige "Actieve rit" — géén "Wacht op
+betaling"-signaal, gewoon klikbaar door naar `/barber/rit`, waar de
+barber op "Vertrek" kon tikken en pas dán (via de DB-trigger uit 0047)
+een foutmelding kreeg. Precies de illusie van "goedgekeurd" die gemeld
+werd.
+
+**Fix** (geen architectuurwijziging — status wordt bewust nog steeds
+vóór betaling op `accepted` gezet, zie 0040/0042/0048's eigen
+toelichting waarom; dit is puur een weergave-/CTA-gat gedicht):
+- `barber/dashboard/page.tsx`: "Actieve rit"-kaart toont nu ook
+  `<Badge variant="error">Wacht op betaling</Badge>` zodra
+  `activeBooking.paymentDueAt` gezet is. Stale comment bij "Geplande
+  afspraken" gecorrigeerd (payment_due_at geldt sinds 0048 voor beide
+  gevallen).
+- `barber/rit/page.tsx`: nieuwe `awaitingPayment`-afleiding
+  (`status === 'accepted' && paymentDueAt`). Zolang waar: de
+  status-badge toont "Wacht op betaling" i.p.v. "Bevestigd", en de
+  "Vertrek"-knop wordt vervangen door een info-tekst ("Wacht tot de
+  klant de prijs heeft betaald voordat je kunt vertrekken.") i.p.v. een
+  knop die toch zou falen.
+- Data was al beschikbaar (`BOOKING_COLUMNS`/`mapBooking()` selecteren
+  `payment_due_at` al sinds 0040) — puur een render-/gating-fix, geen
+  nieuwe query's.
+
+1-op-1 ook native gefixt (`barber/(tabs)/dashboard.tsx`,
+`barber/rit.tsx` in `KPPRTJE-app` — die laatste selecteerde
+`payment_due_at` nog helemaal niet, nu toegevoegd aan `BOOKING_COLUMNS`).
+
+**Geverifieerd, inclusief de fix zelf live bevestigd** (niet alleen de
+root cause): met de reproductie hierboven nog actief (dezelfde
+onbetaalde testboeking) ingelogd als `test12345@test.nl` op de lokale
+dev-server — "Actieve rit"-kaart toont nu "Wacht op betaling", en
+`/barber/rit` toont de "Wacht tot de klant..."-tekst i.p.v. een
+"Vertrek"-knop. Testdata nadien opgeruimd (boeking + `booking_services`
+verwijderd, testbarber weer offline gezet). `npx tsc --noEmit`/`npm run
+lint` schoon.

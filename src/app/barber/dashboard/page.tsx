@@ -267,6 +267,17 @@ export default function BarberDashboardPage() {
               <div>
                 <div className="text-[13px] text-white/60">Actieve rit</div>
                 <div className="text-[15px] font-semibold mt-0.5">{ACTIVE_RIDE_LABEL[activeBooking.status] ?? "Bezig"}</div>
+                {/* paymentDueAt staat sinds 0048 ook op een net-bevestigde
+                    asap-boeking (15 min, niet alleen de 24u voor een
+                    geplande boeking, zie de "Geplande afspraken"-sectie
+                    hieronder) — zonder dit badge lijkt een nog-onbetaalde
+                    aanvraag hier al net zo "goedgekeurd"/klaar-om-te-
+                    vertrekken als een echt bevestigde rit. */}
+                {activeBooking.paymentDueAt && (
+                  <div className="mt-1.5">
+                    <Badge variant="error">Wacht op betaling</Badge>
+                  </div>
+                )}
               </div>
               <span className="text-accent">
                 <ChevronRight size={22} />
@@ -297,11 +308,12 @@ export default function BarberDashboardPage() {
                 <div className="text-[14px] font-semibold truncate">{formatScheduledLabel(b.scheduledAt!)}</div>
                 <div className="text-[13px] text-text-secondary truncate">{b.serviceName}</div>
               </div>
-              {/* paymentDueAt (0040) staat alleen op een geaccepteerde
-                  geplande boeking die de klant nog niet betaald heeft —
-                  zonder dit badge lijkt elke geplande afspraak hier even
-                  "definitief", terwijl deze nog binnen 24u kan vervallen
-                  als de klant niet op tijd betaalt. */}
+              {/* paymentDueAt staat op een geaccepteerde boeking (gepland
+                  óf, sinds 0048, een net-bevestigde asap-boeking — zie
+                  "Actieve rit" hierboven) die de klant nog niet betaald
+                  heeft — zonder dit badge lijkt elke geplande afspraak
+                  hier even "definitief", terwijl deze nog binnen 24u kan
+                  vervallen als de klant niet op tijd betaalt. */}
               {b.paymentDueAt && <Badge variant="error">Wacht op betaling</Badge>}
               <ChevronRight size={18} className="text-text-tertiary shrink-0" />
             </Card>
