@@ -3941,3 +3941,58 @@ niet het probleem waar dit gesprek over ging.
 
 `npx tsc --noEmit`/`npm run lint` schoon (geen nieuwe code-wijziging
 deze ronde — puur verificatie + opruiming).
+
+## Vervolg (4) — de écht misleidende weergave gevonden: "wachten op barber" terwijl er nooit betaald is (2026-10-10)
+
+De gebruiker legde haarfijn uit wat 'm steeds stoorde, los van de
+database-garantie van hierboven: na een afgebroken betaling (aanvraag
+gestart, op het betaalscherm teruggeklikt) **bleef de boeking** gewoon
+op `status: 'requested'` staan, en zowel de "Lopende boeking"-kaart op
+Home als het statusscherm tonen voor die status altijd "Aangevraagd —
+wachten op een barber" / "Wachten op bevestiging van de barber" — **ook
+als er nooit betaald is**. Dat ís geen databug (de boeking is en blijft
+onzichtbaar voor elke barber, precies zoals bedoeld), maar wél een
+misleidende UI: het ziet eruit als een levende, lopende aanvraag, terwijl
+er in werkelijkheid niets gebeurt totdat de klant alsnog betaalt of de
+30-minuten-cron 'm opruimt.
+
+**Fix — onderscheid maken op basis van een al bestaand, nooit eerder
+gebruikt signaal**: een klant-sessie mag al sinds 0003 gewoon zijn eigen
+`payments`-rij lezen (RLS-policy "Participants can view own payment"),
+en `getPayment()` (`queries.ts`) bestond al (gebruikt door
+`klant/geannuleerd`) — geen nieuwe RLS/RPC nodig.
+
+- **`klant/status/page.tsx`**: nieuwe `hasPayment`-state, meegenomen in
+  dezelfde 4s-poll als de boeking zelf — zodra de klant alsnog betaalt
+  (status blijft 'requested' voor een asap-boeking totdat een barber 'm
+  accepteert, zie Fase 6) valt dit vanzelf weer weg. Nieuwe
+  `paymentMissing`-afleiding (`status === 'requested' && requestedAsap
+  && hasPayment === false`) met een eigen `copy`-tak ("Betaling niet
+  afgerond" / "Betaling vereist", progress 5%) + een "Betaal nu"-knop
+  die simpelweg terug naar `/klant/betaling` stuurt. "Annuleer
+  aanvraag" blijft ook gewoon beschikbaar (`canCancel` bevatte
+  'requested' al).
+- **`klant/home/page.tsx`**: zelfde controle voor `activeBooking` in
+  `loadHomeData()`, nieuwe `activeBookingUnpaid`-state overschrijft
+  `ACTIVE_STATUS_LABEL[activeBooking.status]` met "Betaling niet
+  afgerond — tik om af te ronden" op de "Lopende boeking"-kaart.
+- **Bewust alleen voor asap-boekingen** (`requestedAsap` check) — een
+  geplande (niet-asap) `requested`-boeking heeft legitiem nog geen
+  betaling (die betaalt pas ná acceptatie door de barber, 0040) en hoort
+  dus gewoon "Wachten op bevestiging van de barber" te tonen, dat is
+  daar geen bug.
+
+1-op-1 ook native gebouwd (`klant/(tabs)/home.tsx` kreeg `requested_asap`
+toegevoegd aan de al bestaande boekingen-query, `klant/booking/[id].tsx`
+kreeg dezelfde `hasPayment`/`paymentMissing`-afleiding).
+
+**Geverifieerd — live, met de exacte herhaling van het gemelde
+scenario**: "Test Barber" direct geboekt (asap), op het betaalscherm
+teruggeklikt zonder te betalen. Zowel Home ("Lopende boeking: Betaling
+niet afgerond — tik om af te ronden") als het statusscherm ("Betaling
+niet afgerond" / "Je aanvraag is nog niet verstuurd naar een barber —
+rond je betaling af om door te gaan" / badge "Betaling vereist" / een
+werkende "Betaal nu"-knop) tonen nu de juiste, eerlijke tekst — niet
+langer "wachten op een barber". Testdata opgeruimd. `npx tsc --noEmit`/
+`npm run lint` (webapp) en `npx tsc --noEmit`/`npx expo lint` (native)
+schoon.

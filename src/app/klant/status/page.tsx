@@ -10,6 +10,7 @@ import {
   getBooking,
   getBookingBarberPhone,
   getDisputeForBooking,
+  getPayment,
   getReviewForBooking,
 } from "@/lib/supabase/queries";
 import { isRideDue } from "@/lib/booking-timing";
@@ -50,6 +51,15 @@ function StatusContent() {
   const [decliningPrice, setDecliningPrice] = useState(false);
   const [declineDlg, setDeclineDlg] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Een asap-aanvraag moet al vóórdat een barber 'm ooit ziet betaald zijn
+  // (RLS, zie Fase 6) — status blijft dan gewoon 'requested' totdat dat
+  // gebeurt. Zonder dit zou een afgebroken betaling (aanvraag gestart, op
+  // het betaalscherm teruggeklikt) hier identiek ogen aan een echte,
+  // live aanvraag ("Wachten op bevestiging van de barber"), terwijl er in
+  // werkelijkheid niemand 'm ooit te zien krijgt. Gemeld door de
+  // gebruiker, 2026-10-10. Null = nog niet gecheckt (voorkomt een korte
+  // foute flits vóórdat de eerste poll-tick is geweest).
+  const [hasPayment, setHasPayment] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -61,6 +71,11 @@ function StatusContent() {
       try {
         const b = await getBooking(supabase, bookingId!);
         setBooking(b);
+        if (b?.status === "requested" && b.requestedAsap) {
+          setHasPayment(!!(await getPayment(supabase, bookingId!)));
+        } else {
+          setHasPayment(null);
+        }
       } catch {
         // niets doen
       }
@@ -161,6 +176,7 @@ function StatusContent() {
   // kaart-weergave zin heeft.
   const paymentPending = booking?.status === "accepted" && !!booking.paymentDueAt;
   const priceConfirmPending = booking?.status === "price_pending";
+  const paymentMissing = booking?.status === "requested" && booking.requestedAsap && hasPayment === false;
   const minutesLeftToConfirm =
     priceConfirmPending && booking?.priceConfirmDueAt
       ? Math.max(0, Math.ceil((new Date(booking.priceConfirmDueAt).getTime() - Date.now()) / (60 * 1000)))
@@ -176,7 +192,14 @@ function StatusContent() {
       : null;
   const copy = !booking
     ? null
-    : paymentPending
+    : paymentMissing
+      ? {
+          title: "Betaling niet afgerond",
+          sub: "Je aanvraag is nog niet verstuurd naar een barber — rond je betaling af om door te gaan.",
+          badge: "Betaling vereist",
+          progress: 5,
+        }
+      : paymentPending
       ? {
           title: "Betaal je afspraak",
           sub:
@@ -274,6 +297,11 @@ function StatusContent() {
           </div>
         </div>
         <div className="mt-4 mb-2 flex flex-col gap-2">
+          {paymentMissing && (
+            <Button full size="md" variant="accent" onClick={() => router.push(`/klant/betaling?bookingId=${bookingId}`)}>
+              Betaal nu
+            </Button>
+          )}
           {paymentPending && (
             <Button full size="md" variant="accent" onClick={() => router.push(`/klant/betaling?bookingId=${bookingId}`)}>
               Betaal nu

@@ -11,6 +11,7 @@ import {
   getCompletedBookingBannerForCustomer,
   getCustomerProfile,
   getDisputeBannerForCustomer,
+  getPayment,
   getRecentCompletedBookingsForCustomer,
   getTutorialSeenAt,
   hasUnreadNotifications,
@@ -114,6 +115,14 @@ export default function HomePage() {
   const [selected, setSelected] = useState<Map<string, number>>(new Map([["Knipbeurt", 1]]));
   const [address, setAddress] = useState("");
   const [activeBooking, setActiveBooking] = useState<BookingRecord | null>(null);
+  // Een asap-aanvraag moet al vóórdat een barber 'm ooit ziet betaald
+  // zijn (RLS, zie Fase 6) — status blijft dan gewoon 'requested' totdat
+  // dat gebeurt. Zonder dit onderscheid zag "Lopende boeking" er bij een
+  // afgebroken betaling (aanvraag gestart, op het betaalscherm
+  // teruggeklikt) identiek uit aan een echte, al wél live aanvraag —
+  // "Aangevraagd — wachten op een barber" terwijl er in werkelijkheid
+  // niemand 'm ooit te zien krijgt. Gemeld door de gebruiker, 2026-10-10.
+  const [activeBookingUnpaid, setActiveBookingUnpaid] = useState(false);
   const [recentBookings, setRecentBookings] = useState<RecentBookingSummary[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
   const [disputeBanner, setDisputeBanner] = useState<CustomerDisputeBanner | null>(null);
@@ -134,6 +143,9 @@ export default function HomePage() {
       if (!data.user) return;
       const active = await getActiveBookingForCustomer(supabase, data.user.id);
       setActiveBooking(active);
+      setActiveBookingUnpaid(
+        active?.status === "requested" && active.requestedAsap ? !(await getPayment(supabase, active.id)) : false
+      );
       const recent = await getRecentCompletedBookingsForCustomer(supabase, data.user.id);
       setRecentBookings(recent);
       setHasUnread(await hasUnreadNotifications(supabase, data.user.id));
@@ -282,7 +294,9 @@ export default function HomePage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-[13px] text-white/60">Lopende boeking</div>
-                <div className="text-[15px] font-semibold mt-0.5">{ACTIVE_STATUS_LABEL[activeBooking.status]}</div>
+                <div className="text-[15px] font-semibold mt-0.5">
+                  {activeBookingUnpaid ? "Betaling niet afgerond — tik om af te ronden" : ACTIVE_STATUS_LABEL[activeBooking.status]}
+                </div>
               </div>
               <span className="text-accent">
                 <ChevronRight size={22} />
