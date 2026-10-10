@@ -722,6 +722,30 @@ export async function getActiveBookingForBarber(
   return due ?? null;
 }
 
+// De eigen price_pending-claim van deze barber (0042/0043) — bewust
+// los van getActiveBookingForBarber hierboven, die price_pending
+// expliciet uitsluit (barber mag pas naar /barber/rit zodra de klant
+// heeft bevestigd). Voor de zwarte "Wachten op klant"-banner op
+// /barber/dashboard, zodat de barber ziet waarop hij wacht terwijl de
+// klant de prijs nog moet bevestigen. barber_is_online_and_available()
+// (0043) sluit al uit dat een barber er twee tegelijk kan hebben, dus
+// "eerste rij" is hier altijd eenduidig.
+export async function getPendingConfirmationBookingForBarber(
+  supabase: SupabaseClient,
+  barberId: string
+): Promise<BookingRecord | null> {
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(BOOKING_COLUMNS)
+    .eq("barber_id", barberId)
+    .eq("status", "price_pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapBooking(data as unknown as BookingRow);
+}
+
 // Geaccepteerde, geplande (niet-asap) boekingen die nog niet due zijn —
 // voor de "Geplande afspraken"-sectie op /barber/dashboard. Oplopend op
 // scheduled_at, niet op created_at (i.t.t. de rest van dit bestand) —

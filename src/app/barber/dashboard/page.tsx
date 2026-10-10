@@ -12,6 +12,7 @@ import {
   getBookingCustomerName,
   getOpenBroadcastRequestForBarber,
   getPaymentsForBarber,
+  getPendingConfirmationBookingForBarber,
   getPendingRequestForBarber,
   getRecentBookingsForBarber,
   getScheduledBookingsForBarber,
@@ -64,7 +65,7 @@ function formatScheduledLabel(iso: string): string {
 
 const STATUS_BADGE: Record<BookingStatus, { label: string; variant: "success" | "accent" | "neutral" | "error" }> = {
   requested: { label: "Nieuw", variant: "accent" },
-  price_pending: { label: "Wacht op klant", variant: "neutral" },
+  price_pending: { label: "Wacht op klant", variant: "accent" },
   accepted: { label: "Bevestigd", variant: "success" },
   en_route: { label: "Onderweg", variant: "accent" },
   arrived: { label: "Aangekomen", variant: "accent" },
@@ -119,6 +120,7 @@ export default function BarberDashboardPage() {
   const [onlineError, setOnlineError] = useState(false);
   const [hasRequest, setHasRequest] = useState(false);
   const [activeBooking, setActiveBooking] = useState<BookingRecord | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<BookingRecord | null>(null);
   const [scheduledBookings, setScheduledBookings] = useState<BookingRecord[]>([]);
   const [hasUnread, setHasUnread] = useState(false);
   const [bookings, setBookings] = useState<(BookingRecord & { customerName: string })[]>([]);
@@ -185,6 +187,7 @@ export default function BarberDashboardPage() {
         const broadcast = online ? await getOpenBroadcastRequestForBarber(supabase) : null;
         setHasRequest(!!pending || !!broadcast);
         setActiveBooking(await getActiveBookingForBarber(supabase, userId!));
+        setPendingConfirmation(await getPendingConfirmationBookingForBarber(supabase, userId!));
         setScheduledBookings(await getScheduledBookingsForBarber(supabase, userId!));
         setHasUnread(await hasUnreadNotifications(supabase, userId!));
         // Hier (niet alleen in de mount-only effect hierboven) om
@@ -260,6 +263,24 @@ export default function BarberDashboardPage() {
           </div>
         )}
       </div>
+      {/* price_pending (geclaimd, klant moet de prijs nog bevestigen) telt
+          niet mee als activeBooking (die sluit dit bewust uit, zie
+          getActiveBookingForBarber) — eigen banner zodat de barber ziet
+          waarop hij wacht. Niet klikbaar: er is geen apart detailscherm
+          voor dit stadium (zie getPendingConfirmationBookingForBarber). */}
+      {pendingConfirmation && (
+        <div className="px-5 pt-4">
+          <Card variant="inverse" padding={16}>
+            <div>
+              <div className="text-[13px] text-white/60">Wachten op klant</div>
+              <div className="text-[15px] font-semibold mt-0.5">
+                {pendingConfirmation.serviceName}
+                {pendingConfirmation.priceCents != null && ` · €${euro(pendingConfirmation.priceCents)}`}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
       {activeBooking && (
         <div className="px-5 pt-4">
           <Card variant="inverse" padding={16} onClick={() => router.push("/barber/rit")}>
