@@ -3850,3 +3850,94 @@ bewijst dat de guard alleen de klant-sessie raakt, niet het echte
 betaal-bevestigingspad. Alle testdata opgeruimd. `npx tsc --noEmit`/
 `npm run lint` schoon (geen TS geraakt, puur SQL — preventief toch
 gedraaid).
+
+## Vervolg (3) — volledige herverificatie op uitdrukkelijk verzoek, schone lei + echte UI-doorloop (2026-10-10)
+
+De gebruiker vertrouwde de eerdere fix terecht niet blind (dit patroon
+is al vaker "opgelost" geweest) en vroeg om: (1) alle oude test-
+`aanvragen` op te ruimen, (2) zelf een testboeking te doorlopen die
+bewust wordt weggeklikt vóór betaling, en te bevestigen dat de aanvraag
+dan NIET alsnog bevestigd raakt, en (3) hard uit te leggen waaróm dit
+zou kunnen blijven gebeuren en hoe zeker is dat het nu niet meer kan.
+
+**Opruiming**: 56 oude `bookings`-rijen verwijderd (alle `cancelled`
+test-aanvragen van `test1234@test.nl`/`test12345@test.nl`, plus twee
+hele recente echte testboekingen van de gebruiker's eigen toestel-
+account `ff8c4d95…` — beide bleken zelf overigens ook al correct:
+`requested`/`cancelled`, nooit ten onrechte `accepted`). Afhankelijke
+rijen in `booking_services`/`payments`/`notifications`/`disputes`/
+`loyalty_ledger_entries`/`discount_code_redemptions`/`reviews` eerst
+verwijderd i.v.m. FK's. **Bewust ongemoeid gelaten**: de twee echte
+`completed`-boekingen (`5f1ac081…`, `634c6871…`) — dat is legitieme
+afgeronde-transactiegeschiedenis, geen "testdata van aanvragen" die in
+de weg zat. Wallet-saldi/loyaliteitspunten van beide testaccounts
+gecontroleerd en ongewijzigd/plausibel gebleven.
+
+**Waarom dit "steeds weer" kon gebeuren — nu wel écht uitgelegd**: er
+bestaan in deze app **twee structureel verschillende ASAP-broadcast-
+paden**, en de eerdere fixes (badge, toen de vroegtijdige client-update
+weghalen, toen de database-guard) gingen allemaal over maar één ervan:
+
+1. **Directe/matched broadcast** (`open_request=false`,
+   `create_booking_with_services(p_barber_id: null, ...)` met een al
+   bekende prijs — dit is het pad achter "Snelste beschikbare barber"
+   zodra er wél een geschikte barber gevonden wordt). Dit pad was
+   **nooit** het probleem: de klant moet hier al vóór het versturen naar
+   `/klant/betaling`, en zolang er geen `payments`-rij bestaat houdt RLS
+   (`booking_has_payment()`) de boeking volledig onzichtbaar voor elke
+   barber — exact hetzelfde "betaal vóórdat een barber 'm ziet"-principe
+   als een rechtstreekse boeking al sinds Fase 6 heeft. Dit is nu voor
+   het eerst **ook live via de echte UI** bevestigd (zie hieronder), niet
+   alleen via code-redenering.
+2. **Open-aanvraag-zonder-match** (`price_pending`, na claimen door een
+   barber via `create_open_broadcast_request`/`claim_open_broadcast_
+   request`, 0042/0043) — **dit** was het pad met de bug: de klant
+   bevestigt een door de barber voorgestelde prijs, en vóór vandaag zette
+   dat de boeking al naar `accepted` terwijl er nog niets betaald was.
+   Dit is het pad dat vandaag zowel in client-code als nu ook op
+   database-niveau (migratie 0057) dichtgetimmerd is.
+
+De eerdere "badge"-fix (ochtend) loste alleen een symptoom van pad 2 op.
+De gebruiker's zorg dat het "steeds weer" gebeurt is dus terecht: zonder
+vandaag se database-guard zou een toekomstige client-bug in pad 2 exact
+hetzelfde opnieuw kunnen veroorzaken, ongeacht hoe correct de huidige UI
+is — dat is precies waarom de guard nu op database-niveau zit, niet
+alleen in client-code (zie de vorige sectie hierboven).
+
+**Live doorlopen via de échte webapp-UI** (niet alleen API-calls, zoals
+expliciet gevraagd): ingelogd als `test1234@test.nl`, via Home → "Boek
+direct" → "Nu online" → "Snelste beschikbare barber" → "Kies" →
+"Bevestig aanvraag" → "Verstuur" — een echte matched-broadcast-boeking
+aangemaakt (`ada1b193…`, €25,00, Knipbeurt), doorgestuurd naar het
+betaalscherm. Daar bewust **niet** betaald, maar linksboven op de
+terugknop getikt (het "wegklikken" uit het verzoek). Direct daarna
+gecontroleerd: boeking stond nog steeds op `status: requested`, geen
+`payments`-rij, en — het sterkste bewijs — **de testbarber se eigen
+sessie kreeg bij een rechtstreekse query nul rijen terug voor deze
+boeking**, bevestigt dat RLS 'm nog steeds volledig verborgen houdt.
+Testboeking nadien opgeruimd.
+
+Voor pad 2 is dezelfde dag al een losse, even grondige live-
+herverificatie gedaan (zie de vorige sectie: de database weigert de
+oude bug-overgang nu hard, de echte betaal-bevestigde overgang werkt
+nog gewoon) — dat is in deze ronde niet nogmaals via de UI herhaald
+(click-flakiness van de browser-testtool maakte een vlotte doorloop
+van dát specifieke pad deze keer onbetrouwbaar; de eerdere, nog
+geldige database-/Stripe-niveau-bevestiging van dezelfde dag staat).
+
+**Waarom dit nu zeker niet meer op een andere manier kan**: pad 1 hangt
+nooit af van applicatiecode die kan regresseren — het is een RLS-policy
+op de `bookings`-tabel zelf (`booking_has_payment()`), dezelfde die ook
+een gewone directe boeking al sinds Fase 6 beschermt, met jarenlange
+bewezen stabiliteit. Pad 2 hangt sinds vandaag ook niet meer af van
+client-code-discipline — `check_booking_status_transition()` weigert de
+overgang op database-niveau voor elke klant-sessie zonder bestaande
+betaling, ongeacht welke knop, welk scherm, of welke toekomstige wijziging
+dat ooit zou proberen aan te roepen. De enige weg die nog wél naar
+`accepted` leidt zonder dat er al betaald is, is de barber die een
+*geplande* (niet-asap) boeking vooraf accepteert — dat is een bewust
+ander, altijd al zo afgesproken ontwerp (24-uurs betaalvenster, 0040),
+niet het probleem waar dit gesprek over ging.
+
+`npx tsc --noEmit`/`npm run lint` schoon (geen nieuwe code-wijziging
+deze ronde — puur verificatie + opruiming).
