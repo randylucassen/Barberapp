@@ -4067,3 +4067,35 @@ claimen tegen zijn eigen prijs (`price_pending`, €25,00). Testdata
 nadien opgeruimd, testbarber weer offline gezet.
 
 `npx tsc --noEmit`/`npm run lint` schoon.
+
+## Pushmelding naar barbers bij een nieuwe (of heropende) open_request-aanvraag
+
+Gat gevonden/gedicht: tot nu toe kreeg een barber NOOIT een melding bij
+een open_request-aanvraag (0042/0043) — alleen bij een directe
+toewijzing (`new_request`, 0013, destijds bewust beperkt, broadcast-
+fan-out toen uitgesteld als "beperkte MVP-waarde"). Sinds vandaag gaat
+ELKE "Snelste beschikbare barber"-aanvraag (ASAP) via open_request
+(zie de sectie hierboven), dus dit gat trof voortaan iedere ASAP-
+aanvraag — barbers zagen 'm alleen via de 5s-dashboard-poll.
+
+Migratie [0059_notify_barbers_of_new_open_request.sql](supabase/migrations/0059_notify_barbers_of_new_open_request.sql):
+`notify_barbers_of_open_request(p_booking_id)` stuurt een
+`new_request`-notificatie naar elke op dat moment geschikte barber
+(online, beschikbaar, binnen straal, biedt alle gevraagde diensten —
+zelfde voorwaarden als `barber_is_online_and_available()` +
+`barber_matches_location_and_service()`'s open_request-tak, plus
+uitsluiting van `declined_barber_ids`, 0058). Twee triggers roepen 'm
+aan: bij een gloednieuwe aanvraag (INSERT) en bij een heropening na
+een weigering/timeout (UPDATE, `price_pending → requested`) — dat is
+immers ook weer een verse kans voor andere barbers. Geen aparte
+dispatch-code nodig: elke insert in `notifications` triggert al
+`fan_out_notification()` (0013) naar e-mail/web-push/Expo-push.
+
+Tekst (creatief, op verzoek): *"Nieuwe aanvraag in de buurt — Wie het
+eerst reageert, wint de klant — wees er snel bij voordat een andere
+barber 'm claimt."* Hergebruikt het bestaande `new_request`-type, dus
+de barber-kant routeert 'm al correct naar `/barber/aanvraag`
+(`NotificationsList.tsx`, ongewijzigd).
+
+Puur backend/migratie — geen client-codewijziging nodig in welke repo
+dan ook.

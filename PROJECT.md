@@ -2847,6 +2847,18 @@ een tweede barber die de vrijgekomen aanvraag alsnog succesvol claimt.
 Zie CLAUDE.md ("Correctie: betaling hoeft NIET vooraf..." en "Migratie
 0058...") voor de volledige technische toelichting.
 
+## Pushmelding naar barbers bij een open aanvraag (2026-10-11)
+
+Gevonden gat: een barber kreeg tot nu toe nooit een melding bij een
+open_request-aanvraag ("Snelste beschikbare barber") — alleen bij een
+directe toewijzing. Sinds gisteren gaat elke ASAP-aanvraag via dat pad
+(zie hierboven), dus elke barber miste tot nu toe elke pushmelding
+hierover en moest het via de dashboard-poll ontdekken. Migratie 0059
+stuurt nu bij elke nieuwe (of na een weigering/timeout heropende)
+aanvraag een melding naar elke op dat moment geschikte barber, puur
+backend — geen app-wijziging nodig. Zie CLAUDE.md voor de volledige
+toelichting en exacte tekst.
+
 ## Roadmap
 
 Vervangen op 2026-07-17 door een gedetailleerdere versie van de gebruiker
