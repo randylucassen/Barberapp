@@ -1785,6 +1785,56 @@ export async function getPaymentsForAdmin(
   }));
 }
 
+export interface AdminTransactionRow {
+  id: string;
+  completedAt: string;
+  customerName: string;
+  barberName: string;
+  serviceName: string;
+  amountCents: number | null;
+}
+
+// "Klant X voltooide transactie met Barber Y op Z" — overzicht op
+// uitdrukkelijk verzoek, los van /admin/betalingen (die toont bedragen/
+// escrow-status maar geen namen) en /admin/boekingen (die toont juist
+// alleen vastgelopen boekingen). Alleen echt afgeronde boekingen
+// (status completed) — amountCents kan alsnog null zijn (geen payments-
+// rij) voor een edge-case-boeking die zonder normale betaalflow
+// afgerond raakte, vandaar nullable i.p.v. een geforceerde 0.
+export async function getCompletedTransactionsForAdmin(supabase: SupabaseClient): Promise<AdminTransactionRow[]> {
+  const { data: bookings, error } = await supabase
+    .from("bookings")
+    .select("id, completed_at, service_name_snapshot, customer_id, barber_id, payments(amount_cents)")
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false });
+  if (error || !bookings || bookings.length === 0) return [];
+
+  const profileIds = Array.from(
+    new Set(bookings.flatMap((b) => [b.customer_id, b.barber_id]).filter((id): id is string => !!id))
+  );
+  const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", profileIds);
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  return (bookings as unknown as Array<{
+    id: string;
+    completed_at: string | null;
+    service_name_snapshot: string;
+    customer_id: string;
+    barber_id: string | null;
+    payments: { amount_cents: number } | { amount_cents: number }[] | null;
+  }>).map((b) => {
+    const payment = Array.isArray(b.payments) ? b.payments[0] : b.payments;
+    return {
+      id: b.id,
+      completedAt: b.completed_at ?? "",
+      customerName: nameById.get(b.customer_id) || "Onbekend",
+      barberName: (b.barber_id && nameById.get(b.barber_id)) || "Onbekend",
+      serviceName: b.service_name_snapshot,
+      amountCents: payment?.amount_cents ?? null,
+    };
+  });
+}
+
 export interface AdminReviewRow {
   id: string;
   stars: number;

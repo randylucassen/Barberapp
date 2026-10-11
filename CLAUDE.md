@@ -4155,3 +4155,32 @@ bestaande `<Dialog>`-aanroepplekken in de native app zijn mee-
 gemigreerd (hun platte tekst wrapt nu zelf in de nieuw geëxporteerde
 `dialogBodyTextStyle`, zie `Dialog.tsx`), niet alleen de twee die dit
 nu rechtstreeks raken.
+
+## Nieuw admin-overzicht: Transacties (klant + barber + datum, filterbaar)
+
+Op verzoek — los van de bestaande `/admin/betalingen` (toont bedragen/
+escrow-status, geen namen) en `/admin/boekingen` (alleen vastgelopen
+boekingen): nieuwe pagina **`/admin/transacties`**, toegevoegd aan de
+AdminShell-navigatie. Eén rij per afgeronde boeking (`status =
+'completed'`), tekst letterlijk *"[Klant] voltooide transactie met
+[Barber] op [datum]"* + dienstnaam + bedrag.
+
+- `getCompletedTransactionsForAdmin()` (`queries.ts`) — zelfde
+  naam-resolve-patroon als `getStuckBookingsForAdmin()`: `bookings`
+  (gefilterd op completed) met `payments(amount_cents)` embedded,
+  daarna één losse `profiles`-lookup voor alle klant-/barber-ids samen
+  (niet N+1). `amountCents` is nullable (geen payments-rij in een
+  randgeval), niet geforceerd naar 0.
+- `TransactionsTable.tsx` (nieuwe client-component) — 1-op-1 hetzelfde
+  draft/applied-datumfilterpatroon als `InvoicesTable.tsx` ("Zoeken"/
+  "Herstel filters", niet instant-filteren), hier alleen op
+  `completedAt` i.p.v. factuurperiode, geen maand-groepering (platte,
+  op datum aflopend gesorteerde lijst, net als /admin/betalingen).
+
+**Geverifieerd**: `tsc`/`eslint` schoon; de onderliggende query (join +
+naam-resolve) rechtstreeks tegen productie getest via REST met de
+service role — echte afgeronde testboekingen kwamen er correct uit
+(bv. "Randy Test" + "Randy van Londen", "Test Klant" + "Test Barber").
+Niet via de admin-UI zelf doorlopen (geen admin-inloggegevens
+voorhanden in deze sessie) — als dat ooit nodig is, eerst even een
+admin-testaccount aanmaken/wachtwoord resetten.
