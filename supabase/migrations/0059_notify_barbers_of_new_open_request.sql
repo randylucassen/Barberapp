@@ -70,7 +70,7 @@ begin
       v_barber_id,
       'new_request',
       'Nieuwe aanvraag in de buurt',
-      'Wie het eerst reageert, wint de klant — wees er snel bij voordat een andere barber ''m claimt.',
+      'Wees er snel bij voordat een andere barber ''m claimt.',
       p_booking_id
     );
   end loop;

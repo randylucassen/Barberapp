@@ -4091,9 +4091,9 @@ immers ook weer een verse kans voor andere barbers. Geen aparte
 dispatch-code nodig: elke insert in `notifications` triggert al
 `fan_out_notification()` (0013) naar e-mail/web-push/Expo-push.
 
-Tekst (creatief, op verzoek): *"Nieuwe aanvraag in de buurt — Wie het
-eerst reageert, wint de klant — wees er snel bij voordat een andere
-barber 'm claimt."* Hergebruikt het bestaande `new_request`-type, dus
+Tekst (creatief, op verzoek): *"Nieuwe aanvraag in de buurt — Wees er
+snel bij voordat een andere barber 'm claimt."* Hergebruikt het
+bestaande `new_request`-type, dus
 de barber-kant routeert 'm al correct naar `/barber/aanvraag`
 (`NotificationsList.tsx`, ongewijzigd).
 
