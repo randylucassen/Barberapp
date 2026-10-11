@@ -1788,7 +1788,9 @@ export async function getPaymentsForAdmin(
 export interface AdminTransactionRow {
   id: string;
   completedAt: string;
+  customerId: string;
   customerName: string;
+  barberId: string | null;
   barberName: string;
   serviceName: string;
   amountCents: number | null;
@@ -1827,7 +1829,9 @@ export async function getCompletedTransactionsForAdmin(supabase: SupabaseClient)
     return {
       id: b.id,
       completedAt: b.completed_at ?? "",
+      customerId: b.customer_id,
       customerName: nameById.get(b.customer_id) || "Onbekend",
+      barberId: b.barber_id,
       barberName: (b.barber_id && nameById.get(b.barber_id)) || "Onbekend",
       serviceName: b.service_name_snapshot,
       amountCents: payment?.amount_cents ?? null,

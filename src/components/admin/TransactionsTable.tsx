@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import { FilterField } from "@/components/admin/FilterField";
@@ -20,6 +21,7 @@ const EMPTY_FILTERS: Filters = { from: "", to: "" };
 // "Zoeken"/Enter, niet instant) — zelfde reden: kan flink oplopen zodra
 // er veel afgeronde boekingen zijn.
 export function TransactionsTable({ transactions }: { transactions: AdminTransactionRow[] }) {
+  const router = useRouter();
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
 
@@ -82,8 +84,26 @@ export function TransactionsTable({ transactions }: { transactions: AdminTransac
             <div key={t.id} className="bg-white border border-border rounded-lg p-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-[14px] leading-[20px]">
-                  <span className="font-semibold">{t.customerName}</span> voltooide transactie met{" "}
-                  <span className="font-semibold">{t.barberName}</span> op {formatDate(t.completedAt)}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/admin/gebruikers/${t.customerId}`)}
+                    className="font-semibold text-text-primary underline decoration-border hover:decoration-text-primary"
+                  >
+                    {t.customerName}
+                  </button>{" "}
+                  voltooide transactie met{" "}
+                  {t.barberId ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/admin/gebruikers/${t.barberId}`)}
+                      className="font-semibold text-text-primary underline decoration-border hover:decoration-text-primary"
+                    >
+                      {t.barberName}
+                    </button>
+                  ) : (
+                    <span className="font-semibold">{t.barberName}</span>
+                  )}{" "}
+                  op {formatDate(t.completedAt)}
                 </div>
                 <div className="text-[13px] text-text-secondary mt-0.5">{t.serviceName}</div>
               </div>
