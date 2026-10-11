@@ -14,6 +14,8 @@ export default function SettingsPage() {
   const [mail, setMail] = useState(true);
   const [dlg, setDlg] = useState(false);
   const [deleteDlg, setDeleteDlg] = useState(false);
+  const [deleteConfirmDlg, setDeleteConfirmDlg] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -75,7 +77,11 @@ export default function SettingsPage() {
       const token = sessionData.session?.access_token;
       const res = await fetch("/api/account/delete", {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: deleteReason.trim() }),
       });
       if (!res.ok) throw new Error();
       await supabase.auth.signOut();
@@ -116,7 +122,7 @@ export default function SettingsPage() {
           <Button full variant="secondary" onClick={() => setDlg(true)}>Uitloggen</Button>
         </div>
         <div className="mb-4">
-          <Button full variant="ghost" onClick={() => setDeleteDlg(true)}>
+          <Button full variant="danger" onClick={() => setDeleteDlg(true)}>
             Account verwijderen
           </Button>
         </div>
@@ -137,13 +143,22 @@ export default function SettingsPage() {
       <Dialog
         open={deleteDlg}
         title="Account verwijderen?"
-        onClose={() => !deleting && setDeleteDlg(false)}
+        onClose={() => setDeleteDlg(false)}
         actions={
           <>
-            <Button full size="md" variant="secondary" onClick={handleDeleteAccount} disabled={deleting}>
-              {deleting ? "Bezig…" : "Verwijder mijn account"}
+            <Button
+              full
+              size="md"
+              variant="danger"
+              disabled={!deleteReason.trim()}
+              onClick={() => {
+                setDeleteDlg(false);
+                setDeleteConfirmDlg(true);
+              }}
+            >
+              Verwijder mijn account
             </Button>
-            <Button full size="md" variant="ghost" onClick={() => setDeleteDlg(false)} disabled={deleting}>
+            <Button full size="md" variant="ghost" onClick={() => setDeleteDlg(false)}>
               Annuleer
             </Button>
           </>
@@ -153,6 +168,45 @@ export default function SettingsPage() {
           Je kunt hierna niet meer inloggen en je persoonlijke gegevens (naam, telefoon, adres) worden gewist. Dit
           kan niet ongedaan worden gemaakt. Je boekingsgeschiedenis blijft geanonimiseerd bewaard voor de
           barbers die je eerder boekte.
+          <div className="mt-3">
+            <label className="text-[13px] font-medium text-text-secondary">Reden (verplicht)</label>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="Waarom verwijder je je account?"
+              rows={3}
+              className="w-full mt-1.5 bg-surface rounded-md px-3.5 py-2.5 text-[14px] placeholder:text-text-tertiary border-none outline-none resize-none"
+            />
+          </div>
+        </>
+      </Dialog>
+      <Dialog
+        open={deleteConfirmDlg}
+        title="Weet je het zeker?"
+        onClose={() => !deleting && setDeleteConfirmDlg(false)}
+        actions={
+          <>
+            <Button full size="md" variant="danger" onClick={handleDeleteAccount} disabled={deleting}>
+              {deleting ? "Bezig…" : "Ja, definitief verwijderen"}
+            </Button>
+            <Button
+              full
+              size="md"
+              variant="ghost"
+              onClick={() => {
+                setDeleteConfirmDlg(false);
+                setDeleteDlg(true);
+              }}
+              disabled={deleting}
+            >
+              Terug
+            </Button>
+          </>
+        }
+      >
+        <>
+          Dit is je laatste kans om het te annuleren — hierna is je account echt weg en kan dit niet meer worden
+          teruggedraaid.
           {deleteError && <div className="mt-3 text-error-text text-[13px]">{deleteError}</div>}
         </>
       </Dialog>

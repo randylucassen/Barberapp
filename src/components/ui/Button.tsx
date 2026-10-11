@@ -1,7 +1,7 @@
 "use client";
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "accent" | "secondary" | "ghost";
+type Variant = "primary" | "accent" | "secondary" | "ghost" | "danger";
 type Size = "lg" | "md" | "sm";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -17,6 +17,7 @@ const variantClasses: Record<Variant, string> = {
   accent: "bg-accent text-white active:bg-accent-dark",
   secondary: "bg-surface text-text-primary active:bg-[#EFEFEF]",
   ghost: "bg-transparent text-text-primary active:bg-surface",
+  danger: "bg-error text-white active:bg-[#DC2626]",
 };
 
 const sizeClasses: Record<Size, string> = {

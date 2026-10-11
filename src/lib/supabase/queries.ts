@@ -1449,15 +1449,17 @@ export interface AdminStats {
   activeBarbers: number;
   pendingApprovals: number;
   openDisputes: number;
+  accountDeletions: number;
 }
 
 export async function getAdminStats(supabase: SupabaseClient): Promise<AdminStats> {
-  const [bookings, payments, activeBarbers, pendingApprovals, openDisputes] = await Promise.all([
+  const [bookings, payments, activeBarbers, pendingApprovals, openDisputes, accountDeletions] = await Promise.all([
     supabase.from("bookings").select("id", { count: "exact", head: true }),
     supabase.from("payments").select("amount_cents, barber_payout_cents, escrow_state"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "barber").eq("barber_status", "approved"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "barber").eq("barber_status", "pending"),
     supabase.from("disputes").select("id", { count: "exact", head: true }).eq("status", "open"),
+    supabase.from("account_deletions").select("id", { count: "exact", head: true }),
   ]);
 
   // Vroeger puur platform_fee_cents (alleen de klant-kant-opslag) — miste
@@ -1480,7 +1482,35 @@ export async function getAdminStats(supabase: SupabaseClient): Promise<AdminStat
     activeBarbers: activeBarbers.count ?? 0,
     pendingApprovals: pendingApprovals.count ?? 0,
     openDisputes: openDisputes.count ?? 0,
+    accountDeletions: accountDeletions.count ?? 0,
   };
+}
+
+export interface AccountDeletionRow {
+  id: string;
+  userId: string;
+  role: "customer" | "barber";
+  reason: string;
+  createdAt: string;
+}
+
+// Voor de admin-lijst achter de "Account verwijderingen"-tegel — de
+// profiles-rij zelf is al geanonimiseerd (0055), dus deze lijst toont
+// bewust alleen rol + reden + datum, geen naam/e-mail die er toch niet
+// meer zinvol is.
+export async function getAccountDeletionsForAdmin(supabase: SupabaseClient): Promise<AccountDeletionRow[]> {
+  const { data, error } = await supabase
+    .from("account_deletions")
+    .select("id, user_id, role, reason, created_at")
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    role: row.role as "customer" | "barber",
+    reason: row.reason as string,
+    createdAt: row.created_at as string,
+  }));
 }
 
 export interface AdminBarberRow {

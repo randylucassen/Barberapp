@@ -25,6 +25,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Niet ingelogd." }, { status: 401 });
   }
 
+  // Verplichte reden (0060) — client-kant kan de knop al uitschakelen
+  // zonder tekst, maar vertrouw dat niet blind: ook hier afdwingen.
+  let reason = "";
+  try {
+    const body = await request.json();
+    reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+  } catch {
+    // Lege/ontbrekende body -> reason blijft "", hieronder afgewezen.
+  }
+  if (!reason) {
+    return NextResponse.json({ error: "Geef een reden op." }, { status: 400 });
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
@@ -42,6 +55,12 @@ export async function POST(request: NextRequest) {
   // eigen upload-policies om, en de Auth Admin-API (geen client-SDK-pad
   // om de eigen login te blokkeren/e-mail te wissen).
   const service = createServiceClient();
+
+  // Vóór de ban/sign-out — role staat hierboven al vast, user.id blijft
+  // geldig als FK-doel (profiles-rij wordt geanonimiseerd, niet verwijderd).
+  if (profile?.role) {
+    await service.from("account_deletions").insert({ user_id: user.id, role: profile.role, reason });
+  }
 
   if (profile?.role === "barber") {
     await clearBarberStorageFolder(service, "barber-media", user.id);

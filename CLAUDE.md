@@ -4099,3 +4099,59 @@ de barber-kant routeert 'm al correct naar `/barber/aanvraag`
 
 Puur backend/migratie — geen client-codewijziging nodig in welke repo
 dan ook.
+
+## Account verwijderen: rood, verplichte reden, dubbele bevestiging, admin-statistiek
+
+Op verzoek: de "Account verwijderen"/"Verwijder mijn account"-knoppen
+(0055) zijn nu rood (nieuwe `Button`-variant `danger` toegevoegd in
+beide repo's — bestond nog niet, zie CLAUDE.md-noot bij 2026-10-08 die
+nu dus achterhaald is), en de flow is nu drie stappen i.p.v. één:
+
+1. "Account verwijderen" (rood) → Dialog 1 met de bestaande
+   waarschuwingstekst + een nieuw **verplicht** redenveld (textarea/
+   multiline `Input`). De rode "Verwijder mijn account"-knop is
+   disabled zolang de reden leeg is.
+2. Dialog 2 ("Weet je het zeker?") — nieuwe, losse bevestigingsstap,
+   rode "Ja, definitief verwijderen"-knop. "Terug" gaat terug naar
+   Dialog 1 (reden blijft bewaard in state).
+3. Pas hier roept `handleDeleteAccount()` de API aan, nu met
+   `{ reason }` in de body (was voorheen een kale POST zonder payload).
+
+**Backend** ([0060_account_deletion_reason.sql](supabase/migrations/0060_account_deletion_reason.sql)):
+nieuwe tabel `account_deletions (id, user_id, role, reason,
+created_at)`, RLS aan maar bewust zonder policies (zelfde patroon als
+`disputes`, 0003) — de enige twee plekken die 'm raken
+(`/api/account/delete`, het admin-dashboard) draaien al via de service
+role. De route valideert `reason` ook server-side (niet alleen de
+disabled-knop vertrouwen) en insert vóór de RPC/ban, met `user.id` dat
+daarna geanonimiseerd blijft bestaan (nooit echt verwijderd, zie 0055)
+— dus geen FK-probleem.
+
+**Admin-kant**: `/admin` kreeg een 6e, nu wél klikbare tegel ("Account
+verwijderingen", `AdminStats.accountDeletions`) — `Tile` kreeg een
+optionele `href`-prop die 'm in een `<Link>` wrapt, de andere 5 tegels
+blijven kaal. Linkt naar de nieuwe pagina
+[/admin/account-verwijderingen](src/app/admin/account-verwijderingen/page.tsx)
+(`getAccountDeletionsForAdmin()`, nieuwe query): toont per verwijdering
+rol + datum + reden — bewust geen naam/e-mail, want het profiel is op
+dat moment al geanonimiseerd.
+
+Live geverifieerd (echte webapp-UI, wegwerp-testaccount): rode
+knopkleur bevestigd via computed style (`rgb(239, 68, 68)`), "Verwijder
+mijn account" correct disabled zonder reden/enabled met reden, Dialog 2
+verschijnt met de juiste tekst/rode knop. Migratie 0060 nog niet
+gepusht op het moment van verifiëren — de daadwerkelijke
+`account_deletions`-insert + de admin-pagina zijn dus nog niet end-to-
+end bevestigd, dat volgt zodra de migratie live staat.
+
+**Nog niet gedaan (bewust, niet gevraagd)**: de native app kreeg
+dezelfde drie-staps-flow/rode knoppen (`klant/instellingen.tsx`,
+`barber/(tabs)/profiel.tsx`) — maar geen admin-dashboard, dat bestaat
+alleen op de webapp. Native's gedeelde `Dialog`-component moest
+hiervoor aangepast: `children` rendert nu in een `View` i.p.v. een
+`Text` (nodig om het non-Text `Input`-veld als kind toe te staan, RN
+staat geen View-component toe binnen een Text-component) — alle 5
+bestaande `<Dialog>`-aanroepplekken in de native app zijn mee-
+gemigreerd (hun platte tekst wrapt nu zelf in de nieuw geëxporteerde
+`dialogBodyTextStyle`, zie `Dialog.tsx`), niet alleen de twee die dit
+nu rechtstreeks raken.
