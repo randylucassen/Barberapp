@@ -25,7 +25,7 @@ export const KLANT_SECTIONS: Section[] = [
     rules: [
       {
         title: "Gratis annuleren",
-        body: "Tot 1 uur vóór een geplande afspraak, of tot je barber onderweg is — daarna kosteloos.",
+        body: "Tot 1 uur vóór een geplande afspraak, of tot je barber onderweg is.",
       },
       {
         title: "Te laat annuleren",
