@@ -4249,3 +4249,46 @@ Nieuwe query-wrapper `notifyPriceAccepted()` in `queries.ts` (webapp);
 native roept de RPC rechtstreeks aan (geen gedeelde queries.ts daar).
 `npx tsc --noEmit`/lint schoon op beide repo's. Nog niet live
 geverifieerd op het moment van schrijven (migratie nog niet gepusht).
+
+## ASAP-tegenhanger van het no-show-vangnet (20 minuten)
+
+Op verzoek: het bestaande "barber heeft niet op tijd op vertrekken
+gedrukt"-vangnet (migratie 0035) gold alleen voor geplande boekingen —
+bewust getimed op `scheduled_at`. Voor een ASAP-boeking bestond dit
+vangnet niet, terwijl het risico daar groter is: bij ASAP is er bij
+`accepted` altijd al écht betaald (anders dan bij gepland, waar pas ná
+acceptatie binnen 24u betaald wordt) — zonder vangnet kon een klant z'n
+geld dus voor onbepaalde tijd vast zien zitten als een barber
+accepteert en vervolgens nooit vertrekt.
+
+**Nieuw**: [/api/cron/expire-asap-noshow-bookings](src/app/api/cron/expire-asap-noshow-bookings/route.ts)
++ [migratie 0063](supabase/migrations/0063_asap_noshow_cron.sql)
+(cron-wrapper + `pg_cron`-schedule, elke 2 minuten i.p.v. 5 — het
+venster is hier 20 min i.p.v. 60, dus een 5-minuten-cadans zou
+verhoudingsgewijs een veel grotere overshoot geven). Vrijwel 1-op-1
+dezelfde logica als `expire-noshow-bookings` (volledige refund,
+waarschuwing, schorsing bij de 2e keer) — twee verschillen:
+- **20 minuten i.p.v. 60**: "snelste beschikbare barber" impliceert een
+  veel kortere redelijke wachttijd dan een geplande afspraak.
+- **`updated_at` i.p.v. `scheduled_at`** als peildatum — een ASAP-
+  boeking heeft geen geplande tijd om tegen af te zetten; `updated_at`
+  wordt door de generieke `set_updated_at()`-trigger (0001/0003) al bij
+  elke statusovergang bijgewerkt, dus bruikbaar als "moment van
+  accepteren" zolang er niets anders aan de rij verandert tussen
+  `accepted` en `en_route`.
+
+**Bewust hergebruikt, geen wijziging nodig**: `barber_no_show_warnings`
+(dezelfde telling/dezelfde 2e-keer-schorsing, ongeacht ASAP of
+gepland — een barber die niet komt opdagen is hetzelfde probleem),
+`check_booking_status_transition()` (de `cancelled_by=null`-overgang
+loopt via de `auth.uid() is null`-service-role-bypass, al toegestaan),
+`notify_customer_on_status_change()` (de bestaande
+`cancelled_by is null and old.status='accepted'`-tak zonder
+`payment_due_at` — wat een ASAP-boeking nooit heeft, zie 0057 — stuurt
+al automatisch de juiste "volledig terugbetaald"-melding), en
+`/admin/no-shows` (geen filter op `requested_asap`, `scheduledAt` was
+al `string | null` en wordt al conditioneel getoond). Puur twee nieuwe
+bestanden, geen client-codewijziging in welke repo dan ook nodig.
+
+Nog niet live geverifieerd (migraties nog niet gepusht op het moment
+van schrijven).
