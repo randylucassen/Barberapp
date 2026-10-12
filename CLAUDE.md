@@ -4184,3 +4184,37 @@ service role — echte afgeronde testboekingen kwamen er correct uit
 Niet via de admin-UI zelf doorlopen (geen admin-inloggegevens
 voorhanden in deze sessie) — als dat ooit nodig is, eerst even een
 admin-testaccount aanmaken/wachtwoord resetten.
+
+## Bug: pushmelding voor de verkeerde rol op hetzelfde toestel
+
+Door de gebruiker gemeld: een pushmelding bedoeld voor het barber-
+account kwam ook binnen terwijl diegene op hetzelfde toestel als klant
+was ingelogd (en "uitgelogd" was bij barber).
+
+**Oorzaak**: `registerForPushNotifications()` (native,
+`src/lib/push-notifications.ts`) zette het Expo-push-token van het
+toestel gewoon op `profiles.expo_push_token` van de net ingelogde
+gebruiker, zonder dat token eerst te wissen bij een eventuele ANDERE
+profiel-rij die het al had. `AuthProvider.signOut()` (0051) wist het
+token wél bij een bewuste "Uitloggen"-tik, maar dat dekt niet elk
+geval waarop iemand op hetzelfde toestel van rol/account wisselt
+zonder die knop (sessie verloopt vanzelf, app geforceerd gesloten, via
+de klant-/barber-appkiezer geswitcht) — zo kon hetzelfde toestel-token
+op twee profielen tegelijk blijven staan, en kreeg de ene rol dus ook
+meldingen die voor de andere bedoeld waren.
+
+**Fix**: [0061_claim_push_token.sql](supabase/migrations/0061_claim_push_token.sql)
+— nieuwe RPC `claim_push_token(p_token)`: wist het token eerst bij elke
+ANDERE profiel-rij die het nog heeft, zet 'm dan pas op de aanroepende
+gebruiker (`auth.uid()`). Security definer, nodig omdat de bestaande
+"Users can update own profile"-RLS (0001) een update op een andere rij
+sowieso nooit toestaat. `registerForPushNotifications()` (native) roept
+nu deze RPC aan i.p.v. een kale update van de eigen rij — zelf-
+herstellend, ongeacht hoe de vorige sessie eindigde. Ook het
+`userId`-argument van die functie kon weg (zat er alleen voor de oude
+kale update, de RPC leunt op `auth.uid()`) — aanroepplek
+(`KPPRTJE-app/src/app/_layout.tsx`) aangepast.
+
+Nog niet live geverifieerd (migratie nog niet gepusht op het moment
+van schrijven) — wel zorgvuldig nagelezen tegen de bestaande RLS/
+kolom-grant (0001/0051).
