@@ -147,6 +147,10 @@ export interface BookingRecord {
   // Gezet zodra status -> completed (Fase 6) — ankerpunt voor het
   // 24-uurs-geschillenvenster.
   completedAt: string | null;
+  // Door de generieke set_updated_at()-trigger bij elke wijziging
+  // bijgewerkt — ankerpunt voor het "vastgelopen bij arrived/
+  // in_progress"-geschillenvenster (2 uur, zie klant/status/page.tsx).
+  updatedAt: string;
   // Gegeocodeerd klant-adres, gezet bij het boeken — bestemming voor
   // LiveMap (0033). Kan null zijn bij een heel oude boeking van vóór
   // matching (Fase 5) of als geocoding toen mislukte.

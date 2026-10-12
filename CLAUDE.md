@@ -4292,3 +4292,40 @@ bestanden, geen client-codewijziging in welke repo dan ook nodig.
 
 Nog niet live geverifieerd (migraties nog niet gepusht op het moment
 van schrijven).
+
+## "Probleem melden" ook bij een vastgelopen arrived/in_progress-boeking (2+ uur)
+
+Op verzoek, vervolg op de ASAP-no-show-sectie hierboven: wat als een
+barber nooit op "Afgerond" klikt (dienst is misschien wel geleverd,
+telefoon kwijt/vergeten af te ronden)? Tot nu toe kon een klant een
+geschil alleen openen op een `completed`-boeking (binnen 24u, 0009) —
+een boeking die vastzit op `arrived`/`in_progress` kende GEEN enkele
+klant-zichtbare uitweg, alleen de bestaande admin-only
+`getStuckBookingsForAdmin()`/`force-resolve`-route. Bewust **geen**
+auto-refund hiervoor (in tegenstelling tot de no-show-crons hierboven)
+— de dienst kan wel degelijk geleverd zijn, dit vereist menselijke
+beoordeling, dus hergebruik van de bestaande geschillen-wachtrij i.p.v.
+een nieuw automatisch resolutiepad.
+
+**Migratie** [0064_dispute_when_stuck.sql](supabase/migrations/0064_dispute_when_stuck.sql):
+de disputes-insert-RLS-policy (0009, "alleen binnen 24u na completed")
+krijgt een tweede toegestane voorwaarde: `status in ('arrived',
+'in_progress') and now() >= updated_at + interval '2 hours'`.
+`updated_at` als peildatum — zelfde aanname als de ASAP-no-show-cron.
+
+**Client-kant** (beide repo's): `BookingRecord`/`BookingRow` kregen een
+`updatedAt`-veld (nieuw in `BOOKING_COLUMNS`/de native select-query).
+`canDispute` op `klant/status/page.tsx`/`klant/booking/[id].tsx` dekt
+nu twee gevallen i.p.v. één (completed-binnen-24u, of
+arrived/in_progress die al 2+ uur vastzit) — zelfde knop ("Probleem
+melden"), geen tekstwijziging nodig daar. De dispute-check-op-bestaand-
+geschil-effect op de webapp was voorheen hard gated op
+`status === 'completed'` — uitgebreid naar ook arrived/in_progress,
+anders zou "Al gemeld" nooit correct getoond worden voor dit nieuwe
+pad. `/klant/geschil` (beide repo's) haalt nu ook de boekingstatus op
+en toont een aangepaste uitlegtekst voor het vastgelopen-geval i.p.v.
+de altijd-"binnen 24u na afronding"-tekst, die daar anders feitelijk
+onjuist zou staan.
+
+`npx tsc --noEmit`/lint schoon op beide repo's. Nog niet live
+geverifieerd (migratie nog niet gepusht op het moment van schrijven).

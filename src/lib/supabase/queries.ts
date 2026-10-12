@@ -311,6 +311,7 @@ interface BookingRow {
   cancelled_by: UserRole | null;
   created_at: string;
   completed_at: string | null;
+  updated_at: string;
   lat: number | null;
   lng: number | null;
   barber_live_lat: number | null;
@@ -323,7 +324,7 @@ interface BookingRow {
 }
 
 const BOOKING_COLUMNS =
-  "id, customer_id, barber_id, service_name_snapshot, price_cents_snapshot, duration_minutes_snapshot, address, note, requested_asap, scheduled_at, status, cancelled_reason, cancelled_by, created_at, completed_at, lat, lng, barber_live_lat, barber_live_lng, barber_location_updated_at, payment_due_at, open_request, requested_services, price_confirm_due_at";
+  "id, customer_id, barber_id, service_name_snapshot, price_cents_snapshot, duration_minutes_snapshot, address, note, requested_asap, scheduled_at, status, cancelled_reason, cancelled_by, created_at, completed_at, updated_at, lat, lng, barber_live_lat, barber_live_lng, barber_location_updated_at, payment_due_at, open_request, requested_services, price_confirm_due_at";
 
 function mapBooking(row: BookingRow): BookingRecord {
   return {
@@ -342,6 +343,7 @@ function mapBooking(row: BookingRow): BookingRecord {
     cancelledBy: row.cancelled_by,
     createdAt: row.created_at,
     completedAt: row.completed_at,
+    updatedAt: row.updated_at,
     lat: row.lat,
     lng: row.lng,
     barberLiveLat: row.barber_live_lat,

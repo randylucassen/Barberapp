@@ -103,7 +103,8 @@ function StatusContent() {
   // deze boeking — open of al opgelost, maakt niet uit: disputes.
   // booking_id is uniek, dus een tweede melding zou hoe dan ook falen.
   useEffect(() => {
-    if (!bookingId || booking?.status !== "completed" || hasDispute) return;
+    const relevant = booking?.status === "completed" || booking?.status === "arrived" || booking?.status === "in_progress";
+    if (!bookingId || !relevant || hasDispute) return;
     const supabase = createClient();
     getDisputeForBooking(supabase, bookingId).then((d) => setHasDispute(!!d));
   }, [bookingId, booking?.status, hasDispute]);
@@ -207,11 +208,24 @@ function StatusContent() {
           ? { ...STATUS_COPY.requested, sub: scheduledLabel }
           : STATUS_COPY[booking.status];
   const isCompleted = booking?.status === "completed";
+  // Twee aparte venstertjes om "Probleem melden" te tonen — allebei ook
+  // hard afgedwongen in de disputes-insert-RLS-policy (0064), dit is
+  // puur UI-gating, niet de daadwerkelijke beveiliging:
+  // 1. Normaal: binnen 24u na completed (ongewijzigd).
+  // 2. Vastgelopen: nog steeds arrived/in_progress, en dat al 2+ uur
+  //    (updatedAt als peildatum — zie getStuckBookingsForAdmin()-comment
+  //    voor dezelfde aanname). Een barber die bv. z'n telefoon verliest
+  //    na "Ik ben er" liet een klant hiervoor nergens terecht kunnen
+  //    behalve via support — dit is de eerste klant-zichtbare uitweg.
+  const isStuck = booking?.status === "arrived" || booking?.status === "in_progress";
   const canDispute =
-    isCompleted &&
     !hasDispute &&
-    !!booking?.completedAt &&
-    Date.now() - new Date(booking.completedAt).getTime() < 24 * 60 * 60 * 1000;
+    ((isCompleted &&
+      !!booking?.completedAt &&
+      Date.now() - new Date(booking.completedAt).getTime() < 24 * 60 * 60 * 1000) ||
+      (isStuck &&
+        !!booking?.updatedAt &&
+        Date.now() - new Date(booking.updatedAt).getTime() >= 2 * 60 * 60 * 1000));
   // Live kaart heeft alleen zin zolang de barber onderweg is — daarvoor
   // (nog geen bevestiging, of een geplande afspraak die nog niet due is)
   // of daarna (al ter plaatse) voegt 'm niets toe.

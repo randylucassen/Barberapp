@@ -4,7 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Button, NavBar } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
-import { getDisputeForBooking, openDispute } from "@/lib/supabase/queries";
+import { getBooking, getDisputeForBooking, openDispute } from "@/lib/supabase/queries";
+import type { BookingStatus } from "@/lib/types";
 
 function DisputeContent() {
   const router = useRouter();
@@ -14,6 +15,7 @@ function DisputeContent() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [bookingStatus, setBookingStatus] = useState<BookingStatus | null>(null);
   // Alleen bereikbaar via /klant/status, die de knop al verbergt zodra er
   // een geschil bestaat — dit is puur een vangnet voor een oude link/
   // race, want disputes.booking_id is uniek (server zou dit sowieso
@@ -27,11 +29,20 @@ function DisputeContent() {
       return;
     }
     const supabase = createClient();
-    getDisputeForBooking(supabase, bookingId).then((d) => {
-      setAlreadyDisputed(!!d);
-      setChecking(false);
-    });
+    Promise.all([getDisputeForBooking(supabase, bookingId), getBooking(supabase, bookingId)]).then(
+      ([dispute, booking]) => {
+        setAlreadyDisputed(!!dispute);
+        setBookingStatus(booking?.status ?? null);
+        setChecking(false);
+      }
+    );
   }, [bookingId]);
+
+  // Twee aanleidingen voor deze pagina (zie klant/status/page.tsx se
+  // canDispute) — de uitlegbanner hieronder moet bij allebei kloppen,
+  // anders staat er "binnen 24u na afronding" op een boeking die nog
+  // niet eens is afgerond.
+  const isStuck = bookingStatus === "arrived" || bookingStatus === "in_progress";
 
   async function handleSubmit() {
     if (!bookingId || !reason.trim()) return;
@@ -47,7 +58,7 @@ function DisputeContent() {
     const ok = await openDispute(supabase, bookingId, data.user.id, reason.trim());
     setSubmitting(false);
     if (!ok) {
-      setError("Melden is niet gelukt — mogelijk is het venster van 24 uur al verstreken, of er is al een melding voor deze boeking.");
+      setError("Melden is niet gelukt — mogelijk kan dit nu niet meer voor deze boeking, of er is al een melding voor deze boeking.");
       return;
     }
     setDone(true);
@@ -86,8 +97,9 @@ function DisputeContent() {
         <div className="bg-error-soft rounded-md px-4 py-3.5 flex gap-3 items-start">
           <span className="text-error-text flex-shrink-0 mt-px"><AlertTriangle size={18} /></span>
           <div className="text-[13px] text-error-text leading-[19px]">
-            Dit blokkeert de uitbetaling aan je barber totdat het is opgelost. Kan alleen binnen 24 uur
-            na afronding van de knipbeurt.
+            {isStuck
+              ? "Dit blokkeert de uitbetaling aan je barber totdat het is opgelost. Je kunt dit melden omdat je barber al meer dan 2 uur niet heeft aangegeven dat de dienst is afgerond."
+              : "Dit blokkeert de uitbetaling aan je barber totdat het is opgelost. Kan alleen binnen 24 uur na afronding van de knipbeurt."}
           </div>
         </div>
         <div className="mt-4">
