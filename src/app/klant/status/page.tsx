@@ -11,6 +11,7 @@ import {
   getBookingBarberPhone,
   getDisputeForBooking,
   getReviewForBooking,
+  notifyPriceAccepted,
 } from "@/lib/supabase/queries";
 import { isRideDue } from "@/lib/booking-timing";
 import type { BookingRecord, BookingStatus } from "@/lib/types";
@@ -121,6 +122,9 @@ function StatusContent() {
   // niet-bevestigde prijs.
   function handleConfirmPrice() {
     if (!bookingId) return;
+    // Fire-and-forget: een mislukte melding mag het doorsturen naar het
+    // betaalscherm nooit blokkeren (zie notifyPriceAccepted()-comment).
+    notifyPriceAccepted(createClient(), bookingId);
     router.push(`/klant/betaling?bookingId=${bookingId}`);
   }
 

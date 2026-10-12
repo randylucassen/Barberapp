@@ -4218,3 +4218,34 @@ kale update, de RPC leunt op `auth.uid()`) — aanroepplek
 Nog niet live geverifieerd (migratie nog niet gepusht op het moment
 van schrijven) — wel zorgvuldig nagelezen tegen de bestaande RLS/
 kolom-grant (0001/0051).
+
+## Bug: "rond de betaling af"-melding kwam pas ná de betaling
+
+Door de gebruiker gemeld. Oorzaak: `notify_customer_on_status_change()`
+stuurde "Aanvraag bevestigd — rond de betaling af" op de
+`price_pending -> accepted`-overgang — maar sinds migratie 0057 kan die
+overgang alleen nog plaatsvinden NÁ een geslaagde betaling (database-
+guard). De instructie "rond de betaling af" kwam dus pas binnen op het
+moment dat er allang betaald was, naast (en zinloos t.o.v.) de
+sowieso al bestaande "Betaling ontvangen"-melding
+(`notify_on_payment_received`, 0013).
+
+**Fix** ([0062_notify_price_accepted_before_payment.sql](supabase/migrations/0062_notify_price_accepted_before_payment.sql)):
+- Nieuwe RPC `notify_price_accepted(p_booking_id)` — rechtstreeks
+  aangeroepen vanuit `handleConfirmPrice()` (webapp `klant/status/
+  page.tsx`, native `klant/booking/[id].tsx`) zodra de klant op
+  "Akkoord, ga naar betalen" tikt, vóór het navigeren naar het
+  betaalscherm — dus ruim vóórdat er betaald is. Fire-and-forget (geen
+  `await` op de navigatie), gated op `auth.uid() = customer_id and
+  status = 'price_pending'`.
+- De oude `price_pending -> accepted`-tak in
+  `notify_customer_on_status_change()` is verwijderd — die overgang
+  betekent nu altijd "betaling net gelukt", en valt voortaan door naar
+  de generieke `accepted`-tak ("Je barber heeft je aanvraag
+  geaccepteerd"), wat naast "Betaling ontvangen" prima samenhangt i.p.v.
+  een tegenstrijdige "rond de betaling af nog af te ronden" te sturen.
+
+Nieuwe query-wrapper `notifyPriceAccepted()` in `queries.ts` (webapp);
+native roept de RPC rechtstreeks aan (geen gedeelde queries.ts daar).
+`npx tsc --noEmit`/lint schoon op beide repo's. Nog niet live
+geverifieerd op het moment van schrijven (migratie nog niet gepusht).

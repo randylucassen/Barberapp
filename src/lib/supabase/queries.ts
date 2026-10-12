@@ -1002,6 +1002,16 @@ export async function declinePriceAndReopen(supabase: SupabaseClient, bookingId:
   return !error;
 }
 
+// Stuurt de "rond de betaling af"-melding op het juiste moment — zodra
+// de klant op "Akkoord, ga naar betalen" tikt, niet pas na een
+// geslaagde betaling (die statusovergang gebeurt pas later, bewust
+// sinds de premature-acceptatie-fix, zie migratie 0062). Fire-and-
+// forget vanuit handleConfirmPrice() — een mislukte melding mag het
+// navigeren naar het betaalscherm nooit blokkeren.
+export async function notifyPriceAccepted(supabase: SupabaseClient, bookingId: string): Promise<void> {
+  await supabase.rpc("notify_price_accepted", { p_booking_id: bookingId });
+}
+
 // Barber claimt een open_request-aanvraag (0042) tegen zijn eigen
 // prijzen — zet status naar price_pending, niet accepted. Zie
 // claim_open_broadcast_request() in de migratie.
