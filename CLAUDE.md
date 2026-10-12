@@ -4329,3 +4329,33 @@ onjuist zou staan.
 
 `npx tsc --noEmit`/lint schoon op beide repo's. Nog niet live
 geverifieerd (migratie nog niet gepusht op het moment van schrijven).
+
+## "Regels en richtlijnen" — reglement in instellingen (klant + barber)
+
+Op verzoek: alle regels die dit project gaandeweg kreeg (annulerings-
+kosten, no-show-vensters, geschillenvensters, servicekosten,
+uitbetaling — zie de secties hierboven) samengevat in één nieuw
+schermpje, bereikbaar via "Regels en richtlijnen" in Instellingen.
+**Beide partijen altijd zichtbaar voor beide rollen** (expliciet
+gevraagd — geen rol-gating): dezelfde inhoud of je 'm nu vanuit de
+klant- of de barber-app opent.
+
+- [`src/components/shared/ReglementContent.tsx`](src/components/shared/ReglementContent.tsx)
+  (nieuw) — de daadwerkelijke inhoud (`KLANT_SECTIONS`/`BARBER_SECTIONS`-
+  data + rendering), ÉÉN keer geschreven, gebruikt door beide pagina's
+  hieronder. Hou de cijfers hier in sync met de code als die ooit
+  wijzigen (50%/1u annuleringskosten uit `booking-timing.ts`, 60/20 min
+  no-show uit migraties 0035/0063, 15%/€25 uit `pricing.ts`/0041, 24u
+  geschillen-/uitbetalingsvenster uit 0009).
+- [`src/app/klant/reglement/page.tsx`](src/app/klant/reglement/page.tsx) en
+  [`src/app/barber/reglement/page.tsx`](src/app/barber/reglement/page.tsx)
+  (beide nieuw) — dunne wrappers, alleen `NavBar` + terugknop naar de
+  eigen instellingen-/profielpagina, renderen verder hetzelfde
+  `ReglementContent`.
+- Nieuwe rij in beide instellingenschermen (`klant/instellingen/page.tsx`
+  bij "Overig", `barber/profiel/page.tsx` kreeg daar een nieuwe
+  "Overig"-sectie bij, bestond nog niet).
+
+Live geverifieerd via de echte webapp-UI (lokale dev-server, beide
+testaccounts): content klopt 1-op-1 met de mockup, beide secties
+("Voor klanten"/"Voor barbers") zichtbaar ongeacht welke appkant.

@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Calendar, Camera, CreditCard, FileText, HelpCircle, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
+import { Bell, BookOpenText, Calendar, Camera, ChevronRight, CreditCard, FileText, HelpCircle, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
@@ -266,6 +266,13 @@ export default function BarberProfilePage() {
         <SectionLabel>Meldingen</SectionLabel>
         <Row left={<span className="text-primary"><Bell size={20} /></span>} title="Pushmeldingen" right={<Switch checked={push} onChange={handleTogglePush} />} />
         <Row left={<span className="text-primary"><MessageCircle size={20} /></span>} title="E-mailupdates" right={<Switch checked={mail} onChange={handleToggleMail} />} />
+        <SectionLabel>Overig</SectionLabel>
+        <Row
+          left={<span className="text-primary"><BookOpenText size={20} /></span>}
+          title="Regels en richtlijnen"
+          right={<ChevronRight size={18} />}
+          onClick={() => router.push("/barber/reglement")}
+        />
         <div className="mt-6 mb-2">
           <Button full variant="secondary" onClick={() => setDlg(true)}>Uitloggen</Button>
         </div>

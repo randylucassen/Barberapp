@@ -1,5 +1,5 @@
 "use client";
-import { Bell, ChevronRight, CreditCard, MapPin, MessageCircle, Shield, User } from "lucide-react";
+import { Bell, BookOpenText, ChevronRight, CreditCard, MapPin, MessageCircle, Shield, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
@@ -118,6 +118,12 @@ export default function SettingsPage() {
         <Row left={<span className="text-primary"><MessageCircle size={20} /></span>} title="E-mailupdates" right={<Switch checked={mail} onChange={handleToggleMail} />} />
         <SectionLabel>Overig</SectionLabel>
         <Row left={<span className="text-primary"><Shield size={20} /></span>} title="Privacy en voorwaarden" right={null} />
+        <Row
+          left={<span className="text-primary"><BookOpenText size={20} /></span>}
+          title="Regels en richtlijnen"
+          right={<ChevronRight size={18} />}
+          onClick={() => router.push("/klant/reglement")}
+        />
         <div className="mt-6 mb-2">
           <Button full variant="secondary" onClick={() => setDlg(true)}>Uitloggen</Button>
         </div>

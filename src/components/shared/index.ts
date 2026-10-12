@@ -9,3 +9,4 @@ export * from "./PhoneShell";
 export * from "./NotificationsList";
 export * from "./NotificationBell";
 export * from "./LiveMap";
+export * from "./ReglementContent";
