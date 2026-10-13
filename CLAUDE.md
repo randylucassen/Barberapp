@@ -4359,3 +4359,40 @@ klant- of de barber-app opent.
 Live geverifieerd via de echte webapp-UI (lokale dev-server, beide
 testaccounts): content klopt 1-op-1 met de mockup, beide secties
 ("Voor klanten"/"Voor barbers") zichtbaar ongeacht welke appkant.
+
+## Profielfoto verwijderen (barber) — klant-kant bestaat nog niet
+
+Op verzoek: naast de bestaande avatar-**upload** nu ook een **verwijder**-
+knop op `barber/profiel/page.tsx`. Nieuwe `handleRemoveAvatar()` naast de
+bestaande `handleAvatarSelected()` — zet `avatar_url` gewoon op `null`
+(de UPDATE-grant op deze kolom bestond al sinds `0004`, geen nieuwe
+migratie nodig). UI: een tweede, rode "X"-badge rechtsboven op de avatar
+(naast de bestaande teal camera-badge rechtsonder), alleen zichtbaar
+zodra er al een `avatarUrl` is. **Storage-bestand zelf wordt niet
+opgeruimd** — er bestaat nog geen `deleteBarberFile()`-helper in
+`src/lib/supabase/storage.ts`, en de bestaande upload-flow overschreef
+een oude avatar ook al nooit expliciet (elke upload krijgt een eigen
+`avatar-${Date.now()}-...`-bestandsnaam) — zelfde, al langer bestaand
+gedrag, geen regressie.
+
+**Belangrijk, uitgezocht tijdens dit verzoek: klanten hebben helemaal
+geen avatar-functie.** `customer_profiles`/`profiles` heeft nooit een
+`avatar_url`-kolom gehad (alleen `barber_profiles` sinds `0004`), er is
+geen upload-UI op `klant/profiel/page.tsx` (`&lt;Avatar&gt;` daar krijgt
+nooit een `imageUrl` mee, toont dus altijd initialen), geen Storage-pad
+en geen kolom-grant. "Profielfoto verwijderen" voor klanten is dus pas
+zinvol ná een nieuwe, grotere feature (upload eerst bouwen: migratie +
+grant + Storage-pad + UI) — niet iets wat hier is meegenomen, aangezien
+alleen om verwijderen was gevraagd en er voor klanten niets is om te
+verwijderen.
+
+**Nog niet live getest via de browser-UI** — de lokale preview-tool gaf
+dezelfde bekende `EPERM: process.cwd`-fout als eerder in dit project
+(zie de aparte sectie daarover hierboven); een handmatig gestarte
+`npm run dev` op poort 3000 werkte wel, maar een geverifieerde sessie
+voor het testaccount vereist localhost in de Supabase Redirect
+URLs-allowlist (nu alleen `https://kpprtje.nl/**`, sinds de SMTP-opzet
+eerder vandaag) — niet zomaar aangepast zonder het eerst met de
+gebruiker af te stemmen. `npx tsc --noEmit`/`npm run lint` wel schoon.
+Zelfde wijziging ook native gebouwd, zie `KPPRTJE-app`'s eigen
+CLAUDE.md.

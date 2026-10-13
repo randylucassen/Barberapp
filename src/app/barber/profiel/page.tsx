@@ -1,5 +1,5 @@
 "use client";
-import { Bell, BookOpenText, Calendar, Camera, ChevronRight, CreditCard, FileText, HelpCircle, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon } from "lucide-react";
+import { Bell, BookOpenText, Calendar, Camera, ChevronRight, CreditCard, FileText, HelpCircle, MapPin, MessageCircle, Scissors, Star, Wallet as WalletIcon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Button, Dialog, NavBar, Switch } from "@/components/ui";
@@ -112,6 +112,22 @@ export default function BarberProfilePage() {
     }
   }
 
+  async function handleRemoveAvatar() {
+    if (!userId || avatarUploading) return;
+    setAvatarUploading(true);
+    setAvatarError(null);
+    const supabase = createClient();
+    try {
+      const { error } = await supabase.from("barber_profiles").update({ avatar_url: null }).eq("id", userId);
+      if (error) throw error;
+      setProfile((prev) => (prev ? { ...prev, avatarUrl: null } : prev));
+    } catch {
+      setAvatarError("Profielfoto verwijderen is niet gelukt. Probeer het opnieuw.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
   async function handleTogglePush(next: boolean) {
     if (!userId) return;
     setPush(next);
@@ -174,17 +190,30 @@ export default function BarberProfilePage() {
       <div className="px-5 pt-5 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex gap-3.5 items-center">
           <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarSelected} />
-          <button
-            type="button"
-            aria-label="Profielfoto wijzigen"
-            onClick={() => !avatarUploading && avatarInputRef.current?.click()}
-            className="relative flex-shrink-0"
-          >
-            <Avatar name={name} size={64} dark imageUrl={profile?.avatarUrl} />
-            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-accent text-white flex items-center justify-center border-2 border-white">
-              <Camera size={12} />
-            </span>
-          </button>
+          <div className="relative flex-shrink-0">
+            <button
+              type="button"
+              aria-label="Profielfoto wijzigen"
+              onClick={() => !avatarUploading && avatarInputRef.current?.click()}
+              className="relative block"
+            >
+              <Avatar name={name} size={64} dark imageUrl={profile?.avatarUrl} />
+              <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-accent text-white flex items-center justify-center border-2 border-white">
+                <Camera size={12} />
+              </span>
+            </button>
+            {profile?.avatarUrl && (
+              <button
+                type="button"
+                aria-label="Profielfoto verwijderen"
+                disabled={avatarUploading}
+                onClick={handleRemoveAvatar}
+                className="absolute -top-0.5 -right-0.5 w-6 h-6 rounded-full bg-error text-white flex items-center justify-center border-2 border-white"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
           <div>
             <div className="text-[20px] font-bold tracking-[-0.01em]">{name}</div>
             <div className="flex items-center gap-1 text-[13px] text-text-secondary mt-0.5">
