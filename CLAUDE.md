@@ -4396,3 +4396,51 @@ eerder vandaag) — niet zomaar aangepast zonder het eerst met de
 gebruiker af te stemmen. `npx tsc --noEmit`/`npm run lint` wel schoon.
 Zelfde wijziging ook native gebouwd, zie `KPPRTJE-app`'s eigen
 CLAUDE.md.
+
+## Teal "Wacht op barber"-badge op klant-home weer verwijderd
+
+Op verzoek — de losse teal badge binnen de "Lopende boeking"-kaart
+(alleen zichtbaar bij `status === 'requested'`, zie de eerdere "Teal
+badges"-sectie hierboven) is weer weggehaald uit `klant/home/page.tsx`.
+De generieke bannertekst (`ACTIVE_STATUS_LABEL[activeBooking.status]`)
+blijft gewoon staan. Ongebruikt geworden `Badge`-import opgeruimd. De
+bijbehorende "Wachten op klant"-banner op het **barber**-dashboard is
+hier bewust niet aangeraakt — alleen de klant-kant was gevraagd. Zelfde
+fix ook native, zie `KPPRTJE-app`'s eigen CLAUDE.md. `npx tsc
+--noEmit`/`npm run lint` schoon.
+
+## "Annuleer aanvraag" terug, maar alleen voor ASAP vóór een barber-reactie
+
+Bleek na onderzoek een echt gat: de "Annuleer aanvraag"-knop was eerder
+deze sessie (`39bc369`) volledig van `klant/status/page.tsx` verwijderd
+("kan via home dashboard") — maar niets anders routeerde ooit naar
+`/klant/annuleren`, die pagina werd daardoor volledig onbereikbaar. Een
+klant kon dus sinds die wijziging helemaal niet meer annuleren, in geen
+enkele status.
+
+Op expliciet verzoek nu specifiek teruggezet voor **alleen** `status ===
+'requested' && requestedAsap` — een "snelste beschikbare barber"-aanvraag
+die nog door niemand is geclaimd. Bewust smaller dan de oude
+`canCancel` (die ook `price_pending`/`accepted`/`en_route` omvatte) —
+niet opnieuw breed teruggezet, alleen dit specifieke gat gedicht.
+`/klant/annuleren/page.tsx` en `/api/stripe/cancel-and-refund` bleken
+dit geval al correct af te handelen zonder wijziging nodig: een
+ongeclaimde open-aanvraag heeft nog nooit een `payments`-rij
+(`price_cents_snapshot` is nog `null`), dus de refund-tak slaat
+vanzelf over (`.maybeSingle()` → `null`) en het wordt gewoon een kale,
+kosteloze annulering.
+
+**Live geverifieerd** (niet alleen gelezen): een echte open-aanvraag
+(`open_request=true, barber_id=null, status='requested'`) aangemaakt
+voor de testklant via de service role. Kon de browser-UI-klik niet
+afmaken (geen geldige lokale sessie te krijgen op `localhost:3000` —
+Supabase's Redirect-URL-allowlist staat sinds de SMTP-opzet eerder
+vandaag alleen nog op `https://kpprtje.nl/**`, een magic-link-token
+rechtstreeks ophalen via curl gaf wel de juiste tokens terug maar die
+in een `@supabase/ssr`-cookiesessie krijgen zonder de UI zelf is niet
+triviaal) — wel hard bevestigd dat de backend-kant (route +
+`check_booking_status_transition()` + de ontbrekende-payment-aftakking)
+precies doet wat verwacht, via codelezing — dezelfde route is eerder
+dit project al wel live bewezen voor andere statussen. Testboeking
+nadien opgeruimd.
+`npx tsc --noEmit`/`npm run lint` schoon.

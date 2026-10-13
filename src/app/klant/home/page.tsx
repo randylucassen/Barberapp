@@ -2,7 +2,7 @@
 import { MapPin, ChevronRight, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, Tag } from "@/components/ui";
+import { Button, Card, Tag } from "@/components/ui";
 import { AddressAutocomplete, Avatar, NotificationBell, Row } from "@/components/shared";
 import { OnboardingTutorial, type TutorialStep } from "@/components/tutorial/OnboardingTutorial";
 import { createClient } from "@/lib/supabase/client";
@@ -283,14 +283,6 @@ export default function HomePage() {
               <div>
                 <div className="text-[13px] text-white/60">Lopende boeking</div>
                 <div className="text-[15px] font-semibold mt-0.5">{ACTIVE_STATUS_LABEL[activeBooking.status]}</div>
-                {/* Los van de bannertekst hierboven (die blijft generiek
-                    voor elke status) — een losse, teal badge specifiek
-                    voor "wachten op barber", op verzoek van de gebruiker. */}
-                {activeBooking.status === "requested" && (
-                  <div className="mt-1.5">
-                    <Badge variant="accent">Wacht op barber</Badge>
-                  </div>
-                )}
               </div>
               <span className="text-accent">
                 <ChevronRight size={22} />

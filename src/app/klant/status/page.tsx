@@ -291,6 +291,11 @@ function StatusContent() {
           </div>
         </div>
         <div className="mt-9 mb-2 flex flex-col gap-2">
+          {booking?.status === "requested" && booking.requestedAsap && (
+            <Button full size="md" variant="secondary" onClick={() => router.push(`/klant/annuleren?bookingId=${bookingId}`)}>
+              Annuleer aanvraag
+            </Button>
+          )}
           {paymentPending && (
             <Button full size="md" variant="accent" onClick={() => router.push(`/klant/betaling?bookingId=${bookingId}`)}>
               Betaal nu
