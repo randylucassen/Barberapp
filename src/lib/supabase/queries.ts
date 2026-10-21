@@ -282,15 +282,6 @@ export async function removeFavoriteBarber(supabase: SupabaseClient, customerId:
 // "Boek vooruit" een specifieke barber mag tonen (zie
 // create_booking_with_services()' server-side spiegelbeeld van deze check
 // in 0029, die dit ook echt afdwingt, niet alleen hier filtert).
-export async function getCompletedBarberIdsForCustomer(supabase: SupabaseClient, customerId: string): Promise<Set<string>> {
-  const { data } = await supabase
-    .from("bookings")
-    .select("barber_id")
-    .eq("customer_id", customerId)
-    .eq("status", "completed");
-  return new Set((data ?? []).map((r) => r.barber_id as string).filter((id): id is string => id !== null));
-}
-
 // ============================================================
 // Boekingen (Fase 4)
 // ============================================================

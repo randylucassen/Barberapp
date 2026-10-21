@@ -10,6 +10,7 @@ import {
   getBooking,
   getBookingBarberPhone,
   getDisputeForBooking,
+  getPayment,
   getReviewForBooking,
   notifyPriceAccepted,
 } from "@/lib/supabase/queries";
@@ -48,6 +49,7 @@ function StatusContent() {
   const [barberPhone, setBarberPhone] = useState<string | null>(null);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
   const [hasDispute, setHasDispute] = useState(false);
+  const [hasPayment, setHasPayment] = useState(false);
   const [decliningPrice, setDecliningPrice] = useState(false);
   const [declineDlg, setDeclineDlg] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -62,6 +64,12 @@ function StatusContent() {
       try {
         const b = await getBooking(supabase, bookingId!);
         setBooking(b);
+        // Nodig om een onbetaalde DIRECTE aanvraag te kunnen
+        // onderscheiden van een gewone "wachten op bevestiging"-boeking
+        // (zie unpaidDirect hieronder) — status zelf verandert niet
+        // zodra er betaald wordt (betaling gate't alleen barber-
+        // zichtbaarheid), dus dit moet los van `status` mee-pollen.
+        setHasPayment(!!(await getPayment(supabase, bookingId!)));
       } catch {
         // niets doen
       }
@@ -166,6 +174,16 @@ function StatusContent() {
   // kaart-weergave zin heeft.
   const paymentPending = booking?.status === "accepted" && !!booking.paymentDueAt;
   const priceConfirmPending = booking?.status === "price_pending";
+  // Een DIRECTE aanvraag (specifieke barber, prijs al bekend) wordt al
+  // aangemaakt vóórdat de klant het betaalscherm bereikt — als die klant
+  // daar vandaan navigeert zonder te betalen, bleef dit scherm voorheen
+  // "Aangevraagd" tonen alsof alles gewoon goed ging, terwijl de barber
+  // 'm nooit kan zien (RLS, booking_has_payment()). open_request-
+  // aanvragen (0042/0043) hebben legitiem nog geen betaling vóór een
+  // barber claimt — die blijven dus bewust buiten dit onderscheid (zie
+  // de reverted fix hierboven in CLAUDE.md die dat onderscheid miste).
+  const unpaidDirect =
+    booking?.status === "requested" && booking.requestedAsap && !booking.openRequest && !hasPayment;
   const minutesLeftToConfirm =
     priceConfirmPending && booking?.priceConfirmDueAt
       ? Math.max(0, Math.ceil((new Date(booking.priceConfirmDueAt).getTime() - Date.now()) / (60 * 1000)))
@@ -181,7 +199,14 @@ function StatusContent() {
       : null;
   const copy = !booking
     ? null
-    : paymentPending
+    : unpaidDirect
+      ? {
+          title: "Rond je betaling af",
+          sub: "Je aanvraag is nog niet verstuurd naar de barber",
+          badge: "Betaling vereist",
+          progress: 10,
+        }
+      : paymentPending
       ? {
           title: "Betaal je afspraak",
           sub:
@@ -296,7 +321,7 @@ function StatusContent() {
               Annuleer aanvraag
             </Button>
           )}
-          {paymentPending && (
+          {(paymentPending || unpaidDirect) && (
             <Button full size="md" variant="accent" onClick={() => router.push(`/klant/betaling?bookingId=${bookingId}`)}>
               Betaal nu
             </Button>

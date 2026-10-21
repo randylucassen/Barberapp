@@ -4444,3 +4444,55 @@ precies doet wat verwacht, via codelezing — dezelfde route is eerder
 dit project al wel live bewezen voor andere statussen. Testboeking
 nadien opgeruimd.
 `npx tsc --noEmit`/`npm run lint` schoon.
+
+## "Boek vooruit" open voor elke barber + onbetaalde-directe-aanvraag-bug (2026-10-20)
+
+Twee losse items uit een batch die primair de native app raakte (zie
+`KPPRTJE-app`'s eigen CLAUDE.md voor de volledige toelichting) — hier
+alleen het webapp-stuk.
+
+**1. "Boek vooruit"-gate (0029) losgelaten, op verzoek.** De regel die
+vereiste dat een klant al een afgeronde boeking met een barber had
+vóór hij die barber vooruit kon plannen is losgelaten. `klant/barbers/
+page.tsx`: `knownBarberIds`-state en de bijbehorende `useEffect`-call
+verwijderd, `scopedBarbers` vereenvoudigd van een 3-way-branch
+(favorieten/plan/other) naar alleen nog favorieten-filteren; de
+"plan"-specifieke lege-staat-tekst vervalt naar de generieke
+"Geen barbers gevonden." `src/lib/supabase/queries.ts`:
+`getCompletedBarberIdsForCustomer()` volledig verwijderd (werd nergens
+anders meer gebruikt). Nieuwe migratie
+[0065_remove_known_barber_gate.sql](supabase/migrations/0065_remove_known_barber_gate.sql)
+— volledige `create_booking_with_services()`-body opnieuw (regel 22),
+identiek aan 0040's versie met alleen het `v_has_history`-blok (en de
+nu ongebruikte variabele) verwijderd. **Nog niet gepusht door de
+gebruiker** — tot die migratie live staat, blijft de server de oude
+regel afdwingen (de UI laat de keuze nu wel toe, maar de RPC geeft dan
+nog de oude foutmelding terug; geen crash, geen stille regressie).
+
+**2. Bug: onbetaalde directe aanvraag oogde als "aangevraagd".** Een
+klant die het betaalscherm wegklikte na een directe boeking (specifieke
+barber, prijs al bekend) zonder te betalen, zag op `klant/status/
+page.tsx` gewoon de normale "Aangevraagd — wachten op bevestiging"-
+tekst — geen signaal dat er niets betaald was, terwijl de barber die
+boeking sowieso nooit kan zien (`booking_has_payment()`). Nieuwe
+`unpaidDirect`-afleiding: `status === 'requested' && requestedAsap &&
+!openRequest && !hasPayment` (nieuwe `hasPayment`-state, bijgehouden
+via het bestaande `getPayment()`-queryhelper in het poll-effect, los
+van `booking.status` omdat betalen die status zelf niet verandert).
+Toont "Rond je betaling af" + een "Betaal nu"-knop (hergebruikt de
+bestaande `paymentPending`-knop-tak). **Bewust `!openRequest` als
+voorwaarde** — een "Snelste beschikbare barber"-aanvraag (0042/0043)
+heeft legitiem nog geen betaling vóór een barber 'm claimt; zonder die
+uitsluiting zou dit exact de regressie herhalen die al eens is
+teruggedraaid (zie "Correctie: betaling hoeft NIET vooraf bij een
+open-aanvraag" hierboven in dit bestand). Zonder te betalen verloopt
+de aanvraag na 30 minuten gewoon via de bestaande
+`expire-stale-requests`-cron (ongewijzigd). Zelfde fix 1-op-1 ook
+native (`klant/booking/[id].tsx`).
+
+`npx tsc --noEmit`/`npm run lint` schoon. Niet opnieuw live
+doorgelopen via de browser-UI deze ronde (beide wijzigingen zijn
+mechanisch eenvoudig — een state-filter weghalen, een extra
+derivation-branch — en hergebruiken uitsluitend al-bestaande, al
+eerder bewezen bouwstenen: `getPayment()` en de volledige-body-diff-
+conventie voor migratie 0065).
