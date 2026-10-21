@@ -142,7 +142,7 @@ export default function RidePage() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 bg-[#F1F3F4] relative">
-        <NavBar transparent onBack={() => router.push("/barber/dashboard")} />
+        <NavBar transparent onBack={() => router.back()} />
         {showLiveMap ? (
           <LiveMap
             barberLat={myLat}
